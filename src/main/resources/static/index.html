@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Odyssey - Autonomous Travel Disruption Mitigation Engine</title>
+  <meta name="description" content="AI-assisted deterministic travel recovery and disruption mitigation engine.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Classical Greek Meander Border Header Strip -->
+  <div class="meander-strip" aria-hidden="true"></div>
+
+  <!-- 1. Header Section -->
+  <header class="app-header" role="banner">
+    <div class="header-container">
+      <div class="brand-group">
+        <h1 class="brand-title">Odyssey</h1>
+        <p class="brand-tagline">Ideas that echo through time &bull; Autonomous Travel Recovery</p>
+      </div>
+      <div class="header-actions">
+        <div class="status-indicator-group">
+          <span class="status-label">Active Trip:</span>
+          <span id="trip-status-badge" class="badge badge-neutral">NO TRIP LOADED</span>
+        </div>
+        <div class="btn-group">
+          <button id="btn-open-create-trip" class="btn btn-gold" aria-label="Create a new trip">
+            <span class="btn-text">+ New Trip</span>
+          </button>
+          <button id="btn-load-demo" class="btn btn-primary" aria-label="Load demo trip from clean state">
+            <span class="btn-text">Load demo trip</span>
+            <span class="spinner" aria-hidden="true"></span>
+          </button>
+          <button id="btn-reset" class="btn btn-outline" aria-label="Reset demo trip state">
+            <span class="btn-text">Reset Demo</span>
+            <span class="spinner" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div id="auth-header-container" class="auth-header-container">
+          <button id="btn-open-login" class="btn btn-outline btn-sm" aria-label="Sign in">
+            <span class="btn-text">Sign In</span>
+          </button>
+          <button id="btn-open-register" class="btn btn-gold btn-sm" aria-label="Register account">
+            <span class="btn-text">Register</span>
+          </button>
+          <button id="user-profile-pill" class="user-pill-btn hidden" aria-label="Account Settings">
+            <span class="user-icon">👤</span>
+            <span id="user-display-name">Account</span>
+          </button>
+        </div>
+      </div>
+      <!-- View Navigation Tabs -->
+      <nav class="app-nav" aria-label="Application navigation">
+        <button id="nav-btn-directory" class="nav-tab active" type="button">
+          My Trips (<span id="nav-trips-count">0</span>)
+        </button>
+        <button id="nav-btn-workspace" class="nav-tab" type="button">
+          Trip Workspace <span id="nav-current-trip-tag" class="mono-badge">TRIP-DEMO-001</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="meander-strip thin" aria-hidden="true"></div>
+
+  <main class="main-content" role="main">
+
+    <!-- ========================================== -->
+    <!-- VIEW A: TRIPS DIRECTORY                    -->
+    <!-- ========================================== -->
+    <section id="section-trips-directory" class="card directory-card" aria-labelledby="heading-trips-directory">
+      <div class="card-header">
+        <div>
+          <h2 id="heading-trips-directory" class="section-title">Travel Expeditions Directory</h2>
+          <p class="section-hint">Persistent MySQL trip workspace &bull; Create, manage, and recover trips independently</p>
+        </div>
+        <div class="btn-group">
+          <button id="btn-refresh-trips" class="btn btn-outline btn-sm" aria-label="Refresh trips list">
+            <span class="btn-text">Refresh List</span>
+          </button>
+          <button id="btn-dir-new-trip" class="btn btn-gold btn-sm" aria-label="Create new trip">
+            <span class="btn-text">+ New Trip</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="directory-summary-bar">
+        <span id="directory-trips-count" class="badge badge-info">0 trips</span>
+      </div>
+
+      <!-- Unauthenticated "Sign in to continue" panel -->
+      <div id="panel-auth-required" class="auth-required-panel hidden">
+        <div class="auth-required-card">
+          <div class="auth-required-icon">🔒</div>
+          <h3 class="auth-required-title">Sign in to Odyssey</h3>
+          <p class="auth-required-text">Please sign in or create an account to view and manage your travel itineraries, monitor disruptions, and rebook replacement legs.</p>
+          <div class="auth-required-actions">
+            <button id="btn-panel-login" class="btn btn-outline" type="button">
+              <span class="btn-text">Sign In</span>
+            </button>
+            <button id="btn-panel-register" class="btn btn-gold" type="button">
+              <span class="btn-text">Register Account</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="trips-directory-list" class="trips-directory-grid">
+        <p class="empty-state">Loading expeditions from database...</p>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- VIEW B: TRIP WORKSPACE                     -->
+    <!-- ========================================== -->
+    <div id="section-workspace" class="workspace-container hidden">
+
+      <!-- Workspace Top Bar -->
+      <div class="workspace-nav-bar">
+        <button id="btn-back-to-directory" class="btn btn-outline btn-sm" aria-label="Return to trips directory">
+          &larr; Back to Trips Directory
+        </button>
+        <span id="workspace-trip-indicator" class="workspace-indicator-text">Viewing: <strong>-</strong></span>
+      </div>
+
+      <!-- 2. Trip Summary Section -->
+      <section id="section-trip-summary" class="card trip-summary-card" aria-labelledby="heading-trip-summary">
+        <div class="card-header">
+          <h2 id="heading-trip-summary" class="section-title">Trip Overview</h2>
+          <div class="header-badges">
+            <span id="trip-id-display" class="mono-tag">No Trip Loaded</span>
+            <span id="trip-overview-status-badge" class="badge badge-neutral">UNLOADED</span>
+            <button type="button" id="btn-edit-trip" class="btn btn-outline btn-sm">Edit Trip</button>
+          </div>
+        </div>
+        <div class="trip-summary-content">
+          <div class="summary-field">
+            <span class="field-label">Title</span>
+            <span id="trip-title" class="field-value">No trip selected</span>
+          </div>
+          <div class="summary-field">
+            <span class="field-label">Traveller</span>
+            <span id="trip-traveller" class="field-value">-</span>
+          </div>
+          <div class="summary-field">
+            <span class="field-label">Budget Limit</span>
+            <span id="trip-budget" class="field-value">-</span>
+          </div>
+          <div class="summary-field">
+            <span class="field-label">Must Arrive By</span>
+            <span id="trip-deadline" class="field-value">-</span>
+          </div>
+          <div class="summary-field">
+            <span class="field-label">Overnight Policy</span>
+            <span id="trip-overnight" class="field-value">-</span>
+          </div>
+          <div class="summary-field">
+            <span class="field-label">Preferred Modes</span>
+            <span id="trip-modes" class="field-value">-</span>
+          </div>
+          <div class="summary-field">
+            <span class="field-label">Destination Cab</span>
+            <span id="trip-cab-status" class="field-value">-</span>
+          </div>
+          <div class="summary-field">
+            <span class="field-label">Stay / Hotel</span>
+            <span id="trip-hotel-status" class="field-value">-</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Auto Disruption Alert Banner -->
+      <div id="auto-disruption-banner" class="banner banner-danger banner-auto-disrupt hidden" role="alert">
+        <span class="banner-icon">&excl;</span>
+        <div class="banner-content">
+          <strong id="auto-disruption-title">Disruption Detected Automatically</strong>
+          <p id="auto-disruption-message" class="banner-text">-</p>
+        </div>
+        <button type="button" id="btn-goto-recovery" class="btn btn-gold btn-sm">
+          <span>View Recovery Options &darr;</span>
+        </button>
+      </div>
+
+      <!-- Live Status & Monitoring Section -->
+      <section id="section-live-status" class="card status-monitoring-card" aria-labelledby="heading-status-monitoring">
+        <div class="card-header">
+          <div class="header-left">
+            <h2 id="heading-status-monitoring" class="section-title">Transit Status & Monitoring</h2>
+            <span id="status-mode-badge" class="badge badge-purple">Simulated</span>
+            <span id="status-disclaimer-tag" class="status-disclaimer-tag">Simulated data, not a real tracking source</span>
+          </div>
+          <div class="header-actions">
+            <span id="last-checked-label" class="status-checked-time">Last checked at: Never</span>
+            <button type="button" id="btn-check-status-now" class="btn btn-outline-cyan btn-sm" aria-label="Check transit status now">
+              <span class="btn-text">Check status now</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+        <div id="status-window-note" class="status-note-banner hidden"></div>
+
+        <!-- Simulation Control (Visible only when status mode is SIMULATED) -->
+        <div id="simulate-control-container" class="simulation-drawer hidden">
+          <div class="simulation-header">
+            <span class="simulation-tag">SIMULATION CONTROL</span>
+            <span class="text-muted text-sm">Test automatic detection by overriding booking status (Simulated mode only)</span>
+          </div>
+          <div class="simulation-form-grid">
+            <div class="form-group">
+              <label for="select-simulate-booking">Select Booking</label>
+              <select id="select-simulate-booking" class="form-control" aria-label="Select booking to simulate">
+                <option value="">-- Select a booking --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="select-simulate-state">Status State</label>
+              <select id="select-simulate-state" class="form-control" aria-label="Select status state to simulate">
+                <option value="DELAYED">Delayed</option>
+                <option value="CANCELLED">Cancelled</option>
+                <option value="ON_TIME">On Time</option>
+                <option value="UNKNOWN">Status Unavailable (Unknown)</option>
+              </select>
+            </div>
+            <div id="group-simulate-delay" class="form-group">
+              <label for="input-simulate-delay">Delay Minutes</label>
+              <input type="number" id="input-simulate-delay" class="form-control" min="0" step="5" value="90" placeholder="e.g. 90">
+            </div>
+            <div class="form-actions-inline">
+              <button type="button" id="btn-apply-simulation" class="btn btn-primary btn-sm">
+                <span class="btn-text">Apply Simulation</span>
+                <span class="spinner" aria-hidden="true"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Vertical Timeline Section -->
+      <section id="section-timeline" class="card" aria-labelledby="heading-timeline">
+        <div class="card-header">
+          <div class="header-left">
+            <h2 id="heading-timeline" class="section-title">Itinerary Timeline</h2>
+            <span id="booking-count" class="badge badge-info">0 bookings</span>
+          </div>
+          <button id="btn-add-booking" class="btn btn-gold btn-sm" aria-label="Add a booking to this trip">
+            <span class="btn-text">+ Add Booking</span>
+          </button>
+        </div>
+        <div id="timeline-container" class="timeline-container">
+          <p class="empty-state">No itinerary bookings loaded yet.</p>
+        </div>
+      </section>
+
+      <!-- 4. Disruption Injection & Impact Cascade Section -->
+      <section id="section-disruption" class="card" aria-labelledby="heading-disruption">
+        <div class="card-header">
+          <h2 id="heading-disruption" class="section-title">Disruption Simulation Panel</h2>
+        </div>
+        <div class="disruption-form-grid">
+          <div class="form-group">
+            <label for="select-disruption-booking">Disrupted Booking</label>
+            <select id="select-disruption-booking" class="form-control" aria-label="Select booking to disrupt">
+              <option value="">-- Select a booking --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="select-disruption-type">Disruption Type</label>
+            <select id="select-disruption-type" class="form-control" aria-label="Select disruption type">
+              <option value="CANCELLATION">Cancellation (Service Terminated)</option>
+              <option value="FLIGHT_DELAY">Delay (Departure Postponed)</option>
+              <option value="HOTEL_OVERBOOKED">Overbooked (Facility Unavailable)</option>
+            </select>
+          </div>
+          <div id="group-delay-minutes" class="form-group hidden">
+            <label for="input-delay-minutes">Delay Duration (Minutes)</label>
+            <input type="number" id="input-delay-minutes" class="form-control" min="15" step="15" value="120" placeholder="e.g. 120">
+          </div>
+          <div class="form-group full-width">
+            <label for="input-disruption-reason">Disruption Reason</label>
+            <input type="text" id="input-disruption-reason" class="form-control" value="Transit leg cancelled due to operational disruption" placeholder="Enter reason for disruption">
+          </div>
+          <div class="form-actions full-width">
+            <button id="btn-inject-disruption" class="btn btn-danger" aria-label="Inject disruption into trip">
+              <span class="btn-text">Inject Disruption</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Disruption Output: Phone SMS Alert & BFS Cascade Impact Container -->
+        <div id="disruption-output-container" class="disruption-output hidden">
+          <div class="output-two-column">
+            <!-- Mobile SMS Alert Card -->
+            <div class="phone-mockup" aria-label="Simulated mobile phone dispatch alert">
+              <div class="phone-speaker" aria-hidden="true"></div>
+              <div class="phone-screen">
+                <div class="sms-header">
+                  <span class="sms-channel">WhatsApp / SMS Alert</span>
+                  <span id="sms-recipient" class="sms-recipient">+91-9876543210</span>
+                </div>
+                <div id="sms-message-box" class="sms-bubble"></div>
+              </div>
+            </div>
+
+            <!-- BFS Dependency Cascade Impact Card -->
+            <div class="impact-cascade-container">
+              <h3 class="subsection-title">Downstream Dependency Impact Analysis</h3>
+              <div id="impact-summary-box" class="impact-summary-callout"></div>
+              <div id="cascade-list" class="cascade-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Recovery Options Section -->
+      <section id="section-recovery" class="card" aria-labelledby="heading-recovery">
+        <div class="card-header">
+          <h2 id="heading-recovery" class="section-title">Recovery Options</h2>
+          <button id="btn-find-recovery" class="btn btn-primary" disabled title="Trip must be DISRUPTED to generate recovery options" aria-label="Find recovery options">
+            <span class="btn-text">Find Recovery Options</span>
+            <span class="spinner" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <div id="no-perfect-banner" class="banner banner-warning hidden" role="alert">
+          <span class="banner-icon">!</span>
+          <div class="banner-content">
+            <span id="no-perfect-text">No perfect recovery option available. Trade-offs required.</span>
+            <div id="relaxation-status-badge" class="relaxation-badge hidden"></div>
+          </div>
+        </div>
+
+        <!-- Relax a constraint action bar -->
+        <div id="relax-constraints-bar" class="relax-constraints-container hidden">
+          <span class="relax-label">Relax a constraint for this search:</span>
+          <div class="relax-buttons-group">
+            <button type="button" id="btn-relax-overnight" class="btn btn-outline-warning btn-sm" data-action="overnight">
+              <span>Allow overnight travel</span>
+            </button>
+            <button type="button" id="btn-relax-deadline" class="btn btn-outline-warning btn-sm" data-action="deadline">
+              <span>Extend deadline by 3 hours</span>
+            </button>
+            <button type="button" id="btn-relax-budget" class="btn btn-outline-warning btn-sm" data-action="budget">
+              <span>Raise budget by 25%</span>
+            </button>
+            <button type="button" id="btn-relax-reset" class="btn btn-outline-secondary btn-sm hidden" data-action="reset">
+              <span>Reset constraints</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="options-cards-container" class="options-grid">
+          <p class="empty-state">No recovery options generated yet. Inject a disruption and click "Find Recovery Options".</p>
+        </div>
+
+        <!-- Collapsible Rejected Options List -->
+        <div id="rejected-options-wrapper" class="rejected-options-section hidden">
+          <button id="btn-toggle-rejected" class="btn-accordion" aria-expanded="false" aria-controls="rejected-options-content">
+            <span>View Filtered Out / Rejected Options (<span id="rejected-count">0 options</span>)</span>
+            <span class="accordion-arrow" aria-hidden="true">&#9662;</span>
+          </button>
+          <div id="rejected-options-content" class="accordion-content hidden">
+            <div id="rejected-options-list" class="rejected-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. Recovery Plan & Trade-Off Analysis Section -->
+      <section id="section-plan" class="card hidden" aria-labelledby="heading-plan">
+        <div class="card-header">
+          <div class="plan-header-info">
+            <h2 id="heading-plan" class="section-title">Composed Recovery Plan</h2>
+            <span id="selected-option-banner" class="badge badge-purple">Proposed, not booked yet</span>
+          </div>
+        </div>
+
+        <!-- Trade-off Explanation Card -->
+        <div class="plan-subsection">
+          <h3 class="subsection-title">Trade-Off Analysis & Rationale</h3>
+          <div id="tradeoff-box" class="callout-box"></div>
+        </div>
+
+        <!-- Before / After Itinerary Diff Table -->
+        <div class="plan-subsection">
+          <h3 class="subsection-title">Itinerary Diff (Before vs. After)</h3>
+          <div class="table-responsive">
+            <table class="data-table" aria-label="Itinerary diff comparison table">
+              <thead>
+                <tr>
+                  <th scope="col">Booking / Service</th>
+                  <th scope="col">Original Start</th>
+                  <th scope="col">Original Status</th>
+                  <th scope="col">Revised Start</th>
+                  <th scope="col">Revised Status</th>
+                  <th scope="col">Change Description</th>
+                </tr>
+              </thead>
+              <tbody id="diff-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Net Cost Breakdown -->
+        <div class="plan-subsection">
+          <h3 class="subsection-title">Net Financial Breakdown</h3>
+          <div class="cost-breakdown-card">
+            <div id="cost-lines-container" class="cost-lines-list"></div>
+            <div class="cost-summary-bar">
+              <div class="cost-total-item">
+                <span class="cost-total-label">Net Trip Cost:</span>
+                <span id="cost-net-total" class="cost-total-value">Rs 0.00</span>
+              </div>
+              <div class="cost-total-item">
+                <span class="cost-total-label">Budget Limit:</span>
+                <span id="cost-max-budget" class="cost-total-value">Rs 0.00</span>
+              </div>
+              <div class="cost-total-item highlight">
+                <span class="cost-total-label">Remaining Budget:</span>
+                <span id="cost-remaining-budget" class="cost-total-value">Rs 0.00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Checklist with Working Local Checkboxes -->
+        <div class="plan-subsection">
+          <h3 class="subsection-title">Execution Checklist</h3>
+          <p class="section-hint">Review each step required to execute this recovery route:</p>
+          <ul id="checklist-container" class="action-checklist" aria-label="Execution action checklist"></ul>
+        </div>
+
+        <!-- Hotel Late Check-in Draft Message with Copy Button & Email Action -->
+        <div id="plan-hotel-message-section" class="plan-subsection">
+          <div class="subsection-header-flex">
+            <div>
+              <h3 class="subsection-title">Draft Hotel Message</h3>
+              <p id="hotel-message-recipient-info" class="section-hint" style="margin: 0;"></p>
+            </div>
+            <div class="btn-group">
+              <button id="btn-send-hotel-email" class="btn btn-primary btn-sm hidden" aria-label="Send hotel update by email">
+                <span class="btn-text">Send by email</span>
+                <span class="spinner" aria-hidden="true"></span>
+              </button>
+              <a id="link-mailto-hotel" class="btn btn-outline btn-sm hidden" target="_blank" rel="noopener noreferrer">
+                Open in Email
+              </a>
+              <button id="btn-copy-hotel-message" class="btn btn-secondary btn-sm" aria-label="Copy drafted hotel message to clipboard">
+                <span class="btn-text">Copy message</span>
+              </button>
+            </div>
+          </div>
+          <div class="hotel-message-wrapper">
+            <pre id="hotel-message-box" class="code-box"></pre>
+          </div>
+        </div>
+
+        <!-- 7. Approval Gate Controls -->
+        <div class="approval-action-bar">
+          <div class="approval-notice">
+            <span class="notice-title">Human-in-the-Loop Approval Gate:</span>
+            <span class="notice-desc">Committing this plan will rebook transit, update statuses, and resolve the trip.</span>
+          </div>
+          <div class="btn-group">
+            <button id="btn-reject-plan" class="btn btn-outline-danger" aria-label="Reject proposed recovery plan">
+              <span class="btn-text">Reject</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+            <button id="btn-approve-plan" class="btn btn-success btn-lg" aria-label="Approve and commit recovery plan">
+              <span class="btn-text">Approve plan</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Resolved Confirmation Banner (shown when trip status is RESOLVED) -->
+      <section id="section-resolved-banner" class="banner banner-success hidden" role="region" aria-label="Trip resolved confirmation">
+        <div class="banner-content">
+          <h3 class="banner-title">Trip Disruption Resolved Successfully</h3>
+          <p id="resolved-banner-desc">The approved recovery plan has been committed to the itinerary. All replacement legs and cab transfers are confirmed, and the timeline reflects the updated bookings.</p>
+        </div>
+      </section>
+
+      <!-- 7.4. Booking Hand-Off Card (shown when trip status is RESOLVED or COMPLETED_BOOKINGS) -->
+      <section id="section-handoff-card" class="card hidden" aria-labelledby="heading-handoff">
+        <div class="card-header">
+          <div>
+            <h2 id="heading-handoff" class="section-title">Complete Your Bookings</h2>
+            <p class="section-hint">Replacement legs confirmed in recovery plan &bull; Book via official providers and confirm your PNR / ticket reference</p>
+          </div>
+          <span id="handoff-status-badge" class="badge badge-amber">PENDING CONFIRMATION</span>
+        </div>
+
+        <div id="handoff-completed-banner" class="banner banner-success hidden" style="margin-bottom: 1.25rem;">
+          <div class="banner-content">
+            <h3 class="banner-title">🎉 All replacement bookings confirmed. Safe travels!</h3>
+            <p>Every replacement leg has been booked and confirmed with provider references.</p>
+          </div>
+        </div>
+
+        <div id="handoff-legs-list" class="handoff-legs-container">
+          <!-- Dynamically populated hand-off legs -->
+        </div>
+      </section>
+
+
+      <!-- 7.5. Notifications Dispatch & History Section -->
+      <section id="section-notifications" class="card" aria-labelledby="heading-notifications">
+        <div class="card-header">
+          <div>
+            <h2 id="heading-notifications" class="section-title">Expedition Dispatch &amp; Notifications</h2>
+            <p class="section-hint">Multi-channel alerting &bull; Real SMTP, Twilio SMS/WhatsApp &amp; Simulated fallback</p>
+          </div>
+          <div class="btn-group">
+            <button id="btn-refresh-notifications" class="btn btn-outline btn-sm" aria-label="Refresh notification history">
+              <span class="btn-text">Refresh History</span>
+            </button>
+            <button id="btn-send-test-alert" class="btn btn-gold btn-sm" aria-label="Send test alert across enabled channels">
+              <span class="btn-text">Send test alert</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Channel Status Badges -->
+        <div class="notification-channels-bar">
+          <div class="channel-status-pill">
+            <span class="channel-name">Email:</span>
+            <span id="badge-channel-email" class="badge badge-neutral">Checking...</span>
+          </div>
+          <div class="channel-status-pill">
+            <span class="channel-name">SMS:</span>
+            <span id="badge-channel-sms" class="badge badge-neutral">Checking...</span>
+          </div>
+          <div class="channel-status-pill">
+            <span class="channel-name">WhatsApp:</span>
+            <span id="badge-channel-whatsapp" class="badge badge-neutral">Checking...</span>
+          </div>
+          <div class="simulation-disclaimer">
+            <span class="badge badge-warning">Simulated, not sent to a real device</span>
+          </div>
+        </div>
+
+        <!-- Alert History Table -->
+        <div class="table-responsive">
+          <table class="data-table" aria-label="Notification alert history table">
+            <thead>
+              <tr>
+                <th scope="col" style="width: 160px;">Time</th>
+                <th scope="col" style="width: 140px;">Event</th>
+                <th scope="col" style="width: 90px;">Channel</th>
+                <th scope="col" style="width: 160px;">Recipient (Masked)</th>
+                <th scope="col" style="width: 110px;">Status</th>
+                <th scope="col">Subject &amp; Details</th>
+              </tr>
+            </thead>
+            <tbody id="notifications-table-body">
+              <tr>
+                <td colspan="6" class="empty-state">No alerts dispatched yet for this trip.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 8. Real-time Audit Log Section -->
+      <section id="section-audit" class="card" aria-labelledby="heading-audit">
+        <div class="card-header">
+          <h2 id="heading-audit" class="section-title">Audit Trail</h2>
+          <span id="audit-count" class="badge badge-neutral">0 entries</span>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table audit-table" aria-label="Audit log trail table">
+            <thead>
+              <tr>
+                <th scope="col" style="width: 170px;">Logged at</th>
+                <th scope="col" style="width: 100px;">Actor</th>
+                <th scope="col" style="width: 230px;">Action</th>
+                <th scope="col">Details</th>
+              </tr>
+            </thead>
+            <tbody id="audit-table-body">
+              <tr>
+                <td colspan="4" class="empty-state">No audit records logged yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div> <!-- /workspace-container -->
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- MODAL: CREATE NEW TRIP                     -->
+  <!-- ========================================== -->
+  <div id="modal-create-trip" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-create-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="modal-create-title" class="modal-title">Chart a New Expedition</h2>
+        <button id="btn-close-create-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-create-trip" novalidate>
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="create-trip-title">Trip Title <span class="required">*</span></label>
+              <input type="text" id="create-trip-title" class="form-control" placeholder="e.g. Hubballi to Goa Vacation" required>
+              <span id="err-create-title" class="field-error"></span>
+            </div>
+            <div class="form-group flex-1">
+              <label for="create-trip-traveller">Traveller Name</label>
+              <input type="text" id="create-trip-traveller" class="form-control" placeholder="e.g. Ramesh Hegde">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="create-trip-phone">Phone Number (10 digits) <span class="required">*</span></label>
+              <input type="tel" id="create-trip-phone" class="form-control" placeholder="10-digit number e.g. 9876543210" required>
+              <span id="err-create-phone" class="field-error"></span>
+            </div>
+            <div class="form-group flex-1">
+              <label for="create-trip-email">Traveller Email (Optional)</label>
+              <input type="email" id="create-trip-email" class="form-control" placeholder="traveller@example.com">
+              <span id="err-create-email" class="field-error"></span>
+            </div>
+          </div>
+
+          <!-- Notification Preferences -->
+          <div class="notification-prefs-group">
+            <span class="prefs-title">Notification Channels:</span>
+            <div class="prefs-checkbox-row">
+              <label>
+                <input type="checkbox" id="create-trip-notify-email" checked>
+                <span>Email</span>
+              </label>
+              <label>
+                <input type="checkbox" id="create-trip-notify-sms" checked>
+                <span>SMS</span>
+              </label>
+              <label>
+                <input type="checkbox" id="create-trip-notify-whatsapp">
+                <span>WhatsApp</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="create-trip-budget">Max Budget (INR) <span class="required">*</span></label>
+              <input type="number" id="create-trip-budget" class="form-control" min="1000" step="500" value="15000" required>
+              <span id="err-create-budget" class="field-error"></span>
+            </div>
+            <div class="form-group flex-1">
+              <label for="create-trip-deadline">Must Arrive By <span class="required">*</span></label>
+              <input type="datetime-local" id="create-trip-deadline" class="form-control" value="2026-10-21T18:00" required>
+              <span id="err-create-deadline" class="field-error"></span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="create-trip-desc">Description / Notes</label>
+            <input type="text" id="create-trip-desc" class="form-control" placeholder="Brief journey notes">
+          </div>
+
+          <!-- Structured Hard Commitments with Add Button -->
+          <div class="form-group">
+            <div class="commitments-header-row">
+              <label class="commitments-section-label">Hard Commitments</label>
+              <button type="button" id="btn-add-commitment" class="btn btn-outline btn-sm">
+                + Add Commitment
+              </button>
+            </div>
+            <p class="form-help-text">Non-negotiable milestones during this trip (stored in hard_commitments table).</p>
+            <div id="create-commitments-container" class="commitments-table-wrapper">
+              <div id="create-commitments-empty" class="commitments-empty-hint">No hard commitments added yet. Click "+ Add Commitment" to add non-negotiable milestones.</div>
+              <div id="create-commitments-list" class="commitments-rows-list"></div>
+            </div>
+          </div>
+
+          <div class="form-group-checkbox">
+            <label>
+              <input type="checkbox" id="create-trip-avoid-overnight" checked>
+              <span>Avoid Overnight Travel (Enforce daytime only: 06:00 - 21:00)</span>
+            </label>
+          </div>
+
+          <!-- Destination Cab Option -->
+          <div class="service-option-card">
+            <div class="form-group-checkbox">
+              <label>
+                <input type="checkbox" id="create-trip-needs-cab">
+                <span>I need a cab at my destination</span>
+              </label>
+            </div>
+            <div id="create-cab-fields" class="service-nested-fields hidden">
+              <div class="form-row">
+                <div class="form-group flex-2">
+                  <label for="create-trip-cab-dropoff">Drop-off Location <span class="required">*</span></label>
+                  <input type="text" id="create-trip-cab-dropoff" class="form-control" placeholder="e.g. Calangute, Goa">
+                  <span id="err-create-cab-dropoff" class="field-error"></span>
+                </div>
+                <div class="form-group flex-1">
+                  <label for="create-trip-cab-provider">Cab Provider (Optional)</label>
+                  <input type="text" id="create-trip-cab-provider" class="form-control" placeholder="e.g. Goa Miles / Local Taxi">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hotel / Lodging Option -->
+          <div class="service-option-card">
+            <div class="form-group-checkbox">
+              <label>
+                <input type="checkbox" id="create-trip-needs-hotel">
+                <span>I have a hotel / stay</span>
+              </label>
+            </div>
+            <div id="create-hotel-fields" class="service-nested-fields hidden">
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label for="create-trip-hotel-name">Hotel Name <span class="required">*</span></label>
+                  <input type="text" id="create-trip-hotel-name" class="form-control" placeholder="e.g. Taj Holiday Village Resort">
+                  <span id="err-create-hotel-name" class="field-error"></span>
+                </div>
+                <div class="form-group flex-1">
+                  <label for="create-trip-hotel-address">Hotel Address <span class="required">*</span></label>
+                  <input type="text" id="create-trip-hotel-address" class="form-control" placeholder="e.g. Candolim Beach Road, Goa">
+                  <span id="err-create-hotel-address" class="field-error"></span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label for="create-trip-hotel-checkin">Check-in Time <span class="required">*</span></label>
+                  <input type="datetime-local" id="create-trip-hotel-checkin" class="form-control" value="2026-10-21T15:00">
+                  <span id="err-create-hotel-checkin" class="field-error"></span>
+                </div>
+                <div class="form-group flex-1">
+                  <label for="create-trip-hotel-checkout">Check-out Time <span class="required">*</span></label>
+                  <input type="datetime-local" id="create-trip-hotel-checkout" class="form-control" value="2026-10-22T11:00">
+                  <span id="err-create-hotel-checkout" class="field-error"></span>
+                </div>
+                <div class="form-group flex-1">
+                  <label for="create-trip-hotel-cost">Cost (INR) <span class="required">*</span></label>
+                  <input type="number" id="create-trip-hotel-cost" class="form-control" min="0" step="100" value="3500">
+                  <span id="err-create-hotel-cost" class="field-error"></span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label for="create-trip-hotel-email">Hotel Contact Email (Optional)</label>
+                  <input type="email" id="create-trip-hotel-email" class="form-control" placeholder="reservations@hotel.com">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Itinerary Section: Parser + Manual Booking Builder -->
+          <div class="itinerary-builder-section">
+            <div class="itinerary-panels-grid">
+              <!-- Panel 1: Smart Itinerary Parser -->
+              <div class="email-parser-panel">
+                <div class="parser-panel-header">
+                  <span class="parser-title">1. Paste Itinerary Text</span>
+                  <span class="badge badge-neutral">Smart Parser</span>
+                </div>
+                <p class="parser-hint">Paste ticket confirmation text to automatically extract bookings into the builder list:</p>
+                <textarea id="create-email-text" class="form-control parser-textarea" rows="5" placeholder="e.g. Bus confirmation KSRTC Sarige departs Hubballi 10:00 arrives Goa 14:30 cost Rs 650&#10;Cab booking Ola from Goa to Hotel departs 2026-10-21 14:30 arrives 2026-10-21 15:15 cost INR 600&#10;Hotel booking Taj Resort Goa check-in 2026-10-21 16:00"></textarea>
+                <div class="parser-actions">
+                  <button id="btn-parse-email-create" type="button" class="btn btn-secondary btn-sm">
+                    <span class="btn-text">Extract Bookings From Text</span>
+                    <span class="spinner" aria-hidden="true"></span>
+                  </button>
+                </div>
+                <!-- Unparsed Lines Alert Container -->
+                <div id="create-parser-unparsed" class="unparsed-container hidden"></div>
+              </div>
+
+              <!-- Panel 2: Manual Booking Builder & Editable Itinerary List -->
+              <div class="bookings-builder-panel">
+                <div class="builder-panel-header">
+                  <div>
+                    <span class="builder-title">2. Itinerary Bookings (<span id="create-builder-count">0</span>)</span>
+                    <span class="required">*</span>
+                  </div>
+                  <button type="button" id="btn-add-booking-row" class="btn btn-outline btn-sm">
+                    + Add Booking
+                  </button>
+                </div>
+                <p class="builder-hint">Parsed and manually added bookings appear here. Edit any field before saving:</p>
+                <div id="create-builder-empty" class="builder-empty-hint">
+                  No bookings added yet. Paste confirmation text or click "+ Add Booking" to build your itinerary.
+                </div>
+                <div id="create-bookings-builder-list" class="builder-rows-container"></div>
+                <div id="err-create-bookings" class="field-error" style="margin-top: 8px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" id="btn-cancel-create" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-create" class="btn btn-gold">
+              <span class="btn-text">Create & Chart Expedition</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: ADD / EDIT BOOKING                  -->
+  <!-- ========================================== -->
+  <div id="modal-booking-editor" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-booking-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="modal-booking-title" class="modal-title">Add / Edit Itinerary Booking</h2>
+        <button id="btn-close-booking-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-booking-editor" novalidate>
+          <input type="hidden" id="edit-booking-id" value="">
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="booking-input-type">Booking Type <span class="required">*</span></label>
+              <select id="booking-input-type" class="form-control" required>
+                <option value="FLIGHT">Flight</option>
+                <option value="TRAIN">Train</option>
+                <option value="BUS">Bus</option>
+                <option value="CAB">Cab / Taxi</option>
+                <option value="HOTEL">Hotel</option>
+                <option value="EVENT">Event</option>
+              </select>
+            </div>
+            <div class="form-group flex-2">
+              <label for="booking-input-provider">Provider / Name <span class="required">*</span></label>
+              <input type="text" id="booking-input-provider" class="form-control" placeholder="e.g. Vande Bharat Express" required>
+              <span id="err-booking-provider" class="field-error"></span>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="booking-input-from">From (Origin) <span class="required">*</span></label>
+              <input type="text" id="booking-input-from" class="form-control" placeholder="Origin location / station" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="booking-input-to">To (Destination) <span class="required">*</span></label>
+              <input type="text" id="booking-input-to" class="form-control" placeholder="Destination location" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="booking-input-start">Departure / Start Time <span class="required">*</span></label>
+              <input type="datetime-local" id="booking-input-start" class="form-control" required>
+              <span id="err-booking-start" class="field-error"></span>
+            </div>
+            <div class="form-group flex-1">
+              <label for="booking-input-end">Arrival / End Time <span class="required">*</span></label>
+              <input type="datetime-local" id="booking-input-end" class="form-control" required>
+              <span id="err-booking-end" class="field-error"></span>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="booking-input-cost">Cost (INR) <span class="required">*</span></label>
+              <input type="number" id="booking-input-cost" class="form-control" min="0" step="10" value="1200" required>
+              <span id="err-booking-cost" class="field-error"></span>
+            </div>
+            <div class="form-group flex-1">
+              <label for="booking-input-status">Status</label>
+              <select id="booking-input-status" class="form-control">
+                <option value="CONFIRMED">CONFIRMED</option>
+                <option value="DELAYED">DELAYED</option>
+                <option value="AT_RISK">AT RISK</option>
+                <option value="CANCELLED">CANCELLED</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row" id="booking-row-hotel-email">
+            <div class="form-group flex-1">
+              <label for="booking-input-hotel-email">Hotel Contact Email (Optional)</label>
+              <input type="email" id="booking-input-hotel-email" class="form-control" placeholder="reservations@hotel.com">
+            </div>
+          </div>
+
+          <!-- Dependency Picker -->
+          <div class="form-group">
+            <label>Preceding Dependencies (Depends On)</label>
+            <p class="section-hint">Select preceding legs that must complete before this booking starts:</p>
+            <div id="booking-dependencies-picker" class="dependencies-checkbox-grid">
+              <!-- Dynamically populated checkboxes -->
+            </div>
+            <span id="err-booking-cycle" class="field-error"></span>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" id="btn-cancel-booking" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-booking" class="btn btn-gold">
+              <span class="btn-text">Save Booking</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: EDIT TRIP PREFERENCES               -->
+  <!-- ========================================== -->
+  <div id="modal-edit-trip" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-edit-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="modal-edit-title" class="modal-title">Edit Trip Preferences</h2>
+        <button id="btn-close-edit-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-edit-trip" novalidate>
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="edit-trip-title">Trip Title <span class="required">*</span></label>
+              <input type="text" id="edit-trip-title" class="form-control" required>
+              <span id="err-edit-title" class="field-error"></span>
+            </div>
+            <div class="form-group flex-1">
+              <label for="edit-trip-traveller">Traveller Name</label>
+              <input type="text" id="edit-trip-traveller" class="form-control">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="edit-trip-phone">Phone Number (10 digits) <span class="required">*</span></label>
+              <input type="tel" id="edit-trip-phone" class="form-control" required>
+              <span id="err-edit-phone" class="field-error"></span>
+            </div>
+            <div class="form-group flex-1">
+              <label for="edit-trip-email">Traveller Email (Optional)</label>
+              <input type="email" id="edit-trip-email" class="form-control">
+              <span id="err-edit-email" class="field-error"></span>
+            </div>
+          </div>
+
+          <!-- Edit Notification Preferences -->
+          <div class="notification-prefs-group">
+            <span class="prefs-title">Notification Channels:</span>
+            <div class="prefs-checkbox-row">
+              <label>
+                <input type="checkbox" id="edit-trip-notify-email" checked>
+                <span>Email</span>
+              </label>
+              <label>
+                <input type="checkbox" id="edit-trip-notify-sms" checked>
+                <span>SMS</span>
+              </label>
+              <label>
+                <input type="checkbox" id="edit-trip-notify-whatsapp">
+                <span>WhatsApp</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="edit-trip-budget">Max Budget (INR) <span class="required">*</span></label>
+              <input type="number" id="edit-trip-budget" class="form-control" min="1000" step="500" required>
+              <span id="err-edit-budget" class="field-error"></span>
+            </div>
+            <div class="form-group flex-1">
+              <label for="edit-trip-deadline">Must Arrive By <span class="required">*</span></label>
+              <input type="datetime-local" id="edit-trip-deadline" class="form-control" required>
+              <span id="err-edit-deadline" class="field-error"></span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="edit-trip-desc">Description / Notes</label>
+            <input type="text" id="edit-trip-desc" class="form-control">
+          </div>
+
+          <div class="form-group-checkbox">
+            <label>
+              <input type="checkbox" id="edit-trip-avoid-overnight">
+              <span>Avoid Overnight Travel (Enforce daytime only: 06:00 - 21:00)</span>
+            </label>
+          </div>
+
+          <!-- Destination Cab Option -->
+          <div class="service-option-card">
+            <div class="form-group-checkbox">
+              <label>
+                <input type="checkbox" id="edit-trip-needs-cab">
+                <span>I need a cab at my destination</span>
+              </label>
+            </div>
+            <div id="edit-cab-fields" class="service-nested-fields hidden">
+              <div class="form-row">
+                <div class="form-group flex-2">
+                  <label for="edit-trip-cab-dropoff">Drop-off Location <span class="required">*</span></label>
+                  <input type="text" id="edit-trip-cab-dropoff" class="form-control" placeholder="e.g. Calangute, Goa">
+                  <span id="err-edit-cab-dropoff" class="field-error"></span>
+                </div>
+                <div class="form-group flex-1">
+                  <label for="edit-trip-cab-provider">Cab Provider (Optional)</label>
+                  <input type="text" id="edit-trip-cab-provider" class="form-control" placeholder="e.g. Goa Miles / Local Taxi">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-edit-trip" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-save-edit-trip" class="btn btn-gold">
+              <span class="btn-text">Save Changes</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Report Problem for Booking -->
+  <div id="modal-report-problem" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-report-problem-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="modal-report-problem-title" class="modal-title">Report a Problem</h2>
+        <button id="btn-close-report-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-report-problem">
+          <input type="hidden" id="report-booking-id">
+          <div class="booking-summary-banner" id="report-booking-summary">
+            <!-- Populated dynamically: Provider, Route, Schedule -->
+          </div>
+
+          <div class="form-group">
+            <label for="report-problem-type">Problem Type</label>
+            <select id="report-problem-type" class="form-control" required>
+              <option value="DELAYED">Delayed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
+
+          <div id="group-report-delay" class="form-group">
+            <label for="report-delay-minutes">Delay Minutes</label>
+            <input type="number" id="report-delay-minutes" class="form-control" min="5" step="5" value="60" placeholder="e.g. 60">
+          </div>
+
+          <div class="form-group">
+            <label for="report-problem-note">Note / Description</label>
+            <textarea id="report-problem-note" class="form-control" rows="3" placeholder="Explain what happened (e.g. Flight delayed due to weather)"></textarea>
+          </div>
+
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-report-problem" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-report-problem" class="btn btn-danger">
+              <span class="btn-text">Submit Problem Report</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modals: Authentication & Account (Phase 9) -->
+  <!-- 1. Sign In Modal -->
+  <div id="modal-login" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-login-title">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-header">
+        <h2 id="modal-login-title" class="modal-title">Sign In to Odyssey</h2>
+        <button id="btn-close-login-modal" class="btn-close" type="button" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-login">
+          <div id="err-login" class="form-error hidden" style="margin-bottom: 1rem;"></div>
+          <div class="form-group">
+            <label for="login-email">Email Address</label>
+            <input type="email" id="login-email" class="form-control" required placeholder="traveller@example.com" autocomplete="username">
+          </div>
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" class="form-control" required placeholder="••••••••" autocomplete="current-password">
+          </div>
+          <div class="modal-footer" style="padding-top: 1rem; flex-direction: column; gap: 0.75rem;">
+            <button type="submit" id="btn-submit-login" class="btn btn-gold" style="width: 100%;">
+              <span class="btn-text">Sign In</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+            <div style="text-align: center; font-size: 0.85rem; color: #94a3b8;">
+              Don't have an account? <button type="button" id="link-goto-register" class="btn-link" style="color: var(--gold-light); background: none; border: none; cursor: pointer; text-decoration: underline;">Register here</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Register Modal -->
+  <div id="modal-register" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-register-title">
+    <div class="modal-dialog" style="max-width: 460px;">
+      <div class="modal-header">
+        <h2 id="modal-register-title" class="modal-title">Create Odyssey Account</h2>
+        <button id="btn-close-register-modal" class="btn-close" type="button" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-register">
+          <div id="err-register" class="form-error hidden" style="margin-bottom: 1rem;"></div>
+          <div class="form-group">
+            <label for="reg-name">Full Name</label>
+            <input type="text" id="reg-name" class="form-control" required placeholder="e.g. Ananya Sharma" autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label for="reg-email">Email Address</label>
+            <input type="email" id="reg-email" class="form-control" required placeholder="e.g. ananya@example.com" autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="reg-password">Password</label>
+            <input type="password" id="reg-password" class="form-control" required placeholder="At least 8 chars with 1 digit & 1 letter" autocomplete="new-password">
+            <small style="color: #94a3b8; font-size: 0.75rem;">Minimum 8 characters, at least 1 letter and 1 number.</small>
+          </div>
+          <div class="form-group">
+            <label for="reg-phone">Phone Number (Optional)</label>
+            <input type="tel" id="reg-phone" class="form-control" placeholder="+919876543210" autocomplete="tel">
+          </div>
+          <div class="modal-footer" style="padding-top: 1rem; flex-direction: column; gap: 0.75rem;">
+            <button type="submit" id="btn-submit-register" class="btn btn-gold" style="width: 100%;">
+              <span class="btn-text">Create Account</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+            <div style="text-align: center; font-size: 0.85rem; color: #94a3b8;">
+              Already have an account? <button type="button" id="link-goto-login" class="btn-link" style="color: var(--gold-light); background: none; border: none; cursor: pointer; text-decoration: underline;">Sign in</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Account Settings Modal -->
+  <div id="modal-account" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-account-title">
+    <div class="modal-dialog" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2 id="modal-account-title" class="modal-title">Account Settings</h2>
+        <button id="btn-close-account-modal" class="btn-close" type="button" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="err-account" class="form-error hidden" style="margin-bottom: 1rem;"></div>
+        
+        <!-- Profile Details -->
+        <form id="form-account-profile">
+          <h3 style="font-size: 1rem; color: var(--gold-light); margin-bottom: 0.75rem;">Profile Information</h3>
+          <div class="form-group">
+            <label for="account-email">Email Address (Read-only)</label>
+            <input type="email" id="account-email" class="form-control" readonly style="opacity: 0.8; background: rgba(0,0,0,0.3);">
+          </div>
+          <div class="form-group">
+            <label for="account-name">Full Name</label>
+            <input type="text" id="account-name" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="account-phone">Phone Number</label>
+            <input type="tel" id="account-phone" class="form-control" placeholder="+91...">
+          </div>
+          <button type="submit" id="btn-save-profile" class="btn btn-primary btn-sm" style="margin-bottom: 1.5rem;">
+            <span class="btn-text">Update Profile</span>
+            <span class="spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+
+        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 1rem 0;">
+
+        <!-- Change Password -->
+        <form id="form-account-password">
+          <h3 style="font-size: 1rem; color: var(--gold-light); margin-bottom: 0.75rem;">Change Password</h3>
+          <div class="form-group">
+            <label for="account-curr-password">Current Password</label>
+            <input type="password" id="account-curr-password" class="form-control" required placeholder="••••••••" autocomplete="current-password">
+          </div>
+          <div class="form-group">
+            <label for="account-new-password">New Password</label>
+            <input type="password" id="account-new-password" class="form-control" required placeholder="Min 8 chars with letter & digit" autocomplete="new-password">
+          </div>
+          <button type="submit" id="btn-submit-change-password" class="btn btn-outline btn-sm">
+            <span class="btn-text">Change Password</span>
+            <span class="spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+
+        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 1.5rem 0 1rem 0;">
+
+        <div style="display: flex; justify-content: flex-end;">
+          <button type="button" id="btn-logout" class="btn btn-outline-danger btn-sm">
+            <span class="btn-text">Sign Out</span>
+            <span class="spinner" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Confirm Replacement Booking Modal -->
+  <div id="modal-confirm-booking" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-confirm-booking-title">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2 id="modal-confirm-booking-title" class="modal-title">Confirm Replacement Booking</h2>
+        <button id="btn-close-confirm-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-confirm-booking">
+          <input type="hidden" id="confirm-booking-id">
+          <div id="confirm-booking-summary" class="booking-summary-banner" style="margin-bottom: 1rem;">
+            <!-- Dynamic summary of leg -->
+          </div>
+          <div class="form-group">
+            <label for="confirm-booking-ref">Booking Reference / PNR (Optional)</label>
+            <input type="text" id="confirm-booking-ref" class="form-control" placeholder="e.g. PNR-123456 or TICKET-8899">
+            <small style="color: #94a3b8; font-size: 0.75rem;">Enter the reference or PNR provided by the transport operator for your records.</small>
+          </div>
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-confirm-booking" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-confirm-booking" class="btn btn-success">
+              <span class="btn-text">Confirm Booking</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <div class="meander-strip thin" aria-hidden="true"></div>
+    <div class="footer-content">
+      <p>Odyssey Disruption Engine &copy; 2026. Built with resilience, classical precision, and deterministic guarantees.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

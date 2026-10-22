@@ -1,0 +1,110 @@
+[
+  {
+    "key": "BENGALURU",
+    "name": "Bengaluru",
+    "aliases": ["BLR", "BENGALURU", "BANGALORE", "KEMPEGOWDA", "YESVANTPUR", "MAJESTIC", "SBC", "YPR", "SMVB"],
+    "airportCodes": ["BLR"],
+    "stationCodes": ["SBC", "YPR", "SMVB"],
+    "latitude": 12.9716,
+    "longitude": 77.5946
+  },
+  {
+    "key": "MANGALURU",
+    "name": "Mangaluru",
+    "aliases": ["IXE", "MANGALURU", "MANGALORE", "BEJAI", "MAQ", "MAJN"],
+    "airportCodes": ["IXE"],
+    "stationCodes": ["MAQ", "MAJN"],
+    "latitude": 12.9141,
+    "longitude": 74.8560
+  },
+  {
+    "key": "HUBBALLI",
+    "name": "Hubballi",
+    "aliases": ["HBX", "HUBBALLI", "HUBLI", "UBL"],
+    "airportCodes": ["HBX"],
+    "stationCodes": ["UBL"],
+    "latitude": 15.3647,
+    "longitude": 75.1240
+  },
+  {
+    "key": "GOA",
+    "name": "Goa",
+    "aliases": ["GOI", "GOX", "GOA", "DABOLIM", "MOPA", "PANAJI", "MADGAON", "MAO", "VASCO"],
+    "airportCodes": ["GOI", "GOX"],
+    "stationCodes": ["MAO", "VSG", "KRMI"],
+    "latitude": 15.2993,
+    "longitude": 74.1240
+  },
+  {
+    "key": "MYSURU",
+    "name": "Mysuru",
+    "aliases": ["MYQ", "MYSURU", "MYSORE", "MYS"],
+    "airportCodes": ["MYQ"],
+    "stationCodes": ["MYS"],
+    "latitude": 12.2958,
+    "longitude": 76.6394
+  },
+  {
+    "key": "UDUPI",
+    "name": "Udupi",
+    "aliases": ["UDUPI", "MANIPAL", "UD"],
+    "airportCodes": [],
+    "stationCodes": ["UD"],
+    "latitude": 13.3409,
+    "longitude": 74.7421
+  },
+  {
+    "key": "MUMBAI",
+    "name": "Mumbai",
+    "aliases": ["BOM", "MUMBAI", "BOMBAY", "CSMT", "BCT", "DADAR"],
+    "airportCodes": ["BOM"],
+    "stationCodes": ["CSMT", "BCT", "BDTS"],
+    "latitude": 19.0760,
+    "longitude": 72.8777
+  },
+  {
+    "key": "PUNE",
+    "name": "Pune",
+    "aliases": ["PNQ", "PUNE", "SHIVAJINAGAR"],
+    "airportCodes": ["PNQ"],
+    "stationCodes": ["PUNE"],
+    "latitude": 18.5204,
+    "longitude": 73.8567
+  },
+  {
+    "key": "CHENNAI",
+    "name": "Chennai",
+    "aliases": ["MAA", "CHENNAI", "MADRAS", "MAS", "MS"],
+    "airportCodes": ["MAA"],
+    "stationCodes": ["MAS", "MS"],
+    "latitude": 13.0827,
+    "longitude": 80.2707
+  },
+  {
+    "key": "HYDERABAD",
+    "name": "Hyderabad",
+    "aliases": ["HYD", "HYDERABAD", "SECUNDERABAD", "SC", "KCG"],
+    "airportCodes": ["HYD"],
+    "stationCodes": ["SC", "HYB", "KCG"],
+    "latitude": 17.3850,
+    "longitude": 78.4867
+  },
+  {
+    "key": "DELHI",
+    "name": "Delhi",
+    "aliases": ["DEL", "DELHI", "NEW DELHI", "NDLS", "DLI"],
+    "airportCodes": ["DEL"],
+    "stationCodes": ["NDLS", "DLI", "NZM"],
+    "latitude": 28.6139,
+    "longitude": 77.2090
+  },
+  {
+    "key": "KOCHI",
+    "name": "Kochi",
+    "aliases": ["COK", "KOCHI", "COCHIN", "ERNAKULAM", "ERS", "ERN"],
+    "airportCodes": ["COK"],
+    "stationCodes": ["ERS", "ERN"],
+    "latitude": 9.9312,
+    "longitude": 76.2673
+  }
+]

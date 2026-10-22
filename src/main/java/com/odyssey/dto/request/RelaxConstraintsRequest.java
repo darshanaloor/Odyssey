@@ -1,0 +1,16 @@
+package com.odyssey.dto.request;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class RelaxConstraintsRequest {
+    private Boolean allowOvernight;
+    private Integer extendDeadlineHours;
+    private Integer raiseBudgetPercent;
+}

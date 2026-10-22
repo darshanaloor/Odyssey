@@ -1,0 +1,78 @@
+spring:
+  application:
+    name: odyssey
+  datasource:
+    url: jdbc:mysql://localhost:3306/odyssey?useSSL=false&serverTimezone=Asia/Kolkata&allowPublicKeyRetrieval=true
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+  jackson:
+    date-format: "yyyy-MM-dd'T'HH:mm:ss"
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8085
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+      enabled: true
+
+logging:
+  level:
+    com.odyssey: DEBUG
+    org.springframework.web: INFO
+    org.flywaydb: INFO
+
+odyssey:
+  scoring:
+    weights:
+      cost: 0.25
+      time: 0.35
+      reliability: 0.25
+      transfers: 0.15
+      safety-reliability: 1.0
+      safety-buffer: 0.5
+    penalties:
+      constraint-violation: 50.0
+      overnight-travel: 30.0
+  recovery:
+    replacement-cab-cost: 400.00
+    replacement-cab-buffer-minutes: 30
+    assume-full-refund-flight: true
+    assume-full-refund-cab: true
+    demo-disruption-time: "2026-10-21T09:00:00"
+    station-buffer-minutes: 45
+    synthetic-reliability-score: 60.0
+    day-travel-start: "06:00"
+    day-travel-end: "21:00"
+    search-window-days: 2
+    delay-threshold-minutes: 30
+    quiet-hours-start: ${QUIET_HOURS_START:}
+    quiet-hours-end: ${QUIET_HOURS_END:}
+  status:
+    check-interval-minutes: 5
+    lookahead-hours: 24
+    live:
+      base-url: "https://api.aviationstack.com/v1"
+      endpoint-path: "/flights"
+  llm:
+    api-key: ${LLM_API_KEY:}
+
+handoff:
+  links:
+    train: "https://www.irctc.co.in/nget/train-search"
+    bus-redbus: "https://www.redbus.in/bus-tickets/{from}-to-{to}?date={date}"
+    bus-ksrtc: "https://ksrtc.in/oprs-web/guest/home.do"
+    flight: "https://www.google.com/travel/flights?q=Flights%20to%20{to}%20from%20{from}%20on%20{date}"
