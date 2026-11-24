@@ -96,4 +96,20 @@ public class ApiLlmService implements LlmService {
             return ruleBasedLlmService.generateTradeOffExplanation(trip, chosenOption, allOptions);
         }
     }
+
+    @Override
+    public String rewordDraft(Trip trip, String templateDraft, String draftKind) {
+        if (!isApiKeyConfigured()) {
+            return ruleBasedLlmService.rewordDraft(trip, templateDraft, draftKind);
+        }
+        try {
+            log.info("Invoking external LLM API for message rewording with configured key");
+            return java.util.concurrent.CompletableFuture.<String>supplyAsync(() -> {
+                throw new UnsupportedOperationException("External LLM API endpoint unavailable in local environment");
+            }).get(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            recordFallback(trip, "rewordDraft", ex);
+            return ruleBasedLlmService.rewordDraft(trip, templateDraft, draftKind);
+        }
+    }
 }

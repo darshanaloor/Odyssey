@@ -16,4 +16,5 @@ public class CostBreakdownLine {
     private BigDecimal amount;
     private boolean isDeduction;
     private String assumptionNote;
+    private String timingNote;
 }

@@ -1,12 +1,15 @@
 package com.odyssey.service;
 
 import com.odyssey.config.RecoveryProperties;
+import com.odyssey.config.RefundProperties;
 import com.odyssey.exception.ConflictException;
 import com.odyssey.exception.ResourceNotFoundException;
 import com.odyssey.model.*;
 import com.odyssey.model.enums.AuditActor;
 import com.odyssey.model.enums.BookingStatus;
 import com.odyssey.model.enums.BookingType;
+import com.odyssey.model.enums.RecoveryActionStatus;
+import com.odyssey.model.enums.RecoveryActionType;
 import com.odyssey.repository.TripRepository;
 import com.odyssey.util.IdGenerator;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +33,12 @@ public class RecoveryService {
     private final RecoveryProperties recoveryProperties;
     private final LlmService llmService;
     private final NotificationService notificationService;
+
+    @Autowired(required = false)
+    private LedgerService ledgerService;
+
+    @Autowired(required = false)
+    private RefundProperties refundProperties = new RefundProperties();
 
     @Autowired
     public RecoveryService(TripRepository tripRepository, RecoveryProperties recoveryProperties, LlmService llmService, NotificationService notificationService) {
@@ -133,9 +142,11 @@ public class RecoveryService {
 
         trip.getBookings().sort(java.util.Comparator.comparing(Booking::getStartTime, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
 
-        // 5. Update checklist to done
+        // 5. Initialize tracked checklist actions as PENDING (traveller marks completion explicitly)
         for (ActionChecklistItem item : plan.getChecklist()) {
-            item.setDone(true);
+            item.setDone(false);
+            item.setStatus(RecoveryActionStatus.PENDING);
+            item.setCompletedAt(null);
         }
 
         // 6. Update trip status to RESOLVED
@@ -152,17 +163,28 @@ public class RecoveryService {
                         chosenOption.getId(), chosenOption.getLabel(), plan.getCostBreakdown().getNetTripCost()))
                 .build());
 
-        tripRepository.save(trip);
+        Trip savedTrip = tripRepository.save(trip);
+        RecoveryPlan savedPlan = (savedTrip != null && savedTrip.getLatestPlan() != null)
+                ? savedTrip.getLatestPlan()
+                : plan;
+
+        if (ledgerService != null) {
+            try {
+                ledgerService.syncPlanLedger(savedTrip != null ? savedTrip : trip, savedPlan);
+            } catch (Exception e) {
+                log.warn("Could not sync ledger on plan approval: {}", e.getMessage());
+            }
+        }
 
         if (notificationService != null) {
             try {
-                notificationService.sendPlanApprovedAlert(trip, plan);
+                notificationService.sendPlanApprovedAlert(trip, savedPlan);
             } catch (Exception e) {
                 log.error("Failed to dispatch plan approved notification: {}", e.getMessage());
             }
         }
 
-        return plan;
+        return savedPlan;
     }
 
     public Trip rejectPlan(String tripId, String optionId) {
@@ -329,6 +351,12 @@ public class RecoveryService {
                 .endTime(chosenLeg.getEndTime())
                 .cost(chosenLeg.getCost())
                 .status(BookingStatus.PROPOSED)
+                .source(chosenLeg.getSource())
+                .departureId(chosenLeg.getDepartureId())
+                .operator(chosenLeg.getOperator())
+                .vehicleNumber(chosenLeg.getVehicleNumber())
+                .seatsAvailable(chosenLeg.getSeatsAvailable())
+                .scheduleLabel(chosenLeg.getScheduleLabel())
                 .dependsOn(chosenLeg.getDependsOn() != null ? new ArrayList<>(chosenLeg.getDependsOn()) : new ArrayList<>())
                 .build();
 
@@ -524,6 +552,7 @@ public class RecoveryService {
 
         // Refunds (ONLY for cancelled bookings that exist)
         if (disruptedBooking != null && disruptedBooking.getCost() != null && disruptedBooking.getCost().compareTo(BigDecimal.ZERO) > 0) {
+            String timingNote = resolveTimingNote(disruptedBooking, trip);
             costLines.add(CostBreakdownLine.builder()
                     .label(String.format("Refund for Cancelled %s (%s)",
                             toTitleCase(disruptedBooking.getType().name()), disruptedBooking.getProvider()))
@@ -532,16 +561,19 @@ public class RecoveryService {
                     .assumptionNote(String.format("Refund Rs %s (assumed full refund, %s-cancelled)",
                             disruptedBooking.getCost().setScale(0, RoundingMode.HALF_UP).toPlainString(),
                             disruptedBooking.getType().name().toLowerCase()))
+                    .timingNote(timingNote)
                     .build());
         }
 
         if (oldCabBooking != null && oldCabDependedOnDisruption && oldCabBooking.getCost() != null && oldCabBooking.getCost().compareTo(BigDecimal.ZERO) > 0) {
+            String cabTimingNote = resolveTimingNote(oldCabBooking, trip);
             costLines.add(CostBreakdownLine.builder()
                     .label("Refund for Cancelled Cab (" + oldCabBooking.getProvider() + ")")
                     .amount(oldCabBooking.getCost().negate())
                     .isDeduction(true)
                     .assumptionNote(String.format("Refund Rs %s (assumed full refund, prepaid taxi cancellation)",
                             oldCabBooking.getCost().setScale(0, RoundingMode.HALF_UP).toPlainString()))
+                    .timingNote(cabTimingNote)
                     .build());
         }
 
@@ -568,18 +600,26 @@ public class RecoveryService {
         // 1. Book replacement leg
         checklist.add(ActionChecklistItem.builder()
                 .id("BOOK_NEW_LEG")
+                .type(RecoveryActionType.BOOK_REPLACEMENT)
                 .text(String.format("Book the replacement %s leg (%s) departing at %s",
                         plannedLeg.getType(), plannedLeg.getProvider(), plannedLeg.getStartTime().format(TIME_FORMAT)))
+                .status(RecoveryActionStatus.PENDING)
                 .done(false)
+                .relatedBookingId(plannedLeg.getId())
+                .bookingReference(plannedLeg.getBookingReference())
                 .build());
 
         // 2. Book replacement cab (if any)
         if (createCab && replacementCab != null) {
             checklist.add(ActionChecklistItem.builder()
                     .id("BOOK_REPLACEMENT_CAB")
+                    .type(RecoveryActionType.BOOK_CAB)
                     .text(String.format("Book the replacement cab at the computed time (%s) from %s",
                             cabPickup.format(TIME_FORMAT), plannedLeg.getTo()))
+                    .status(RecoveryActionStatus.PENDING)
                     .done(false)
+                    .relatedBookingId(replacementCab.getId())
+                    .bookingReference(replacementCab.getBookingReference())
                     .build());
         }
 
@@ -587,9 +627,14 @@ public class RecoveryService {
         if (hotelBooking != null) {
             checklist.add(ActionChecklistItem.builder()
                     .id("MESSAGE_HOTEL")
+                    .type(RecoveryActionType.MESSAGE_HOTEL)
                     .text(String.format("Message the hotel (%s) about late check-in at %s",
                             hotelBooking.getProvider(), newHotelCheckIn.format(TIME_FORMAT)))
+                    .status(RecoveryActionStatus.PENDING)
                     .done(false)
+                    .relatedBookingId(hotelBooking.getId())
+                    .bookingReference(hotelBooking.getBookingReference())
+                    .contactInfo(hotelBooking.getHotelContactEmail())
                     .build());
         }
 
@@ -597,18 +642,28 @@ public class RecoveryService {
         if (oldCabBooking != null && oldCabDependedOnDisruption) {
             checklist.add(ActionChecklistItem.builder()
                     .id("CANCEL_OLD_CAB")
+                    .type(RecoveryActionType.CANCEL_OLD_BOOKING)
                     .text(String.format("Cancel the old cab booking %s (%s)", oldCabBooking.getId(), oldCabBooking.getProvider()))
+                    .status(RecoveryActionStatus.PENDING)
                     .done(false)
+                    .relatedBookingId(oldCabBooking.getId())
+                    .bookingReference(oldCabBooking.getBookingReference())
                     .build());
         }
 
         // 5. Request refunds
         if (disruptedBooking != null) {
             String refundId = disruptedBooking.getType() == BookingType.FLIGHT ? "REQUEST_FLIGHT_REFUND" : ("REQUEST_REFUND_" + disruptedBooking.getId());
+            String timingNote = resolveTimingNote(disruptedBooking, trip);
             checklist.add(ActionChecklistItem.builder()
                     .id(refundId)
-                    .text(String.format("Request a refund for %s (%s)", disruptedBooking.getId(), disruptedBooking.getProvider()))
+                    .type(RecoveryActionType.REQUEST_REFUND)
+                    .text(String.format("Request a refund for %s (%s). %s",
+                            disruptedBooking.getId(), disruptedBooking.getProvider(), timingNote))
+                    .status(RecoveryActionStatus.PENDING)
                     .done(false)
+                    .relatedBookingId(disruptedBooking.getId())
+                    .bookingReference(disruptedBooking.getBookingReference())
                     .build());
         }
 
@@ -618,9 +673,59 @@ public class RecoveryService {
                     : trip.getHardCommitments().get(0).getName();
             checklist.add(ActionChecklistItem.builder()
                     .id("CONFIRM_FAMILY")
+                    .type(RecoveryActionType.CONFIRM_ARRIVAL)
                     .text(String.format("Confirm the final arrival with the family for %s", contactDesc))
+                    .status(RecoveryActionStatus.PENDING)
                     .done(false)
+                    .relatedBookingId(eventBooking != null ? eventBooking.getId() : null)
+                    .bookingReference(eventBooking != null ? eventBooking.getBookingReference() : null)
+                    .contactInfo(eventBooking != null ? eventBooking.getHotelContactEmail() : null)
                     .build());
+        }
+
+        // Phase 17: Traveller Needs checklist steps
+        if (trip != null && trip.hasAnySpecialNeed()) {
+            if (Boolean.TRUE.equals(trip.getHasMobilityAssistance()) || Boolean.TRUE.equals(trip.getHasElderlyTraveller())) {
+                checklist.add(ActionChecklistItem.builder()
+                        .id("ASSISTANCE_BOARDING")
+                        .type(RecoveryActionType.REQUEST_ASSISTANCE)
+                        .text("Contact the operator to request assistance for boarding")
+                        .status(RecoveryActionStatus.PENDING)
+                        .done(false)
+                        .build());
+
+                boolean hasActualHotelBooking = trip.getBookings() != null && trip.getBookings().stream()
+                        .anyMatch(b -> b.getType() == BookingType.HOTEL && b.getStatus() != BookingStatus.CANCELLED);
+                if (hasActualHotelBooking) {
+                    checklist.add(ActionChecklistItem.builder()
+                            .id("ASSISTANCE_HOTEL")
+                            .type(RecoveryActionType.REQUEST_ASSISTANCE)
+                            .text("Confirm lift or ramp access at the hotel")
+                            .status(RecoveryActionStatus.PENDING)
+                            .done(false)
+                            .build());
+                }
+            }
+
+            if (Boolean.TRUE.equals(trip.getHasMedicalNeeds())) {
+                checklist.add(ActionChecklistItem.builder()
+                        .id("ASSISTANCE_MEDICAL")
+                        .type(RecoveryActionType.REQUEST_ASSISTANCE)
+                        .text("Tell the provider about any medical requirements you declared.")
+                        .status(RecoveryActionStatus.PENDING)
+                        .done(false)
+                        .build());
+            }
+
+            if (Boolean.TRUE.equals(trip.getHasTravellingWithChildren())) {
+                checklist.add(ActionChecklistItem.builder()
+                        .id("ASSISTANCE_CHILDREN")
+                        .type(RecoveryActionType.REQUEST_ASSISTANCE)
+                        .text("Request child/infant seating arrangements with the operator")
+                        .status(RecoveryActionStatus.PENDING)
+                        .done(false)
+                        .build());
+            }
         }
 
         // 7. Ready-to-send hotel message (null if no hotel) and trade-off explanation
@@ -644,5 +749,27 @@ public class RecoveryService {
                 .tradeOffExplanation(tradeOffExplanation)
                 .generatedAt(LocalDateTime.now())
                 .build();
+    }
+
+    private String resolveTimingNote(Booking booking, Trip trip) {
+        RefundProperties props = this.refundProperties != null ? this.refundProperties : new RefundProperties();
+        if (booking != null) {
+            if ("DEMO_REFUNDED".equalsIgnoreCase(booking.getPaymentStatus())) {
+                return props.getDemoNote();
+            }
+            if (booking.getProvider() != null && booking.getProvider().toUpperCase().contains("DEMO")) {
+                return props.getDemoNote();
+            }
+            if (booking.getBookingReference() != null && booking.getBookingReference().toUpperCase().contains("DEMO")) {
+                return props.getDemoNote();
+            }
+            if (booking.getSource() != null && (booking.getSource().toUpperCase().contains("MARKET") || booking.getSource().toUpperCase().contains("DEMO"))) {
+                return props.getDemoNote();
+            }
+        }
+        if (trip != null && trip.getId() != null && trip.getId().toUpperCase().contains("DEMO")) {
+            return props.getDemoNote();
+        }
+        return props.getNote();
     }
 }

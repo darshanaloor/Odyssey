@@ -83,6 +83,10 @@ public class NotificationService {
         sb.append("[ALERT] [ODYSSEY TRAVEL ALERT]\n");
         sb.append("Trip: ").append(title).append("\n");
 
+        boolean isMarketplace = rootDisrupted != null && (rootDisrupted.getDepartureId() != null
+                || "MARKETPLACE".equalsIgnoreCase(rootDisrupted.getSource())
+                || (rootDisrupted.getBookingReference() != null && rootDisrupted.getBookingReference().startsWith("ODY-")));
+
         if (disruption.getType() == DisruptionType.CANCELLATION) {
             sb.append("[DISRUPTION] ").append(rootDisrupted.getType()).append(" ").append(rootDisrupted.getProvider())
                     .append(" has been CANCELLED. Reason: ").append(disruption.getReason()).append("\n");
@@ -93,6 +97,22 @@ public class NotificationService {
         } else {
             sb.append("[DISRUPTION] ").append(rootDisrupted.getProvider())
                     .append(" overbooked. Reason: ").append(disruption.getReason()).append("\n");
+        }
+
+        if (isMarketplace) {
+            String op = rootDisrupted.getOperator() != null && !rootDisrupted.getOperator().isBlank()
+                    ? rootDisrupted.getOperator() : rootDisrupted.getProvider();
+            String veh = rootDisrupted.getVehicleNumber() != null ? rootDisrupted.getVehicleNumber() : "N/A";
+            String ref = rootDisrupted.getBookingReference() != null ? rootDisrupted.getBookingReference() : "N/A";
+            sb.append("Operator: ").append(op).append("\n");
+            sb.append("Vehicle Number: ").append(veh).append("\n");
+            sb.append("Booking Reference: ").append(ref).append("\n");
+            if (rootDisrupted.getFrom() != null && rootDisrupted.getTo() != null) {
+                sb.append("Route: ").append(rootDisrupted.getFrom()).append(" to ").append(rootDisrupted.getTo()).append("\n");
+            }
+            if (rootDisrupted.getStartTime() != null) {
+                sb.append("Departure: ").append(rootDisrupted.getStartTime().format(TIME_FMT)).append("\n");
+            }
         }
 
         if (impactReport.getSummary() != null && !impactReport.getSummary().isBlank()) {
@@ -119,6 +139,11 @@ public class NotificationService {
         }
 
         sb.append("Status: Odyssey Agent is evaluating automated re-routing options.");
+        boolean isProviderReported = (disruption != null && disruption.getSource() != null && disruption.getSource().toLowerCase().contains("provider"))
+                || (rootDisrupted != null && "PROVIDER".equalsIgnoreCase(rootDisrupted.getSource()));
+        if (isProviderReported) {
+            sb.append("\nMarketplace bookings are simulated for this project — no real ticket is issued, no real payment is taken.");
+        }
 
         String travellerName = trip.getTravellerName() != null && !trip.getTravellerName().isBlank() ? trip.getTravellerName() : "Traveller";
         String travellerPhone = trip.getTravellerPhone() != null && !trip.getTravellerPhone().isBlank() ? trip.getTravellerPhone() : "";
@@ -144,8 +169,7 @@ public class NotificationService {
         }
 
         String dedupKey = trip.getId() + ":DISRUPTION_ALERT:" + disruption.getId();
-        if (notificationJpaRepository.existsByTripIdAndDedupKey(trip.getId(), dedupKey)) {
-            log.info("Duplicate disruption alert skipped for trip {} with dedupKey {}", trip.getId(), dedupKey);
+        if (isDuplicateNotification(trip.getId(), dedupKey, "DISRUPTION_ALERT")) {
             return;
         }
 
@@ -181,8 +205,7 @@ public class NotificationService {
                 : "none";
         String dedupKey = trip.getId() + ":PLAN_READY:" + disruptionId + ":" + option.getId();
 
-        if (notificationJpaRepository.existsByTripIdAndDedupKey(trip.getId(), dedupKey)) {
-            log.info("Duplicate plan ready alert skipped for trip {} with dedupKey {}", trip.getId(), dedupKey);
+        if (isDuplicateNotification(trip.getId(), dedupKey, "PLAN_READY")) {
             return;
         }
 
@@ -212,6 +235,18 @@ public class NotificationService {
             sb.append("Arrival: ").append(arrivalTime.format(TIME_FMT)).append("\n");
         }
         sb.append("Net Cost: Rs ").append(netCost.toPlainString()).append("\n");
+
+        boolean isMarketplaceReady = (firstLeg != null && (firstLeg.getDepartureId() != null || "MARKETPLACE".equalsIgnoreCase(firstLeg.getSource())))
+                || (option != null && "MARKETPLACE".equalsIgnoreCase(option.getSource()));
+        if (isMarketplaceReady && firstLeg != null) {
+            String op = firstLeg.getOperator() != null && !firstLeg.getOperator().isBlank()
+                    ? firstLeg.getOperator() : firstLeg.getProvider();
+            String veh = firstLeg.getVehicleNumber() != null ? firstLeg.getVehicleNumber() : "N/A";
+            String ref = firstLeg.getBookingReference() != null ? firstLeg.getBookingReference() : "Pending booking";
+            sb.append("Operator: ").append(op).append("\n");
+            sb.append("Vehicle Number: ").append(veh).append("\n");
+            sb.append("Booking Reference: ").append(ref).append("\n");
+        }
 
         if (plan != null && plan.getChecklist() != null && !plan.getChecklist().isEmpty()) {
             sb.append("Checklist Steps:\n");
@@ -250,8 +285,7 @@ public class NotificationService {
         String optionId = plan.getChosenOptionId() != null ? plan.getChosenOptionId() : "opt";
         String dedupKey = trip.getId() + ":PLAN_APPROVED:" + disruptionId + ":" + optionId;
 
-        if (notificationJpaRepository.existsByTripIdAndDedupKey(trip.getId(), dedupKey)) {
-            log.info("Duplicate plan approved alert skipped for trip {} with dedupKey {}", trip.getId(), dedupKey);
+        if (isDuplicateNotification(trip.getId(), dedupKey, "PLAN_APPROVED")) {
             return;
         }
 
@@ -266,12 +300,26 @@ public class NotificationService {
         sb.append("Status: Your updated itinerary has been confirmed and locked.\n");
         sb.append("Confirmed Itinerary:\n");
 
+        boolean hasMarketplace = false;
         if (trip.getBookings() != null) {
             for (Booking b : trip.getBookings()) {
-                sb.append(String.format(" - %s (%s): %s to %s [%s - %s]\n",
-                        b.getType(), b.getProvider(), b.getFrom(), b.getTo(),
-                        b.getStartTime() != null ? b.getStartTime().format(TIME_FMT) : "N/A",
-                        b.getEndTime() != null ? b.getEndTime().format(TIME_FMT) : "N/A"));
+                boolean isMkt = b.getDepartureId() != null || "MARKETPLACE".equalsIgnoreCase(b.getSource())
+                        || (b.getBookingReference() != null && b.getBookingReference().startsWith("ODY-"));
+                if (isMkt) {
+                    hasMarketplace = true;
+                    String op = b.getOperator() != null && !b.getOperator().isBlank() ? b.getOperator() : b.getProvider();
+                    String veh = b.getVehicleNumber() != null ? b.getVehicleNumber() : "N/A";
+                    String ref = b.getBookingReference() != null ? b.getBookingReference() : "N/A";
+                    sb.append(String.format(" - %s (%s, %s, Ref: %s): %s to %s [%s - %s]\n",
+                            b.getType(), op, veh, ref, b.getFrom(), b.getTo(),
+                            b.getStartTime() != null ? b.getStartTime().format(TIME_FMT) : "N/A",
+                            b.getEndTime() != null ? b.getEndTime().format(TIME_FMT) : "N/A"));
+                } else {
+                    sb.append(String.format(" - %s (%s): %s to %s [%s - %s]\n",
+                            b.getType(), b.getProvider(), b.getFrom(), b.getTo(),
+                            b.getStartTime() != null ? b.getStartTime().format(TIME_FMT) : "N/A",
+                            b.getEndTime() != null ? b.getEndTime().format(TIME_FMT) : "N/A"));
+                }
             }
         }
 
@@ -290,6 +338,46 @@ public class NotificationService {
     }
 
     /**
+     * Dispatch alert when replacement leg is booked in the marketplace.
+     */
+    @Transactional
+    public void sendReplacementBookedAlert(Trip trip, com.odyssey.entity.BookingEntity newBooking, com.odyssey.entity.BookingEntity oldBooking, BigDecimal refundAmount) {
+        if (trip == null || newBooking == null) return;
+        String dedupKey = trip.getId() + ":REPLACEMENT_BOOKED:" + newBooking.getId();
+        if (isDuplicateNotification(trip.getId(), dedupKey, "REPLACEMENT_BOOKED")) return;
+        if (isQuietHours(LocalTime.now())) return;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("[ALERT] [ODYSSEY REPLACEMENT BOOKED]\n");
+        sb.append("Trip: ").append(trip.getTitle()).append("\n");
+        sb.append("Status: Replacement journey successfully confirmed.\n");
+        sb.append("Operator: ").append(newBooking.getOperator() != null ? newBooking.getOperator() : newBooking.getProvider()).append("\n");
+        sb.append("Vehicle Number: ").append(newBooking.getVehicleNumber() != null ? newBooking.getVehicleNumber() : "N/A").append("\n");
+        sb.append("Booking Reference: ").append(newBooking.getBookingReference() != null ? newBooking.getBookingReference() : "N/A").append("\n");
+        sb.append("Route: ").append(newBooking.getFromLocation()).append(" to ").append(newBooking.getToLocation()).append("\n");
+        if (newBooking.getStartTime() != null) {
+            sb.append("Departure: ").append(newBooking.getStartTime().format(TIME_FMT)).append("\n");
+        }
+        if (oldBooking != null) {
+            sb.append(String.format("Old Booking (%s) refunded: Rs %s (DEMO_REFUNDED)\n",
+                    oldBooking.getBookingReference() != null ? oldBooking.getBookingReference() : oldBooking.getId(),
+                    refundAmount != null ? refundAmount.toPlainString() : "0.00"));
+        }
+
+        NotificationMessage msg = NotificationMessage.builder()
+                .tripId(trip.getId())
+                .eventType("REPLACEMENT_BOOKED")
+                .alertLevel("INFO")
+                .subject("[Odyssey Alert] Replacement Booked for " + trip.getTitle())
+                .message(sb.toString())
+                .dedupKey(dedupKey)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        dispatchToEnabledChannels(trip, msg);
+    }
+
+    /**
      * Send test alert on enabled channels, rate-limited to 3 per hour per trip.
      */
     @Transactional
@@ -298,12 +386,14 @@ public class NotificationService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Trip not found");
         }
 
-        long recentCount = notificationJpaRepository.countByTripIdAndEventTypeAndCreatedAtAfter(
-                trip.getId(), "TEST_ALERT", LocalDateTime.now().minusHours(1));
+        if (notificationJpaRepository != null) {
+            long recentCount = notificationJpaRepository.countByTripIdAndEventTypeAndCreatedAtAfter(
+                    trip.getId(), "TEST_ALERT", LocalDateTime.now().minusHours(1));
 
-        if (recentCount >= 3) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
-                    "Rate limit reached: Maximum 3 test alerts per hour for this trip");
+            if (recentCount >= 3) {
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                        "Rate limit reached: Maximum 3 test alerts per hour for this trip");
+            }
         }
 
         String body = "[TEST ALERT] Odyssey Notification Verification\n" +
@@ -438,12 +528,24 @@ public class NotificationService {
         }
     }
 
+    private boolean isDuplicateNotification(String tripId, String dedupKey, String eventType) {
+        if (notificationJpaRepository == null) {
+            log.debug("Notification repository unavailable for trip {} event {}; skipping dedup check", tripId, eventType);
+            return false;
+        }
+        if (notificationJpaRepository.existsByTripIdAndDedupKey(tripId, dedupKey)) {
+            log.info("Duplicate {} skipped for trip {} with dedupKey {}", eventType, tripId, dedupKey);
+            return true;
+        }
+        return false;
+    }
+
     private List<NotificationEntity> dispatchToEnabledChannels(Trip trip, NotificationMessage baseMsg) {
         List<NotificationEntity> results = new ArrayList<>();
-        TripEntity tripEntity = tripJpaRepository.findById(trip.getId()).orElse(null);
+        TripEntity tripEntity = tripJpaRepository != null ? tripJpaRepository.findById(trip.getId()).orElse(null) : null;
 
         // 1. Email Channel
-        if (trip.getNotifyEmail() == null || trip.getNotifyEmail()) {
+        if (emailChannel != null && (trip.getNotifyEmail() == null || trip.getNotifyEmail())) {
             NotificationMessage emailMsg = NotificationMessage.builder()
                     .channel("EMAIL")
                     .recipient(trip.getTravellerEmail())
@@ -462,7 +564,7 @@ public class NotificationService {
         }
 
         // 2. SMS Channel
-        if (trip.getNotifySms() == null || trip.getNotifySms()) {
+        if (smsChannel != null && (trip.getNotifySms() == null || trip.getNotifySms())) {
             NotificationMessage smsMsg = NotificationMessage.builder()
                     .channel("SMS")
                     .recipient(trip.getTravellerPhone())
@@ -481,7 +583,7 @@ public class NotificationService {
         }
 
         // 3. WhatsApp Channel
-        if (Boolean.TRUE.equals(trip.getNotifyWhatsapp())) {
+        if (smsChannel != null && Boolean.TRUE.equals(trip.getNotifyWhatsapp())) {
             NotificationMessage waMsg = NotificationMessage.builder()
                     .channel("WHATSAPP")
                     .recipient(trip.getTravellerPhone())
@@ -506,10 +608,11 @@ public class NotificationService {
         try {
             return channel.send(message);
         } catch (Exception e) {
-            log.error("Unexpected error in channel {}: {}", channel.getChannelType(), e.getMessage());
+            log.error("Unexpected error in channel {} for trip {}: {}",
+                    channel.getChannelType(), message.getTripId(), e.getClass().getSimpleName());
             return SendResult.builder()
                     .status(SendStatus.FAILED)
-                    .error(e.getMessage())
+                    .error("Delivery failed (" + e.getClass().getSimpleName() + ")")
                     .sentAt(LocalDateTime.now())
                     .build();
         }
@@ -533,11 +636,12 @@ public class NotificationService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        if (tripEntity != null) {
+        if (tripEntity != null && notificationJpaRepository != null) {
             try {
                 return notificationJpaRepository.save(entity);
             } catch (Exception e) {
-                log.error("Failed to persist notification record: {}", e.getMessage());
+                log.error("Failed to persist notification record for trip {} event {}: {}",
+                        tripEntity.getId(), msg.getEventType(), e.getClass().getSimpleName());
             }
         }
         return entity;

@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -85,35 +86,249 @@ public class InventoryService {
         return Collections.unmodifiableList(inventoryItems);
     }
 
+    public static List<CityInfo> getAllCities() {
+        synchronized (CITIES) {
+            return new ArrayList<>(CITIES);
+        }
+    }
+
+    public static String stripAccents(String s) {
+        if (s == null) return "";
+        return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+    }
+
+    public static List<CityInfo> searchCities(String query) {
+        if (query == null || query.isBlank()) {
+            synchronized (CITIES) {
+                return CITIES.stream().limit(20).collect(Collectors.toList());
+            }
+        }
+
+        String normQ = stripAccents(query).trim().toUpperCase();
+        List<CityInfo> prefixNameMatches = new ArrayList<>();
+        List<CityInfo> prefixAliasMatches = new ArrayList<>();
+        List<CityInfo> substringMatches = new ArrayList<>();
+        Set<String> seenKeys = new HashSet<>();
+
+        synchronized (CITIES) {
+            for (CityInfo c : CITIES) {
+                String cName = stripAccents(c.getName()).toUpperCase();
+                String cKey = c.getKey().toUpperCase();
+
+                if (cName.startsWith(normQ) || cKey.startsWith(normQ)) {
+                    if (seenKeys.add(c.getKey())) {
+                        prefixNameMatches.add(c);
+                    }
+                    continue;
+                }
+
+                boolean aliasPrefix = false;
+                if (c.getAliases() != null) {
+                    for (String a : c.getAliases()) {
+                        if (stripAccents(a).toUpperCase().startsWith(normQ)) {
+                            aliasPrefix = true;
+                            break;
+                        }
+                    }
+                }
+                if (aliasPrefix) {
+                    if (seenKeys.add(c.getKey())) {
+                        prefixAliasMatches.add(c);
+                    }
+                    continue;
+                }
+
+                boolean sub = cName.contains(normQ) || cKey.contains(normQ);
+                if (!sub && c.getAliases() != null) {
+                    for (String a : c.getAliases()) {
+                        if (stripAccents(a).toUpperCase().contains(normQ)) {
+                            sub = true;
+                            break;
+                        }
+                    }
+                }
+                if (sub && seenKeys.add(c.getKey())) {
+                    substringMatches.add(c);
+                }
+            }
+        }
+
+        List<CityInfo> combined = new ArrayList<>();
+        combined.addAll(prefixNameMatches);
+        combined.addAll(prefixAliasMatches);
+        combined.addAll(substringMatches);
+
+        return combined.stream().limit(20).collect(Collectors.toList());
+    }
+
+    public static List<CityInfo> findClosestCities(String query) {
+        return findClosestCities(query, 3);
+    }
+
+    public static List<CityInfo> findClosestCities(String query, int max) {
+        if (query == null || query.isBlank()) {
+            return Collections.emptyList();
+        }
+        String normQ = stripAccents(query).trim().toLowerCase();
+
+        class ScoredCity implements Comparable<ScoredCity> {
+            final CityInfo city;
+            final int distance;
+
+            ScoredCity(CityInfo city, int distance) {
+                this.city = city;
+                this.distance = distance;
+            }
+
+            @Override
+            public int compareTo(ScoredCity o) {
+                return Integer.compare(this.distance, o.distance);
+            }
+        }
+
+        List<ScoredCity> scored = new ArrayList<>();
+        synchronized (CITIES) {
+            for (CityInfo c : CITIES) {
+                int best = levenshtein(normQ, stripAccents(c.getName()).toLowerCase());
+                if (c.getAliases() != null) {
+                    for (String a : c.getAliases()) {
+                        int d = levenshtein(normQ, stripAccents(a).toLowerCase());
+                        if (d < best) best = d;
+                    }
+                }
+                scored.add(new ScoredCity(c, best));
+            }
+        }
+
+        Collections.sort(scored);
+        return scored.stream().limit(max).map(s -> s.city).collect(Collectors.toList());
+    }
+
+    private static int levenshtein(String s1, String s2) {
+        int[] costs = new int[s2.length() + 1];
+        for (int j = 0; j <= s2.length(); j++) {
+            costs[j] = j;
+        }
+        for (int i = 1; i <= s1.length(); i++) {
+            costs[0] = i;
+            int nw = i - 1;
+            for (int j = 1; j <= s2.length(); j++) {
+                int cj = Math.min(1 + Math.min(costs[j], costs[j - 1]),
+                        s1.charAt(i - 1) == s2.charAt(j - 1) ? nw : nw + 1);
+                nw = costs[j];
+                costs[j] = cj;
+            }
+        }
+        return costs[s2.length()];
+    }
+
+    private static boolean isWordMatch(String haystack, String needle) {
+        if (haystack == null || needle == null || needle.isEmpty()) {
+            return false;
+        }
+        if (needle.length() >= 5 && haystack.contains(needle)) {
+            return true;
+        }
+        return Pattern.compile("\\b" + Pattern.quote(needle) + "\\b").matcher(haystack).find();
+    }
+
+    private static boolean isGenericLandmarkWord(String word) {
+        return word.equals("RAILWAY") || word.equals("STATION") || word.equals("AIRPORT")
+                || word.equals("HOTEL") || word.equals("STAND") || word.equals("STOP")
+                || word.equals("PALACE") || word.equals("CENTER") || word.equals("CENTRE")
+                || word.equals("TEMPLE") || word.equals("RESORT") || word.equals("CIRCLE")
+                || word.equals("HILL") || word.equals("MARKET") || word.equals("STREET")
+                || word.equals("ROAD") || word.equals("CROSS");
+    }
+
     public static CityInfo findCity(String location) {
         if (location == null || location.isBlank()) {
             return null;
         }
-        String upper = location.toUpperCase().trim();
-
-        // 1. Direct match on key or name
-        for (CityInfo city : CITIES) {
-            if (upper.equals(city.getKey()) || upper.equalsIgnoreCase(city.getName())) {
-                return city;
-            }
-            if (city.getAirportCodes() != null && city.getAirportCodes().contains(upper)) {
-                return city;
-            }
-            if (city.getStationCodes() != null && city.getStationCodes().contains(upper)) {
-                return city;
-            }
-            if (city.getAliases() != null && city.getAliases().contains(upper)) {
-                return city;
-            }
+        String upper = stripAccents(location).toUpperCase().trim();
+        if (isGenericLandmarkWord(upper)) {
+            return null;
         }
 
-        // 2. Substring matching for aliases or codes
-        for (CityInfo city : CITIES) {
-            if (city.getAliases() != null) {
-                for (String alias : city.getAliases()) {
-                    if (upper.contains(alias.toUpperCase())) {
-                        return city;
+        synchronized (CITIES) {
+            // 1. Exact match on key, name, or codes
+            for (CityInfo city : CITIES) {
+                if (upper.equals(city.getKey()) || upper.equalsIgnoreCase(city.getName())) {
+                    return city;
+                }
+                if (city.getAirportCodes() != null && city.getAirportCodes().contains(upper)) {
+                    return city;
+                }
+                if (city.getStationCodes() != null && city.getStationCodes().contains(upper)) {
+                    return city;
+                }
+                if (city.getAliases() != null) {
+                    for (String alias : city.getAliases()) {
+                        if (upper.equalsIgnoreCase(stripAccents(alias))) {
+                            return city;
+                        }
                     }
+                }
+            }
+
+            // 2. Word or substring matching: find the city with the longest matching name, key, or alias
+            CityInfo bestCity = null;
+            int bestLen = 0;
+
+            for (CityInfo city : CITIES) {
+                String cName = stripAccents(city.getName()).toUpperCase();
+                String cKey = city.getKey().toUpperCase();
+
+                if (isWordMatch(upper, cKey) && cKey.length() > bestLen) {
+                    bestLen = cKey.length();
+                    bestCity = city;
+                }
+                if (isWordMatch(upper, cName) && cName.length() > bestLen) {
+                    bestLen = cName.length();
+                    bestCity = city;
+                }
+
+                if (city.getAliases() != null) {
+                    for (String alias : city.getAliases()) {
+                        String normAlias = stripAccents(alias).toUpperCase();
+                        if (isWordMatch(upper, normAlias) && normAlias.length() > bestLen) {
+                            bestLen = normAlias.length();
+                            bestCity = city;
+                        }
+                    }
+                }
+            }
+
+            if (bestCity != null) {
+                return bestCity;
+            }
+
+            // 3. Fuzzy matching: only for single-word queries without spaces (e.g. slight typos like "mysure" or "banglore")
+            if (!upper.contains(" ") && upper.length() >= 4 && upper.length() <= 15) {
+                CityInfo fuzzyBest = null;
+                int minDistance = 999;
+
+                for (CityInfo city : CITIES) {
+                    String cName = stripAccents(city.getName()).toUpperCase();
+                    String cKey = city.getKey().toUpperCase();
+
+                    int d = Math.min(levenshtein(upper, cKey), levenshtein(upper, cName));
+                    if (city.getAliases() != null) {
+                        for (String alias : city.getAliases()) {
+                            String normAlias = stripAccents(alias).toUpperCase();
+                            d = Math.min(d, levenshtein(upper, normAlias));
+                        }
+                    }
+
+                    if (d <= 2 && d < minDistance) {
+                        minDistance = d;
+                        fuzzyBest = city;
+                    }
+                }
+
+                if (fuzzyBest != null) {
+                    return fuzzyBest;
                 }
             }
         }
@@ -132,28 +347,7 @@ public class InventoryService {
             return city.getKey();
         }
 
-        String upper = location.toUpperCase();
-        if (upper.contains("IXE") || upper.contains("MANGALURU") || upper.contains("MANGALORE") || upper.contains("BEJAI")) {
-            return "MANGALURU";
-        }
-        if (upper.contains("BLR") || upper.contains("BENGALURU") || upper.contains("BANGALORE")
-                || upper.contains("KEMPEGOWDA") || upper.contains("YESVANTPUR") || upper.contains("MAJESTIC")
-                || upper.contains("KSR BENGALURU") || upper.contains("KSR CITY")) {
-            return "BENGALURU";
-        }
-        if (upper.contains("GOI") || upper.contains("GOA") || upper.contains("DABOLIM")) {
-            return "GOA";
-        }
-        if (upper.contains("MYQ") || upper.contains("MYSURU") || upper.contains("MYSORE")) {
-            return "MYSURU";
-        }
-        if (upper.contains("UDUPI")) {
-            return "UDUPI";
-        }
-        if (upper.contains("HUBBALLI") || upper.contains("HUBLI")) {
-            return "HUBBALLI";
-        }
-
+        String upper = stripAccents(location).toUpperCase();
         String cleaned = upper.replaceAll("\\(.*\\)", "").replaceAll("[^A-Z0-9 ]", "").trim();
         return cleaned.isEmpty() ? upper.trim() : cleaned;
     }

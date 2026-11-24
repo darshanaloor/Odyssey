@@ -40,9 +40,22 @@ public class SmsChannel implements NotificationChannel {
         this.authToken = authToken != null && !authToken.isBlank() ? authToken.trim() : null;
         this.fromNumber = fromNumber != null && !fromNumber.isBlank() ? fromNumber.trim() : null;
         this.whatsappFrom = whatsappFrom != null && !whatsappFrom.isBlank() ? whatsappFrom.trim() : null;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .build();
+        try {
+            this.httpClient = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
+        } catch (Exception e) {
+            log.warn("SmsChannel: could not eagerly initialize HttpClient: {}", e.getMessage());
+        }
+    }
+
+    private synchronized HttpClient getHttpClient() {
+        if (this.httpClient == null) {
+            this.httpClient = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
+        }
+        return this.httpClient;
     }
 
     public void setHttpClientForTesting(HttpClient httpClient) {
@@ -125,7 +138,7 @@ public class SmsChannel implements NotificationChannel {
                         .POST(HttpRequest.BodyPublishers.ofString(formBody))
                         .build();
 
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
                 int statusCode = response.statusCode();
 
                 if (statusCode >= 200 && statusCode < 300) {

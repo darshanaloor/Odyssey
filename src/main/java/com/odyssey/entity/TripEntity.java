@@ -65,6 +65,31 @@ public class TripEntity {
     @Builder.Default
     private Boolean notifyWhatsapp = false;
 
+    @Column(name = "has_mobility_assistance", nullable = false)
+    @Builder.Default
+    private Boolean hasMobilityAssistance = false;
+
+    @Column(name = "has_elderly_traveller", nullable = false)
+    @Builder.Default
+    private Boolean hasElderlyTraveller = false;
+
+    @Column(name = "has_travelling_with_children", nullable = false)
+    @Builder.Default
+    private Boolean hasTravellingWithChildren = false;
+
+    @Column(name = "has_medical_needs", nullable = false)
+    @Builder.Default
+    private Boolean hasMedicalNeeds = false;
+
+    @Column(name = "special_needs_note", length = 300)
+    private String specialNeedsNote;
+
+    @Column(name = "emergency_contact_name", length = 100)
+    private String emergencyContactName;
+
+    @Column(name = "emergency_contact_phone", length = 20)
+    private String emergencyContactPhone;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -79,6 +104,7 @@ public class TripEntity {
     private List<HardCommitmentEntity> hardCommitments = new ArrayList<>();
 
     @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("startTime ASC")
     @Builder.Default
     private List<BookingEntity> bookings = new ArrayList<>();
 
@@ -98,7 +124,7 @@ public class TripEntity {
     @Builder.Default
     private List<AuditEntryEntity> auditEntries = new ArrayList<>();
 
-    @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "trip", fetch = FetchType.LAZY)
     @Builder.Default
     private List<NotificationEntity> notifications = new ArrayList<>();
 }

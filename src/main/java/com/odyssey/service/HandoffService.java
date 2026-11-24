@@ -66,6 +66,7 @@ public class HandoffService {
                 .filter(b -> (b.getType() == BookingType.BUS || b.getType() == BookingType.TRAIN || b.getType() == BookingType.FLIGHT))
                 .filter(b -> b.getStatus() == BookingStatus.BOOKED || b.getStatus() == BookingStatus.REBOOKED
                         || (newLegId != null && newLegId.equals(b.getId())))
+                .filter(b -> !"MARKETPLACE".equalsIgnoreCase(b.getSource()) && b.getDepartureId() == null)
                 .collect(Collectors.toList());
 
         return handoffBookings.stream().map(this::toHandoffLegDto).collect(Collectors.toList());

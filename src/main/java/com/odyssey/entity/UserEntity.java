@@ -1,9 +1,7 @@
 package com.odyssey.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.odyssey.model.enums.UserRole;
+import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -32,6 +30,11 @@ public class UserEntity {
 
     @Column(name = "phone", length = 50)
     private String phone;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    @Builder.Default
+    private UserRole role = UserRole.TRAVELLER;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

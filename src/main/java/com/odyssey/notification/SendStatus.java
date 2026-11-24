@@ -4,5 +4,7 @@ public enum SendStatus {
     SENT,
     FAILED,
     SIMULATED,
-    SKIPPED
+    SKIPPED,
+    LINK_CREATED,
+    COPIED
 }

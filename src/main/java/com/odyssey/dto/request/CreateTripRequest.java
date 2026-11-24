@@ -5,6 +5,7 @@ import com.odyssey.model.Constraints;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -43,6 +44,24 @@ public class CreateTripRequest {
 
     @Builder.Default
     private Boolean notifyWhatsapp = false;
+
+    @Builder.Default
+    private Boolean hasMobilityAssistance = false;
+
+    @Builder.Default
+    private Boolean hasElderlyTraveller = false;
+
+    @Builder.Default
+    private Boolean hasTravellingWithChildren = false;
+
+    @Builder.Default
+    private Boolean hasMedicalNeeds = false;
+
+    @Size(max = 300, message = "Special needs note must not exceed 300 characters")
+    private String specialNeedsNote;
+
+    private String emergencyContactName;
+    private String emergencyContactPhone;
 
     @Builder.Default
     private List<Booking> bookings = new ArrayList<>();

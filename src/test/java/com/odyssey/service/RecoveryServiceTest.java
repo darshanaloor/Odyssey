@@ -274,8 +274,11 @@ class RecoveryServiceTest {
                 .orElseThrow();
         assertEquals(BookingStatus.SAFE, event.getStatus());
 
-        // Verify checklist items are done
-        assertTrue(approvedPlan.getChecklist().stream().allMatch(ActionChecklistItem::isDone));
+        // Verify checklist items start as PENDING (not done) for explicit execution tracking
+        assertFalse(approvedPlan.getChecklist().isEmpty());
+        assertTrue(approvedPlan.getChecklist().stream().noneMatch(ActionChecklistItem::isDone));
+        assertTrue(approvedPlan.getChecklist().stream()
+                .allMatch(item -> item.getStatus() == com.odyssey.model.enums.RecoveryActionStatus.PENDING));
 
         // Verify a second approve throws 409 Conflict
         assertThrows(ConflictException.class, () ->

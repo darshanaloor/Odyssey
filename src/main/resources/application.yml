@@ -35,6 +35,34 @@ logging:
     org.springframework.web: INFO
     org.flywaydb: INFO
 
+market:
+  hold-minutes: 10
+  generated:
+    road-factor: 1.25
+    bus:
+      max-distance-km: 1200.0
+      speed-kmh: 45.0
+      base-price: 150.0
+      per-km-price: 1.80
+      sleeper-min-distance-km: 350.0
+      sleeper-surcharge: 250.0
+      seats: 40
+      operator-name: "State Transport Express"
+    train:
+      speed-kmh: 55.0
+      base-price: 120.0
+      per-km-price: 1.20
+      seats: 72
+      operator-name: "Intercity Rail Service"
+    flight:
+      min-distance-km: 300.0
+      speed-kmh: 750.0
+      ground-allowance-minutes: 60
+      base-price: 2500.0
+      per-km-price: 4.50
+      seats: 180
+      operator-name: "Domestic Air Service"
+
 odyssey:
   scoring:
     weights:
@@ -47,6 +75,12 @@ odyssey:
     penalties:
       constraint-violation: 50.0
       overnight-travel: 30.0
+    traveller-needs:
+      direct-route-bonus: 5.0
+      transfer-penalty: 5.0
+      short-wait-bonus: 5.0
+      extra-buffer-bonus: 5.0
+      daytime-bonus: 5.0
   recovery:
     replacement-cab-cost: 400.00
     replacement-cab-buffer-minutes: 30
@@ -69,6 +103,19 @@ odyssey:
       endpoint-path: "/flights"
   llm:
     api-key: ${LLM_API_KEY:}
+  market:
+    provider:
+      horizon-days: 14
+      default-reliability: 85
+      max-vehicles: 20
+      max-schedules: 60
+      rate-limit-per-minute: 60
+
+refund:
+  typical-days-min: 5
+  typical-days-max: 7
+  note: "Refunds are not instant. They usually take a few working days (typically 5 to 7). This is an estimate, not a guarantee, and depends on the operator and the payment method. Odyssey cannot confirm when a refund is received."
+  demo-note: "Demo refund. No real money is moved. Demo marketplace. No real ticket is issued and no money was charged."
 
 handoff:
   links:
@@ -76,3 +123,51 @@ handoff:
     bus-redbus: "https://www.redbus.in/bus-tickets/{from}-to-{to}?date={date}"
     bus-ksrtc: "https://ksrtc.in/oprs-web/guest/home.do"
     flight: "https://www.google.com/travel/flights?q=Flights%20to%20{to}%20from%20{from}%20on%20{date}"
+
+readiness:
+  weights:
+    connection-buffers: 25.0
+    hard-commitment-slack: 20.0
+    booking-completeness: 20.0
+    recovery-alternatives: 20.0
+    monitoring-coverage: 15.0
+  thresholds:
+    high: 80.0
+    medium: 50.0
+  buffers:
+    min-minutes:
+      bus-to-cab: 30
+      train-to-hotel: 45
+      flight-to-cab: 45
+      cab-to-event: 30
+      flight-to-flight: 60
+      train-to-train: 45
+      bus-to-bus: 30
+      default: 30
+    aggregation: MINIMUM
+  slack:
+    min-slack-minutes: 60
+  alternatives:
+    target-count: 3
+    estimated-weight: 0.5
+    generated-weight: 0.7
+    real-weight: 1.0
+  monitoring:
+    simulated-weight: 0.5
+
+provider:
+  booking-confirmation:
+    timeout-seconds: 30
+
+cancellation:
+  policy:
+    tier-10-plus-hours: 240
+    tier-10-plus-refund-percent: 100
+    tier-3-to-9-min-hours: 72
+    tier-3-to-9-max-hours: 240
+    tier-3-to-9-refund-percent: 75
+    tier-1-to-2-min-hours: 24
+    tier-1-to-2-max-hours: 72
+    tier-1-to-2-refund-percent: 25
+    same-day-refund-percent: 0
+

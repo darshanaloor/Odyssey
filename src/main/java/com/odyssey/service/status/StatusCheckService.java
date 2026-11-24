@@ -36,17 +36,55 @@ public class StatusCheckService {
     @Autowired(required = false)
     private SimulatedStatusProvider simulatedStatusProvider;
 
+    @Autowired(required = false)
+    private com.odyssey.repository.jpa.BookingJpaRepository bookingRepo;
+
     private final AtomicBoolean isChecking = new AtomicBoolean(false);
 
-    @Scheduled(fixedDelayString = "#{${odyssey.status.check-interval-minutes:5} * 60000}")
+    public void runStatusChecksForProviderReport() {
+        runStatusChecksInternal(true);
+    }
+
+    @Transactional
+    public void runStatusChecksForDeparture(String departureId, boolean dispatchAlert) {
+        if (departureId == null || departureId.isBlank()) {
+            return;
+        }
+        if (bookingRepo != null) {
+            List<com.odyssey.entity.BookingEntity> departureBookings = bookingRepo.findByDepartureId(departureId);
+            Set<String> checkedTripIds = new HashSet<>();
+            for (com.odyssey.entity.BookingEntity b : departureBookings) {
+                if (b.getTrip() != null && b.getTrip().getId() != null) {
+                    String tripId = b.getTrip().getId();
+                    if (checkedTripIds.add(tripId)) {
+                        try {
+                            checkTripNow(tripId, dispatchAlert);
+                        } catch (Exception e) {
+                            log.error("Error executing status check for affected trip {} on departure {}: {}",
+                                    tripId, departureId, e.getMessage(), e);
+                        }
+                    }
+                }
+            }
+        }
+        // Run global status check as fallback
+        runStatusChecksForProviderReport();
+    }
+
+    @Scheduled(fixedDelayString = "#{${odyssey.status.check-interval-minutes:5} * 60000}", initialDelayString = "#{${odyssey.status.initial-delay-minutes:5} * 60000}")
     public void runScheduledStatusChecks() {
+        runStatusChecksInternal(false);
+    }
+
+    private void runStatusChecksInternal(boolean dispatchAlerts) {
         if (!isChecking.compareAndSet(false, true)) {
             log.info("Scheduled status check job is already in progress. Skipping this cycle.");
             return;
         }
 
         try {
-            log.debug("Starting scheduled status check cycle...");
+            log.debug("Starting status check cycle (dispatchAlerts={})...", dispatchAlerts);
+
             List<Trip> trips = tripRepository.findAll();
             LocalDateTime now = LocalDateTime.now();
 
@@ -55,7 +93,7 @@ public class StatusCheckService {
                     continue;
                 }
                 try {
-                    checkTrip(trip, now, false);
+                    checkTrip(trip, now, dispatchAlerts);
                 } catch (Exception e) {
                     log.error("Error checking status for trip {}: {}", trip.getId(), e.getMessage(), e);
                 }
@@ -119,7 +157,8 @@ public class StatusCheckService {
 
         List<Booking> candidates = trip.getBookings().stream()
                 .filter(b -> b.getType() == BookingType.FLIGHT || b.getType() == BookingType.TRAIN || b.getType() == BookingType.BUS)
-                .filter(b -> b.getStatus() != BookingStatus.CANCELLED && b.getStatus() != BookingStatus.REBOOKED && b.getStatus() != BookingStatus.COMPLETED)
+                .filter(b -> (b.getStatus() != BookingStatus.CANCELLED || b.getDepartureId() != null)
+                        && b.getStatus() != BookingStatus.REBOOKED && b.getStatus() != BookingStatus.COMPLETED)
                 .collect(Collectors.toList());
 
         LocalDateTime windowEnd = now.plusHours(statusProperties.getLookaheadHours());
@@ -127,7 +166,8 @@ public class StatusCheckService {
                 .filter(b -> (b.getStartTime() != null
                                 && !b.getStartTime().isBefore(now.minusMinutes(5))
                                 && !b.getStartTime().isAfter(windowEnd))
-                        || (simulatedStatusProvider != null && simulatedStatusProvider.hasScriptedStatus(trip.getId(), b.getId())))
+                        || (simulatedStatusProvider != null && simulatedStatusProvider.hasScriptedStatus(trip.getId(), b.getId()))
+                        || (b.getDepartureId() != null))
                 .collect(Collectors.toList());
 
         if (inWindow.isEmpty()) {
@@ -142,6 +182,7 @@ public class StatusCheckService {
         boolean tripModified = false;
 
         for (Booking booking : inWindow) {
+            Integer previousDelay = booking.getLastDelayMinutes();
             StatusResult result;
             try {
                 StatusProvider provider = statusProviderSelector.getProvider(booking);
@@ -227,16 +268,43 @@ public class StatusCheckService {
 
             booking.setLastDedupKey(dedupKey);
 
+            String disruptionSource;
+            String disruptionReason;
+            if ("PROVIDER_REPORTED".equalsIgnoreCase(result.getSource())) {
+                String op = booking.getOperator() != null && !booking.getOperator().isBlank()
+                        ? booking.getOperator() : booking.getProvider();
+                String veh = booking.getVehicleNumber() != null ? booking.getVehicleNumber().trim() : "";
+                disruptionSource = (op != null ? op : "Provider") + (veh.isEmpty() ? "" : " " + veh) + " (Provider-reported)";
+                disruptionReason = "Provider-reported, not independently verified";
+            } else if (booking.getDepartureId() != null || "MARKETPLACE".equalsIgnoreCase(booking.getSource())) {
+                String op = booking.getOperator() != null && !booking.getOperator().isBlank()
+                        ? booking.getOperator() : booking.getProvider();
+                String veh = booking.getVehicleNumber() != null ? booking.getVehicleNumber().trim() : "";
+                if (!veh.isEmpty() && op != null && !op.isEmpty()) {
+                    disruptionSource = op + " " + veh;
+                } else if (!veh.isEmpty()) {
+                    disruptionSource = veh;
+                } else if (op != null && !op.isEmpty()) {
+                    disruptionSource = op;
+                } else {
+                    disruptionSource = "SIMULATED";
+                }
+                disruptionReason = "Detected automatically from " + (booking.getDepartureId() != null ? "service departure" : result.getSource()) + " status";
+            } else {
+                disruptionSource = result.getSource() != null ? result.getSource() : "SIMULATED";
+                disruptionReason = "Detected automatically from " + (booking.getDepartureId() != null ? "service departure" : result.getSource()) + " status";
+            }
+
             // Create Disruption
             Disruption disruption = Disruption.builder()
                     .id(IdGenerator.generate("DIS"))
                     .type(disruptionType)
                     .bookingId(booking.getId())
                     .delayMinutes(delayMinutes)
-                    .reason("Detected automatically from " + result.getSource() + " status")
+                    .reason(disruptionReason)
                     .disruptionTime(now)
                     .reportedAt(now)
-                    .source(result.getSource() != null ? result.getSource() : "SIMULATED")
+                    .source(disruptionSource)
                     .actor("SYSTEM")
                     .build();
 
@@ -250,8 +318,13 @@ public class StatusCheckService {
                 booking.setStatus(BookingStatus.CANCELLED);
             } else {
                 booking.setStatus(BookingStatus.DELAYED);
-                if (booking.getEndTime() != null && delayMinutes > 0) {
-                    booking.setEndTime(booking.getEndTime().plusMinutes(delayMinutes));
+                if (result.getReportedEnd() != null) {
+                    booking.setEndTime(result.getReportedEnd());
+                } else if (booking.getEndTime() != null && delayMinutes > 0) {
+                    LocalDateTime baseEnd = (previousDelay != null && previousDelay > 0)
+                            ? booking.getEndTime().minusMinutes(previousDelay)
+                            : booking.getEndTime();
+                    booking.setEndTime(baseEnd.plusMinutes(delayMinutes));
                 }
             }
 
@@ -274,7 +347,8 @@ public class StatusCheckService {
                 try {
                     notificationService.sendDisruptionAlert(trip, booking, disruption, impactReport);
                 } catch (Exception e) {
-                    log.error("Failed to dispatch auto-detected disruption notification: {}", e.getMessage());
+                    log.error("Failed to dispatch auto-detected disruption notification for trip {} disruption {}: {}",
+                            trip.getId(), disruption.getId(), e.getClass().getSimpleName());
                 }
             }
 

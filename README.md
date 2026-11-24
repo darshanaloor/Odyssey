@@ -13,6 +13,25 @@ A high-performance Spring Boot 3 microservice engineered in Java 21 for travel d
 - **Database Schema**: Managed strictly through forward-only Flyway migrations
 - **Local Dev Server**: `http://localhost:8085`
 
+### Multi-Role Local Testing (Dual-Tab Sessions)
+Because web browsers share session cookies across all tabs of the same hostname origin, logging in as a Provider in one tab overwrites an active Traveller session on `http://localhost:8085`. For local dev/demo testing of Traveller and Provider roles simultaneously on the same machine, open one role on `http://localhost:8085` and the other on `http://127.0.0.1:8085` (which uses a separate origin cookie jar).
+
+---
+
+## Phase 18A: Provider Portal & Role Administration
+
+Odyssey supports three roles for users:
+- `TRAVELLER`: Default customer role assigned upon registration.
+- `PROVIDER`: Assigned automatically when a logged-in user completes the provider registration flow (`POST /api/provider/register`).
+- `ADMIN`: Administrator role with permissions to review, approve, reject, suspend, and reinstate providers.
+
+### Admin Role Assignment (Project Owner Only)
+To prevent privilege escalation and mass assignment vulnerabilities, the `ADMIN` role is never assignable through any API endpoint or registration payload. No default admin accounts or credentials exist in code. An admin user must be manually promoted via SQL by the project owner using this single statement:
+
+```sql
+UPDATE users SET role = 'ADMIN' WHERE email = 'your.email@example.com';
+```
+
 ---
 
 ## Phase 9 Architecture: User Accounts, Ownership, and Booking Hand-off

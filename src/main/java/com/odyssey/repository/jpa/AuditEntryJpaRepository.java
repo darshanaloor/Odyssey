@@ -9,5 +9,6 @@ import java.util.List;
 @Repository
 public interface AuditEntryJpaRepository extends JpaRepository<AuditEntryEntity, String> {
     List<AuditEntryEntity> findByTripIdOrderByTimestampAsc(String tripId);
+    List<AuditEntryEntity> findByTripIdOrderByTimestampDesc(String tripId);
     void deleteByTripId(String tripId);
 }

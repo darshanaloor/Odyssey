@@ -37,4 +37,7 @@ public class Option {
 
     private String explanation;
     private String bestAvailableNote;
+
+    @Builder.Default
+    private String accessibilityDisclaimer = "Accessibility information is not available in this catalogue. Please confirm with the operator.";
 }

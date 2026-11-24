@@ -22,8 +22,12 @@ public class BookingEntity {
     private String id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "trip_id", nullable = false)
+    @JoinColumn(name = "trip_id", nullable = true)
     private TripEntity trip;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = true)
+    private UserEntity user;
 
     @Column(name = "type", nullable = false, length = 50)
     private String type;
@@ -78,4 +82,65 @@ public class BookingEntity {
 
     @Column(name = "booking_reference", length = 100)
     private String bookingReference;
+
+    @Column(name = "service_id", length = 64)
+    private String serviceId;
+
+    @Column(name = "departure_id", length = 64)
+    private String departureId;
+
+    @Column(name = "provider_id", length = 64)
+    private String providerId;
+
+    @Column(name = "vehicle_number", length = 100)
+    private String vehicleNumber;
+
+    @Column(name = "operator", length = 100)
+    private String operator;
+
+    @Column(name = "seat_numbers", length = 255)
+    private String seatNumbers;
+
+    @Column(name = "passenger_names", columnDefinition = "TEXT")
+    private String passengerNames;
+
+    @Column(name = "payment_status", length = 50)
+    private String paymentStatus;
+
+    @Column(name = "payment_method", length = 50)
+    private String paymentMethod;
+
+    @Column(name = "source", length = 50)
+    private String source;
+
+    @Column(name = "hotel_room_type_id", length = 64)
+    private String hotelRoomTypeId;
+
+    @Column(name = "cannot_honour", nullable = false)
+    @Builder.Default
+    private Boolean cannotHonour = false;
+
+    @Column(name = "cannot_honour_reason", length = 255)
+    private String cannotHonourReason;
+
+    @Column(name = "cannot_honour_at")
+    private LocalDateTime cannotHonourAt;
+
+    @Column(name = "confirmation_expires_at")
+    private LocalDateTime confirmationExpiresAt;
+
+    @Column(name = "provider_confirmation_status", length = 50)
+    private String providerConfirmationStatus;
+
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
+    @Column(name = "cancelled_by", length = 100)
+    private String cancelledBy;
+
+    @Column(name = "assigned_driver_name", length = 100)
+    private String assignedDriverName;
+
+    @Column(name = "alternative_departure_id", length = 64)
+    private String alternativeDepartureId;
 }

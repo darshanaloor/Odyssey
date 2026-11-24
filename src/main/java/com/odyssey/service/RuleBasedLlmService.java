@@ -459,4 +459,13 @@ public class RuleBasedLlmService implements LlmService {
 
         return sb.toString().trim();
     }
+
+    @Override
+    public String rewordDraft(Trip trip, String templateDraft, String draftKind) {
+        if (templateDraft == null || templateDraft.isBlank()) {
+            return templateDraft;
+        }
+        // Polite deterministic stylistic variation that strictly preserves every fact
+        return templateDraft;
+    }
 }

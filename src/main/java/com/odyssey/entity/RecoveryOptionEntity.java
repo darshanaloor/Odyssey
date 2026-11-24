@@ -40,6 +40,9 @@ public class RecoveryOptionEntity {
     @Column(name = "explanation", columnDefinition = "TEXT")
     private String explanation;
 
+    @Column(name = "best_available_note", length = 255)
+    private String bestAvailableNote;
+
     @Column(name = "source", nullable = false, length = 50)
     @Builder.Default
     private String source = "INVENTORY";

@@ -51,4 +51,19 @@ public class OptionLegEntity {
     @Column(name = "leg_order", nullable = false)
     @Builder.Default
     private Integer legOrder = 0;
+
+    @Column(name = "service_departure_id", length = 64)
+    private String serviceDepartureId;
+
+    @Column(name = "operator", length = 100)
+    private String operator;
+
+    @Column(name = "vehicle_number", length = 100)
+    private String vehicleNumber;
+
+    @Column(name = "seats_available")
+    private Integer seatsAvailable;
+
+    @Column(name = "schedule_label", length = 100)
+    private String scheduleLabel;
 }

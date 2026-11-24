@@ -1,5 +1,6 @@
 package com.odyssey.controller;
 
+import com.odyssey.dto.provider.ProviderSignupRequest;
 import com.odyssey.dto.request.ChangePasswordRequest;
 import com.odyssey.dto.request.LoginRequest;
 import com.odyssey.dto.request.RegisterRequest;
@@ -30,6 +31,15 @@ public class AuthController {
                 .body(ApiResponse.ok("User registered successfully", user));
     }
 
+    @PostMapping("/provider-register")
+    public ResponseEntity<ApiResponse<UserResponse>> registerProvider(
+            @Valid @RequestBody ProviderSignupRequest request,
+            HttpServletRequest httpRequest) {
+        UserResponse user = authService.registerProvider(request, httpRequest);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok("Provider registered successfully. Status is PENDING review.", user));
+    }
+
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<UserResponse>> login(@Valid @RequestBody LoginRequest request,
                                                            HttpServletRequest httpRequest) {
@@ -47,11 +57,11 @@ public class AuthController {
     public ResponseEntity<ApiResponse<UserResponse>> getMe() {
         UserResponse user = authService.getCurrentUser();
         if (user == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.<UserResponse>builder()
-                            .success(false)
-                            .message("Not authenticated")
-                            .build());
+            return ResponseEntity.ok(ApiResponse.<UserResponse>builder()
+                    .success(false)
+                    .message("Not authenticated")
+                    .data(null)
+                    .build());
         }
         return ResponseEntity.ok(ApiResponse.ok("Current user retrieved", user));
     }

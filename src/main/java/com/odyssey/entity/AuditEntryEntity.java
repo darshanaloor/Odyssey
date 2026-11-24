@@ -19,8 +19,14 @@ public class AuditEntryEntity {
     private String id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "trip_id", nullable = false)
+    @JoinColumn(name = "trip_id", nullable = true)
     private TripEntity trip;
+
+    @Column(name = "booking_id", length = 64)
+    private String bookingId;
+
+    @Column(name = "user_id", length = 64)
+    private String userId;
 
     @Column(name = "timestamp", nullable = false)
     private LocalDateTime timestamp;

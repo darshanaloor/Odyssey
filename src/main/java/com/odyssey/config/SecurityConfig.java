@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -26,6 +27,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
@@ -47,7 +49,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf
                 .csrfTokenRepository(tokenRepo)
                 .csrfTokenRequestHandler(requestHandler)
-                .ignoringRequestMatchers("/api/auth/register", "/api/auth/login", "/api/demo/reset")
+                .ignoringRequestMatchers("/api/auth/register", "/api/auth/provider-register", "/api/auth/login", "/api/demo/reset")
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
@@ -63,9 +65,12 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/", "/index.html", "/app.js", "/styles.css", "/favicon.ico",
-                    "/api/auth/register", "/api/auth/login", "/api/auth/logout", "/api/auth/csrf",
-                    "/api/demo/reset"
+                    "/api/auth/register", "/api/auth/provider-register", "/api/auth/login", "/api/auth/logout", "/api/auth/csrf", "/api/auth/me",
+                    "/api/demo/reset", "/api/market/cities"
                 ).permitAll()
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/provider/register").authenticated()
+                .requestMatchers("/api/provider/**").hasAnyRole("PROVIDER", "ADMIN")
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             )
@@ -104,7 +109,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:8085"));
+        config.setAllowedOrigins(List.of("http://localhost:8085", "http://localhost:8086", "http://127.0.0.1:8085", "http://127.0.0.1:8086"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

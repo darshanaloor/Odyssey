@@ -7,7 +7,13 @@ import com.odyssey.model.*;
 import com.odyssey.model.enums.BookingStatus;
 import com.odyssey.model.enums.BookingType;
 import com.odyssey.model.enums.DisruptionType;
+import com.odyssey.model.enums.OptionLabel;
+import com.odyssey.notification.EmailChannel;
+import com.odyssey.notification.SimulatedChannel;
+import com.odyssey.notification.SmsChannel;
 import com.odyssey.repository.TripRepository;
+import com.odyssey.repository.jpa.NotificationJpaRepository;
+import com.odyssey.repository.jpa.TripJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,7 +64,15 @@ class DemoLeakScanAndPreferenceTest {
         llmService = new RuleBasedLlmService();
         recoveryService = new RecoveryService(tripRepository, recoveryProperties, llmService);
         scoringService = new ScoringService(scoringProperties, recoveryProperties);
-        notificationService = new NotificationService();
+        notificationService = new NotificationService(
+                new EmailChannel(null, 587, null, null, null),
+                new SmsChannel(null, null, null, null),
+                new SimulatedChannel(),
+                Mockito.mock(NotificationJpaRepository.class),
+                Mockito.mock(TripJpaRepository.class),
+                tripRepository,
+                recoveryProperties
+        );
     }
 
     private void assertNoDemoStringsLeak(String text, String context) {
@@ -420,11 +434,15 @@ class DemoLeakScanAndPreferenceTest {
 
         RecoveryResponse response = scoringService.scoreAndRank(trip, disrupted, List.of(earlyLeg, lateLeg, validLeg));
 
-        // Both early and late legs must be rejected
+        // Both early and late legs must be rejected; single valid leg yields FASTEST and SAFEST ("Same result as FASTEST")
         assertEquals(2, response.getRejectedOptions().size());
-        assertEquals(1, response.getOptions().size());
+        assertEquals(2, response.getOptions().size());
+        assertEquals(OptionLabel.FASTEST, response.getOptions().get(0).getLabel());
         assertTrue(response.getOptions().get(0).getId().contains("INV-VALID-01"));
         assertTrue(response.getOptions().get(0).getLegs().get(0).getId().contains("INV-VALID-01"));
+        assertEquals(OptionLabel.SAFEST, response.getOptions().get(1).getLabel());
+        assertTrue(response.getOptions().get(1).getId().contains("INV-VALID-01"));
+        assertTrue(response.getOptions().get(1).getBestAvailableNote().contains("Same result as FASTEST"));
 
         RejectedOption rejEarly = response.getRejectedOptions().stream()
                 .filter(r -> "INV-EARLY-01".equals(r.getId())).findFirst().orElseThrow();

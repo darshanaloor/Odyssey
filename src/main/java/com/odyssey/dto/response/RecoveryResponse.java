@@ -22,6 +22,9 @@ public class RecoveryResponse {
     private String relaxationApplied;
 
     @Builder.Default
+    private String accessibilityDisclaimer = "Accessibility information is not available in this catalogue. Please confirm with the operator.";
+
+    @Builder.Default
     private List<Option> options = new ArrayList<>();
 
     @Builder.Default

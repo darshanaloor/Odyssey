@@ -42,6 +42,29 @@ public class Trip {
     private Boolean notifyWhatsapp = false;
 
     @Builder.Default
+    private Boolean hasMobilityAssistance = false;
+
+    @Builder.Default
+    private Boolean hasElderlyTraveller = false;
+
+    @Builder.Default
+    private Boolean hasTravellingWithChildren = false;
+
+    @Builder.Default
+    private Boolean hasMedicalNeeds = false;
+
+    private String specialNeedsNote;
+    private String emergencyContactName;
+    private String emergencyContactPhone;
+
+    public boolean hasAnySpecialNeed() {
+        return Boolean.TRUE.equals(hasMobilityAssistance)
+                || Boolean.TRUE.equals(hasElderlyTraveller)
+                || Boolean.TRUE.equals(hasTravellingWithChildren)
+                || Boolean.TRUE.equals(hasMedicalNeeds);
+    }
+
+    @Builder.Default
     private List<Booking> bookings = new ArrayList<>();
 
     private Constraints constraints;

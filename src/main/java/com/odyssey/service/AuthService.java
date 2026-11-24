@@ -1,14 +1,23 @@
 package com.odyssey.service;
 
+import com.odyssey.dto.provider.ProviderSignupRequest;
 import com.odyssey.dto.request.ChangePasswordRequest;
 import com.odyssey.dto.request.LoginRequest;
 import com.odyssey.dto.request.RegisterRequest;
 import com.odyssey.dto.request.UpdateProfileRequest;
 import com.odyssey.dto.response.UserResponse;
+import com.odyssey.entity.AuditEntryEntity;
+import com.odyssey.entity.ProviderEntity;
 import com.odyssey.entity.UserEntity;
 import com.odyssey.exception.ConflictException;
 import com.odyssey.exception.RateLimitException;
+import com.odyssey.model.CityInfo;
+import com.odyssey.model.enums.ProviderStatus;
+import com.odyssey.model.enums.UserRole;
+import com.odyssey.repository.jpa.AuditEntryJpaRepository;
+import com.odyssey.repository.jpa.ProviderJpaRepository;
 import com.odyssey.repository.jpa.UserJpaRepository;
+import com.odyssey.util.EmergencyContactUtil;
 import com.odyssey.util.IdGenerator;
 import com.odyssey.util.NotificationMasker;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,6 +48,8 @@ import java.util.concurrent.ConcurrentMap;
 public class AuthService {
 
     private final UserJpaRepository userJpaRepository;
+    private final ProviderJpaRepository providerJpaRepository;
+    private final AuditEntryJpaRepository auditEntryJpaRepository;
     private final PasswordEncoder passwordEncoder;
 
     // Rate limiting: 5 failed attempts per 15 minutes per email
@@ -72,6 +83,96 @@ public class AuthService {
         return toResponse(saved);
     }
 
+    @Transactional
+    public UserResponse registerProvider(ProviderSignupRequest request, HttpServletRequest httpRequest) {
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+        if (userJpaRepository.existsByEmail(normalizedEmail)) {
+            throw new ConflictException("An account with this email already exists");
+        }
+
+        validatePassword(request.getPassword());
+
+        // Validate city in cities.json
+        CityInfo cityInfo = InventoryService.findCity(request.getCity());
+        boolean cityMatches = cityInfo != null && (
+                cityInfo.getName().equalsIgnoreCase(request.getCity().trim())
+                || cityInfo.getKey().equalsIgnoreCase(request.getCity().trim())
+                || (cityInfo.getAliases() != null && cityInfo.getAliases().stream().anyMatch(a -> a.equalsIgnoreCase(request.getCity().trim())))
+        );
+        if (!cityMatches) {
+            throw new IllegalArgumentException("City '" + request.getCity() + "' is not supported in the Odyssey network");
+        }
+
+        // Validate and normalize contact phone
+        String normalizedPhone = EmergencyContactUtil.normalizePhone(request.getContactPhone());
+
+        String contactEmail = (request.getContactEmail() != null && !request.getContactEmail().isBlank())
+                ? request.getContactEmail().trim().toLowerCase()
+                : normalizedEmail;
+
+        String userId = IdGenerator.generate("USR");
+        String passwordHash = passwordEncoder.encode(request.getPassword());
+
+        UserEntity user = UserEntity.builder()
+                .id(userId)
+                .name(request.getName().trim())
+                .email(normalizedEmail)
+                .passwordHash(passwordHash)
+                .phone(normalizedPhone)
+                .role(UserRole.PROVIDER)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UserEntity savedUser = userJpaRepository.save(user);
+
+        String providerId = IdGenerator.generate("PRV");
+        ProviderEntity provider = ProviderEntity.builder()
+                .id(providerId)
+                .user(savedUser)
+                .businessName(request.getBusinessName().trim())
+                .businessType(request.getBusinessType())
+                .contactEmail(contactEmail)
+                .contactPhone(normalizedPhone)
+                .city(cityInfo.getName())
+                .description(request.getDescription() != null && !request.getDescription().isBlank() ? request.getDescription().trim() : null)
+                .status(ProviderStatus.PENDING)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        ProviderEntity savedProvider = providerJpaRepository.save(provider);
+
+        if (auditEntryJpaRepository != null) {
+            auditEntryJpaRepository.save(AuditEntryEntity.builder()
+                    .id(IdGenerator.generate("AUD"))
+                    .timestamp(LocalDateTime.now())
+                    .actor("USER")
+                    .action("PROVIDER_REGISTERED")
+                    .details("Brand-new provider registered: " + savedProvider.getBusinessName() + " (ID: " + savedProvider.getId() + ")")
+                    .build());
+        }
+
+        log.info("Registered new provider account atomically: userId={}, providerId={}, businessName={}, email={}",
+                savedUser.getId(), savedProvider.getId(), savedProvider.getBusinessName(), NotificationMasker.maskEmail(savedUser.getEmail()));
+
+        // Set up Spring Security session so user is logged in
+        if (httpRequest != null) {
+            List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+            authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+            authorities.add(new SimpleGrantedAuthority("ROLE_PROVIDER"));
+
+            Authentication authentication = new UsernamePasswordAuthenticationToken(savedUser.getEmail(), null, authorities);
+            SecurityContext context = SecurityContextHolder.createEmptyContext();
+            context.setAuthentication(authentication);
+            SecurityContextHolder.setContext(context);
+
+            HttpSession session = httpRequest.getSession(true);
+            session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
+        }
+
+        return toResponse(savedUser);
+    }
+
     public UserResponse login(LoginRequest request, HttpServletRequest httpRequest) {
         String normalizedEmail = request.getEmail().trim().toLowerCase();
 
@@ -88,7 +189,13 @@ public class AuthService {
         failedAttempts.remove(normalizedEmail);
 
         // Set up Spring Security session
-        List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_USER"));
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+        if (user.getRole() != null) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+        } else {
+            authorities.add(new SimpleGrantedAuthority("ROLE_TRAVELLER"));
+        }
         Authentication authentication = new UsernamePasswordAuthenticationToken(user.getEmail(), null, authorities);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
@@ -199,6 +306,27 @@ public class AuthService {
         }
     }
 
+    public void refreshAuthenticationRole(UserEntity user, HttpServletRequest httpRequest) {
+        if (user == null) return;
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+        if (user.getRole() != null) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+        } else {
+            authorities.add(new SimpleGrantedAuthority("ROLE_TRAVELLER"));
+        }
+        Authentication authentication = new UsernamePasswordAuthenticationToken(user.getEmail(), null, authorities);
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
+        if (httpRequest != null) {
+            HttpSession session = httpRequest.getSession(false);
+            if (session != null) {
+                session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
+            }
+        }
+    }
+
     public UserResponse toResponse(UserEntity entity) {
         if (entity == null) return null;
         return UserResponse.builder()
@@ -206,6 +334,7 @@ public class AuthService {
                 .name(entity.getName())
                 .email(entity.getEmail())
                 .phone(entity.getPhone())
+                .role(entity.getRole() != null ? entity.getRole().name() : "TRAVELLER")
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

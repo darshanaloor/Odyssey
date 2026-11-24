@@ -32,6 +32,9 @@ class DependencyGraphTest {
 
     @BeforeEach
     void setUp() {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+        new InventoryService(mapper, new com.odyssey.config.RecoveryProperties()).init();
         dependencyGraph = new DependencyGraph();
         baseDate = LocalDateTime.now().plusDays(2).withHour(0).withMinute(0).withSecond(0).withNano(0);
 

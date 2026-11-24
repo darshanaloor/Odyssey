@@ -34,4 +34,9 @@ public class InventoryItem {
 
     @Builder.Default
     private String source = "INVENTORY";
+
+    private String operator;
+    private String vehicleNumber;
+    private String serviceDepartureId;
+    private String scheduleLabel;
 }

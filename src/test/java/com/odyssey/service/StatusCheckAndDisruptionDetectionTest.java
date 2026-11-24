@@ -7,13 +7,19 @@ import com.odyssey.dto.request.ReportDisruptionRequest;
 import com.odyssey.dto.request.SimulateStatusRequest;
 import com.odyssey.dto.response.ApiResponse;
 import com.odyssey.entity.BookingEntity;
+import com.odyssey.entity.NotificationEntity;
 import com.odyssey.entity.TripEntity;
 import com.odyssey.exception.ConflictException;
 import com.odyssey.exception.ResourceNotFoundException;
 import com.odyssey.model.*;
 import com.odyssey.model.enums.*;
+import com.odyssey.notification.EmailChannel;
+import com.odyssey.notification.SimulatedChannel;
+import com.odyssey.notification.SmsChannel;
 import com.odyssey.repository.TripRepository;
 import com.odyssey.repository.jpa.BookingJpaRepository;
+import com.odyssey.repository.jpa.NotificationJpaRepository;
+import com.odyssey.repository.jpa.TripJpaRepository;
 import com.odyssey.service.status.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +51,12 @@ class StatusCheckAndDisruptionDetectionTest {
 
     @Mock
     private TripAccessService tripAccessService;
+
+    @Mock
+    private NotificationJpaRepository notificationJpaRepository;
+
+    @Mock
+    private TripJpaRepository tripJpaRepository;
 
     private DependencyGraph dependencyGraph;
     private NotificationService notificationService;
@@ -81,9 +93,18 @@ class StatusCheckAndDisruptionDetectionTest {
     @BeforeEach
     void setUp() {
         dependencyGraph = new DependencyGraph();
-        notificationService = new NotificationService();
         recoveryProperties = new RecoveryProperties();
         recoveryProperties.setDelayThresholdMinutes(30);
+
+        notificationService = new NotificationService(
+                new EmailChannel(null, 587, null, null, null),
+                new SmsChannel(null, null, null, null),
+                new SimulatedChannel(),
+                notificationJpaRepository,
+                tripJpaRepository,
+                tripRepository,
+                recoveryProperties
+        );
 
         statusProperties = new StatusProperties();
         statusProperties.setCheckIntervalMinutes(5);
@@ -133,6 +154,19 @@ class StatusCheckAndDisruptionDetectionTest {
                 .auditLog(new ArrayList<>())
                 .options(new ArrayList<>())
                 .build();
+
+        lenient().when(tripJpaRepository.findById(testTrip.getId())).thenReturn(Optional.of(
+                TripEntity.builder()
+                        .id(testTrip.getId())
+                        .title(testTrip.getTitle())
+                        .travellerName(testTrip.getTravellerName())
+                        .status("CONFIRMED")
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build()
+        ));
+        lenient().when(notificationJpaRepository.save(any(NotificationEntity.class)))
+                .thenAnswer(i -> i.getArgument(0));
     }
 
     @Test
@@ -173,6 +207,9 @@ class StatusCheckAndDisruptionDetectionTest {
 
         assertTrue(auditList.stream().anyMatch(a -> "IMPACT_ANALYSIS_COMPLETED".equals(a.getAction())));
         assertTrue(auditList.stream().anyMatch(a -> "NOTIFICATION_DISPATCHED".equals(a.getAction())));
+        verify(notificationJpaRepository).existsByTripIdAndDedupKey(
+                eq(testTrip.getId()), argThat(k -> k.startsWith(testTrip.getId() + ":DISRUPTION_ALERT:")));
+        verify(notificationJpaRepository, times(2)).save(any(NotificationEntity.class));
     }
 
     @Test
@@ -571,5 +608,36 @@ class StatusCheckAndDisruptionDetectionTest {
         List<AuditEntry> auditList = testTrip.getAuditLog();
         assertTrue(auditList.stream().anyMatch(a -> "NOTIFICATION_DISPATCHED".equals(a.getAction())),
                 "Apply simulation must trigger immediate alert dispatch to email and mobile");
+    }
+
+    @Test
+    @DisplayName("NotificationService dispatches alert once and deduplicates repeated disruption alerts")
+    void testNotificationDispatchAndDeduplication() {
+        Disruption disruption = Disruption.builder()
+                .id("DIS-NOTIF-1")
+                .type(DisruptionType.FLIGHT_DELAY)
+                .bookingId(testBooking.getId())
+                .delayMinutes(60)
+                .reason("Weather delay")
+                .disruptionTime(LocalDateTime.now())
+                .build();
+        TripImpactReport impact = TripImpactReport.builder()
+                .summary("1 booking impacted")
+                .mustArriveByBreached("false")
+                .build();
+        String expectedDedupKey = testTrip.getId() + ":DISRUPTION_ALERT:" + disruption.getId();
+
+        when(notificationJpaRepository.existsByTripIdAndDedupKey(testTrip.getId(), expectedDedupKey))
+                .thenReturn(false)
+                .thenReturn(true);
+
+        // First call: not a duplicate -> dispatches and persists EMAIL and SMS records
+        notificationService.sendDisruptionAlert(testTrip, testBooking, disruption, impact);
+        verify(notificationJpaRepository, times(2)).save(any(NotificationEntity.class));
+
+        // Second call: duplicate dedupKey -> suppressed, no extra save
+        notificationService.sendDisruptionAlert(testTrip, testBooking, disruption, impact);
+        verify(notificationJpaRepository, times(2)).save(any(NotificationEntity.class));
+        verify(notificationJpaRepository, times(2)).existsByTripIdAndDedupKey(testTrip.getId(), expectedDedupKey);
     }
 }

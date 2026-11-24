@@ -34,4 +34,12 @@ public interface LlmService {
      * to the other alternatives using real figures (costs, arrival times, buffers, reliability).
      */
     String generateTradeOffExplanation(Trip trip, Option chosenOption, List<Option> allOptions);
+
+    /**
+     * Rewords a deterministic template draft into polished prose.
+     * Must preserve all underlying facts (dates, times, numbers, references, names).
+     */
+    default String rewordDraft(Trip trip, String templateDraft, String draftKind) {
+        return templateDraft;
+    }
 }

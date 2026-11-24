@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,9 +8,13 @@
   <meta name="description" content="AI-assisted deterministic travel recovery and disruption mitigation engine.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles.css">
 </head>
+
 <body>
   <!-- Toast Notification Container -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
@@ -25,11 +30,11 @@
         <p class="brand-tagline">Ideas that echo through time &bull; Autonomous Travel Recovery</p>
       </div>
       <div class="header-actions">
-        <div class="status-indicator-group">
+        <div id="header-trip-status-group" class="status-indicator-group">
           <span class="status-label">Active Trip:</span>
           <span id="trip-status-badge" class="badge badge-neutral">NO TRIP LOADED</span>
         </div>
-        <div class="btn-group">
+        <div id="header-trip-actions-group" class="btn-group">
           <button id="btn-open-create-trip" class="btn btn-gold" aria-label="Create a new trip">
             <span class="btn-text">+ New Trip</span>
           </button>
@@ -57,11 +62,20 @@
       </div>
       <!-- View Navigation Tabs -->
       <nav class="app-nav" aria-label="Application navigation">
-        <button id="nav-btn-directory" class="nav-tab active" type="button">
+        <button id="nav-btn-market-search" class="nav-tab active" type="button" data-route="/search">
+          Search &amp; Book
+        </button>
+        <button id="nav-btn-directory" class="nav-tab" type="button" data-route="/trips">
           My Trips (<span id="nav-trips-count">0</span>)
         </button>
-        <button id="nav-btn-workspace" class="nav-tab" type="button">
-          Trip Workspace <span id="nav-current-trip-tag" class="mono-badge">TRIP-DEMO-001</span>
+        <button id="nav-btn-workspace" class="nav-tab" type="button" data-route="/trips/">
+          Trip Workspace <span id="nav-current-trip-tag" class="mono-badge"></span>
+        </button>
+        <button id="nav-btn-provider" class="nav-tab hidden" type="button" data-route="/provider">
+          Provider Portal
+        </button>
+        <button id="nav-btn-admin" class="nav-tab hidden" type="button" data-route="/admin">
+          Admin Portal
         </button>
       </nav>
     </div>
@@ -72,13 +86,167 @@
   <main class="main-content" role="main">
 
     <!-- ========================================== -->
+    <!-- VIEW: MARKETPLACE SEARCH & BOOK            -->
+    <!-- ========================================== -->
+    <section id="section-market-search" class="card" aria-labelledby="heading-market-search">
+      <div class="card-header">
+        <div>
+          <h2 id="heading-market-search" class="section-title">Search &amp; Book Travel Services</h2>
+          <p class="section-hint">Verified transport departures, hotels &amp; local cabs across the Odyssey network</p>
+        </div>
+        <div class="btn-group">
+          <button id="btn-switch-to-bookings" class="btn btn-outline btn-sm" aria-label="View my bookings">
+            <span class="btn-text">My Bookings</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Marketplace Subtabs -->
+      <div class="market-subtabs">
+        <button type="button" id="tab-market-transport" class="market-subtab active">Transit (Bus, Train,
+          Flight)</button>
+        <button type="button" id="tab-market-hotels" class="market-subtab">Hotels &amp; Lodging</button>
+        <button type="button" id="tab-market-cabs" class="market-subtab">Local Cabs &amp; Transfers</button>
+      </div>
+
+      <!-- Subpanel 1: Transport -->
+      <div id="subpanel-market-transport">
+        <form id="form-market-search" class="market-search-form">
+          <div class="market-search-grid">
+            <div class="form-group" style="position: relative;">
+              <label for="market-search-origin">Origin City <span class="required">*</span></label>
+              <input type="text" id="market-search-origin" class="form-control" placeholder="e.g. Bengaluru"
+                autocomplete="off" required>
+              <div id="origin-suggestions" class="autocomplete-dropdown hidden"></div>
+              <div id="origin-fuzzy-box" class="fuzzy-box hidden"></div>
+            </div>
+            <div class="form-group" style="position: relative;">
+              <label for="market-search-dest">Destination City <span class="required">*</span></label>
+              <input type="text" id="market-search-dest" class="form-control" placeholder="e.g. Mysuru"
+                autocomplete="off" required>
+              <div id="dest-suggestions" class="autocomplete-dropdown hidden"></div>
+              <div id="dest-fuzzy-box" class="fuzzy-box hidden"></div>
+            </div>
+            <div class="form-group">
+              <label for="market-search-date">Date <span class="required">*</span></label>
+              <input type="date" id="market-search-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label for="market-search-mode">Travel Mode</label>
+              <select id="market-search-mode" class="form-control">
+                <option value="">All Modes</option>
+                <option value="BUS">Bus</option>
+                <option value="TRAIN">Train</option>
+                <option value="FLIGHT">Flight</option>
+              </select>
+            </div>
+          </div>
+          <div class="market-search-actions">
+            <button type="submit" id="btn-market-search" class="btn btn-gold">
+              <span class="btn-text">Search Departures</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+
+        <div id="market-popular-routes" class="popular-routes-bar" style="margin: 1rem 0;"></div>
+
+        <div class="market-results-header">
+          <span id="market-services-count" class="badge badge-info">0 departures found</span>
+        </div>
+        <div id="market-services-list" class="market-services-container">
+          <p class="empty-state">Search for an origin and destination to view bookable departures.</p>
+        </div>
+      </div>
+
+      <!-- Subpanel 2: Hotels -->
+      <div id="subpanel-market-hotels" class="hidden">
+        <form id="form-market-hotels" class="market-search-form">
+          <div class="market-search-grid">
+            <div class="form-group">
+              <label for="market-hotel-city">City <span class="required">*</span></label>
+              <input type="text" id="market-hotel-city" class="form-control" placeholder="e.g. Mysuru" required>
+            </div>
+            <div class="form-group">
+              <label for="market-hotel-checkin">Check-In <span class="required">*</span></label>
+              <input type="date" id="market-hotel-checkin" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label for="market-hotel-checkout">Check-Out <span class="required">*</span></label>
+              <input type="date" id="market-hotel-checkout" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label for="market-hotel-rooms">Rooms</label>
+              <input type="number" id="market-hotel-rooms" class="form-control" min="1" max="5" value="1">
+            </div>
+          </div>
+          <div class="market-search-actions">
+            <button type="submit" id="btn-market-hotels-search" class="btn btn-gold">Search Hotels</button>
+          </div>
+        </form>
+        <div id="market-hotels-list" class="market-hotels-container" style="margin-top: 1.5rem;">
+          <p class="empty-state">Search a destination city to view available hotels.</p>
+        </div>
+      </div>
+
+      <!-- Subpanel 3: Cabs -->
+      <div id="subpanel-market-cabs" class="hidden">
+        <form id="form-market-cabs" class="market-search-form">
+          <div class="market-search-grid">
+            <div class="form-group">
+              <label for="market-cab-city">City <span class="required">*</span></label>
+              <input type="text" id="market-cab-city" class="form-control" placeholder="e.g. Mysuru" required>
+            </div>
+            <div class="form-group">
+              <label for="market-cab-pickup">Pickup Location <span class="required">*</span></label>
+              <input type="text" id="market-cab-pickup" class="form-control" placeholder="e.g. Railway Station"
+                required>
+            </div>
+            <div class="form-group">
+              <label for="market-cab-dropoff">Dropoff Location <span class="required">*</span></label>
+              <input type="text" id="market-cab-dropoff" class="form-control" placeholder="e.g. Royal Orchid Hotel"
+                required>
+            </div>
+          </div>
+          <div class="market-search-actions">
+            <button type="submit" id="btn-market-cabs-quote" class="btn btn-gold">Get Cab Quotes</button>
+          </div>
+        </form>
+        <div id="market-cabs-list" class="market-cabs-container" style="margin-top: 1.5rem;">
+          <p class="empty-state">Search city and pickup/dropoff points to get verified cab quotes.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW: MARKET BOOKINGS -->
+    <section id="section-market-bookings" class="card hidden" aria-labelledby="heading-market-bookings">
+      <div class="card-header">
+        <div>
+          <h2 id="heading-market-bookings" class="section-title">My Marketplace Bookings</h2>
+          <p class="section-hint">Confirmed transit, lodging &amp; transfers with printable summaries</p>
+        </div>
+        <div class="btn-group">
+          <button id="btn-switch-to-search" class="btn btn-gold btn-sm">Search More Services</button>
+          <button id="btn-refresh-market-bookings" class="btn btn-outline btn-sm">Refresh</button>
+        </div>
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <span id="market-my-bookings-count" class="badge badge-info">0 bookings</span>
+      </div>
+      <div id="market-bookings-container" class="market-bookings-list">
+        <p class="empty-state">No marketplace bookings yet.</p>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
     <!-- VIEW A: TRIPS DIRECTORY                    -->
     <!-- ========================================== -->
-    <section id="section-trips-directory" class="card directory-card" aria-labelledby="heading-trips-directory">
+    <section id="section-trips-directory" class="card directory-card hidden" aria-labelledby="heading-trips-directory">
       <div class="card-header">
         <div>
           <h2 id="heading-trips-directory" class="section-title">Travel Expeditions Directory</h2>
-          <p class="section-hint">Persistent MySQL trip workspace &bull; Create, manage, and recover trips independently</p>
+          <p class="section-hint">Persistent MySQL trip workspace &bull; Create, manage, and recover trips independently
+          </p>
         </div>
         <div class="btn-group">
           <button id="btn-refresh-trips" class="btn btn-outline btn-sm" aria-label="Refresh trips list">
@@ -99,7 +267,8 @@
         <div class="auth-required-card">
           <div class="auth-required-icon">🔒</div>
           <h3 class="auth-required-title">Sign in to Odyssey</h3>
-          <p class="auth-required-text">Please sign in or create an account to view and manage your travel itineraries, monitor disruptions, and rebook replacement legs.</p>
+          <p class="auth-required-text">Please sign in or create an account to view and manage your travel itineraries,
+            monitor disruptions, and rebook replacement legs.</p>
           <div class="auth-required-actions">
             <button id="btn-panel-login" class="btn btn-outline" type="button">
               <span class="btn-text">Sign In</span>
@@ -109,11 +278,10 @@
             </button>
           </div>
         </div>
-      </div>
 
-      <div id="trips-directory-list" class="trips-directory-grid">
-        <p class="empty-state">Loading expeditions from database...</p>
-      </div>
+        <div id="trips-directory-list" class="trips-directory-grid">
+          <p class="empty-state">Loading expeditions from database...</p>
+        </div>
     </section>
 
     <!-- ========================================== -->
@@ -127,6 +295,28 @@
           &larr; Back to Trips Directory
         </button>
         <span id="workspace-trip-indicator" class="workspace-indicator-text">Viewing: <strong>-</strong></span>
+        <a id="btn-trip-wallet-link" href="#" target="_blank" class="btn btn-outline btn-sm" style="margin-left: auto;">
+          🎫 View Wallet
+        </a>
+      </div>
+
+      <!-- Workspace Sub-Navigation Tabs (Client-Side Routes) -->
+      <div id="trip-subnav-bar" class="trip-subnav-bar"
+        style="margin: 1rem 0; display: flex; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; flex-wrap: wrap;">
+        <button type="button" id="tab-trip-overview" class="btn btn-outline btn-sm active" data-subroute="">Timeline
+          &amp; Overview</button>
+        <button type="button" id="tab-trip-disruption" class="btn btn-outline btn-sm hidden"
+          data-subroute="/disruption">Disruption &amp; Impact</button>
+        <button type="button" id="tab-trip-recovery" class="btn btn-outline btn-sm" data-subroute="/recovery">Recovery
+          Options</button>
+        <button type="button" id="tab-trip-plan" class="btn btn-outline btn-sm" data-subroute="/plan">Recovery
+          Plan</button>
+        <button type="button" id="tab-trip-notifications" class="btn btn-outline btn-sm"
+          data-subroute="/notifications">Alert History</button>
+        <button type="button" id="tab-trip-ledger" class="btn btn-outline btn-sm" data-subroute="/ledger">Costs &amp;
+          Refunds</button>
+        <a id="link-trip-wallet" href="#" target="_blank" class="btn btn-outline btn-sm"
+          style="margin-left: auto;">Wallet &amp; Passes &rarr;</a>
       </div>
 
       <!-- 2. Trip Summary Section -->
@@ -136,6 +326,8 @@
           <div class="header-badges">
             <span id="trip-id-display" class="mono-tag">No Trip Loaded</span>
             <span id="trip-overview-status-badge" class="badge badge-neutral">UNLOADED</span>
+            <button type="button" id="btn-view-wallet" class="btn btn-secondary btn-sm">Trip Wallet</button>
+            <button type="button" id="btn-view-readiness" class="btn btn-secondary btn-sm">Trip Readiness</button>
             <button type="button" id="btn-edit-trip" class="btn btn-outline btn-sm">Edit Trip</button>
           </div>
         </div>
@@ -172,6 +364,154 @@
             <span class="field-label">Stay / Hotel</span>
             <span id="trip-hotel-status" class="field-value">-</span>
           </div>
+          <div id="overview-traveller-needs" class="summary-field hidden">
+            <span class="field-label">Traveller Needs</span>
+            <span id="trip-traveller-needs" class="field-value">-</span>
+          </div>
+          <div id="overview-emergency-contact" class="summary-field hidden">
+            <span class="field-label">Emergency Contact</span>
+            <span id="trip-emergency-contact" class="field-value">-</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Phase 15: Trip Readiness Section -->
+      <section id="section-readiness" class="card" aria-labelledby="heading-readiness">
+        <div class="card-header">
+          <div>
+            <h2 id="heading-readiness" class="section-title">Trip Readiness Score</h2>
+            <p class="section-hint">Deterministic evaluation of connection buffers, commitment slack, and recovery
+              resilience</p>
+          </div>
+          <div class="wallet-header-actions">
+            <button id="btn-refresh-readiness" class="btn btn-outline btn-sm" type="button">Refresh Analysis</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="banner banner-info" style="margin-bottom: 1rem;">
+            <span>Readiness checks your trip data. It does not predict disruptions.</span>
+          </div>
+
+          <div
+            style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; padding: 16px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(212,175,55,0.25); border-radius: 8px;">
+            <div>
+              <span
+                style="font-size: 0.8rem; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.5px; display: block;">Readiness
+                Index</span>
+              <div style="display: flex; align-items: baseline; gap: 0.5rem; margin-top: 4px;">
+                <span id="readiness-score-display"
+                  style="font-size: 2.25rem; font-weight: 700; color: #f0f6fc; font-family: var(--font-mono);">--</span>
+                <span style="color: #64748b; font-size: 1.1rem;">/ 100</span>
+                <span id="readiness-band-badge" class="badge badge-neutral" style="margin-left: 0.75rem;">[?]
+                  UNKNOWN</span>
+              </div>
+            </div>
+            <div id="readiness-reliability-msg" style="font-size: 0.85rem; color: #94a3b8;">
+              Awaiting trip evaluation...
+            </div>
+          </div>
+
+          <!-- Factor breakdown table -->
+          <h3 class="subsection-title">Readiness Factor Breakdown</h3>
+          <div class="table-responsive">
+            <table class="data-table" aria-label="Readiness Factors Table">
+              <thead>
+                <tr>
+                  <th scope="col" style="width: 220px;">Factor Name</th>
+                  <th scope="col" style="width: 140px;">Points Earned</th>
+                  <th scope="col">Explanation</th>
+                  <th scope="col" style="width: 250px;">Data Evaluated</th>
+                </tr>
+              </thead>
+              <tbody id="readiness-factors-tbody">
+                <tr>
+                  <td colspan="4" class="empty-state">No factors evaluated.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Unknown factors warning -->
+          <div id="readiness-unknown-container" class="banner banner-warning hidden" style="margin-top: 1rem;">
+            <strong style="display: block; margin-bottom: 4px;">Incomplete / Unknown Factors:</strong>
+            <ul id="readiness-unknown-list" style="margin: 0; padding-left: 1.25rem; font-size: 0.85rem;"></ul>
+          </div>
+
+          <!-- Recommendations -->
+          <h3 class="subsection-title" style="margin-top: 1.5rem;">Actionable Readiness Recommendations</h3>
+          <ul id="readiness-recommendations-list"
+            style="margin: 0; padding-left: 1.25rem; font-size: 0.9rem; line-height: 1.6;">
+            <li class="empty-state" style="list-style: none;">No recommendations needed.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Phase 16: Booking Text Import Section -->
+      <section id="section-import" class="card" aria-labelledby="heading-import">
+        <div class="card-header">
+          <div>
+            <h2 id="heading-import" class="section-title">Booking Text Import</h2>
+            <p class="section-hint">Extract structured bookings from confirmation text or uploaded email (.eml) and text
+              (.txt) files</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="banner banner-info" style="margin-bottom: 1rem;">
+            <span>Odyssey reads text only. It does not read images or PDFs.</span>
+          </div>
+
+          <!-- File upload & text input form -->
+          <div class="import-input-grid" style="display: grid; gap: 1rem; margin-bottom: 1rem;">
+            <div>
+              <label for="import-file-input" class="form-label" style="font-weight: 600;">Upload confirmation file (.txt
+                or .eml, max 100 KB):</label>
+              <input type="file" id="import-file-input" accept=".txt,.eml" class="form-control" />
+            </div>
+            <div>
+              <label for="import-text-input" class="form-label" style="font-weight: 600;">Or paste booking confirmation
+                text:</label>
+              <textarea id="import-text-input" class="form-control" rows="6"
+                placeholder="Paste bus ticket, flight confirmation, hotel reservation, train ticket, or cab booking text here...&#10;&#10;e.g. Bus confirmation KSRTC Sarige departs Hubballi 10:00 arrives Goa 14:30 cost Rs 650"></textarea>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <button type="button" id="btn-extract-bookings" class="btn btn-primary">Extract bookings</button>
+            <button type="button" id="btn-clear-import" class="btn btn-outline">Clear</button>
+            <span id="import-spinner" class="spinner hidden" aria-hidden="true" style="margin-left: 0.5rem;"></span>
+            <span id="import-status-msg" style="font-size: 0.85rem; color: #94a3b8;"></span>
+          </div>
+
+          <!-- Review and inline editing area (hidden until extraction) -->
+          <div id="import-review-container" class="hidden"
+            style="margin-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1.5rem;">
+            <div
+              style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+              <h3 class="subsection-title" style="margin: 0;">Extracted Bookings Review</h3>
+              <span id="import-review-count-badge" class="badge badge-info">0 bookings</span>
+            </div>
+
+            <div id="import-duplicate-banner" class="banner banner-warning hidden" style="margin-bottom: 1rem;">
+              <span id="import-duplicate-text">One or more extracted bookings appear to duplicate existing trip
+                bookings. Please review carefully.</span>
+            </div>
+
+            <div id="import-unparsed-lines-container" class="banner banner-neutral hidden"
+              style="margin-bottom: 1rem; font-size: 0.85rem;">
+              <strong style="display: block; margin-bottom: 4px; color: #f59e0b;">Unparsed Lines:</strong>
+              <ul id="import-unparsed-lines-list" style="margin: 0; padding-left: 1.25rem;"></ul>
+            </div>
+
+            <div id="import-drafts-list" style="display: flex; flex-direction: column; gap: 1.25rem;">
+              <!-- Populated by JavaScript -->
+            </div>
+
+            <div
+              style="display: flex; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08);">
+              <button type="button" id="btn-save-parsed-bookings" class="btn btn-gold">Save these bookings</button>
+              <button type="button" id="btn-cancel-import-review" class="btn btn-outline">Discard</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -193,11 +533,13 @@
           <div class="header-left">
             <h2 id="heading-status-monitoring" class="section-title">Transit Status & Monitoring</h2>
             <span id="status-mode-badge" class="badge badge-purple">Simulated</span>
-            <span id="status-disclaimer-tag" class="status-disclaimer-tag">Simulated data, not a real tracking source</span>
+            <span id="status-disclaimer-tag" class="status-disclaimer-tag">Simulated data, not a real tracking
+              source</span>
           </div>
           <div class="header-actions">
             <span id="last-checked-label" class="status-checked-time">Last checked at: Never</span>
-            <button type="button" id="btn-check-status-now" class="btn btn-outline-cyan btn-sm" aria-label="Check transit status now">
+            <button type="button" id="btn-check-status-now" class="btn btn-outline-cyan btn-sm"
+              aria-label="Check transit status now">
               <span class="btn-text">Check status now</span>
               <span class="spinner" aria-hidden="true"></span>
             </button>
@@ -205,41 +547,6 @@
         </div>
 
         <div id="status-window-note" class="status-note-banner hidden"></div>
-
-        <!-- Simulation Control (Visible only when status mode is SIMULATED) -->
-        <div id="simulate-control-container" class="simulation-drawer hidden">
-          <div class="simulation-header">
-            <span class="simulation-tag">SIMULATION CONTROL</span>
-            <span class="text-muted text-sm">Test automatic detection by overriding booking status (Simulated mode only)</span>
-          </div>
-          <div class="simulation-form-grid">
-            <div class="form-group">
-              <label for="select-simulate-booking">Select Booking</label>
-              <select id="select-simulate-booking" class="form-control" aria-label="Select booking to simulate">
-                <option value="">-- Select a booking --</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="select-simulate-state">Status State</label>
-              <select id="select-simulate-state" class="form-control" aria-label="Select status state to simulate">
-                <option value="DELAYED">Delayed</option>
-                <option value="CANCELLED">Cancelled</option>
-                <option value="ON_TIME">On Time</option>
-                <option value="UNKNOWN">Status Unavailable (Unknown)</option>
-              </select>
-            </div>
-            <div id="group-simulate-delay" class="form-group">
-              <label for="input-simulate-delay">Delay Minutes</label>
-              <input type="number" id="input-simulate-delay" class="form-control" min="0" step="5" value="90" placeholder="e.g. 90">
-            </div>
-            <div class="form-actions-inline">
-              <button type="button" id="btn-apply-simulation" class="btn btn-primary btn-sm">
-                <span class="btn-text">Apply Simulation</span>
-                <span class="spinner" aria-hidden="true"></span>
-              </button>
-            </div>
-          </div>
-        </div>
       </section>
 
       <!-- 3. Vertical Timeline Section -->
@@ -249,9 +556,12 @@
             <h2 id="heading-timeline" class="section-title">Itinerary Timeline</h2>
             <span id="booking-count" class="badge badge-info">0 bookings</span>
           </div>
-          <button id="btn-add-booking" class="btn btn-gold btn-sm" aria-label="Add a booking to this trip">
-            <span class="btn-text">+ Add Booking</span>
-          </button>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button id="btn-open-import" class="btn btn-outline btn-sm" type="button">Import Confirmation</button>
+            <button id="btn-add-booking" class="btn btn-gold btn-sm" aria-label="Add a booking to this trip">
+              <span class="btn-text">+ Add Booking</span>
+            </button>
+          </div>
         </div>
         <div id="timeline-container" class="timeline-container">
           <p class="empty-state">No itinerary bookings loaded yet.</p>
@@ -280,11 +590,13 @@
           </div>
           <div id="group-delay-minutes" class="form-group hidden">
             <label for="input-delay-minutes">Delay Duration (Minutes)</label>
-            <input type="number" id="input-delay-minutes" class="form-control" min="15" step="15" value="120" placeholder="e.g. 120">
+            <input type="number" id="input-delay-minutes" class="form-control" min="15" step="15" value="120"
+              placeholder="e.g. 120">
           </div>
           <div class="form-group full-width">
             <label for="input-disruption-reason">Disruption Reason</label>
-            <input type="text" id="input-disruption-reason" class="form-control" value="Transit leg cancelled due to operational disruption" placeholder="Enter reason for disruption">
+            <input type="text" id="input-disruption-reason" class="form-control"
+              value="Transit leg cancelled due to operational disruption" placeholder="Enter reason for disruption">
           </div>
           <div class="form-actions full-width">
             <button id="btn-inject-disruption" class="btn btn-danger" aria-label="Inject disruption into trip">
@@ -323,10 +635,25 @@
       <section id="section-recovery" class="card" aria-labelledby="heading-recovery">
         <div class="card-header">
           <h2 id="heading-recovery" class="section-title">Recovery Options</h2>
-          <button id="btn-find-recovery" class="btn btn-primary" disabled title="Trip must be DISRUPTED to generate recovery options" aria-label="Find recovery options">
+          <button id="btn-find-recovery" class="btn btn-primary" disabled
+            title="Trip must be DISRUPTED to generate recovery options" aria-label="Find recovery options">
             <span class="btn-text">Find Recovery Options</span>
             <span class="spinner" aria-hidden="true"></span>
           </button>
+        </div>
+
+        <!-- Phase 17: Accessibility Disclaimer Banner -->
+        <div id="accessibility-disclaimer-banner" class="banner banner-info"
+          style="margin-bottom: 12px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 10px 14px; border-radius: 6px; font-size: 13px;">
+          <span>&#9432; Accessibility information is not available in this catalogue. Please confirm with the
+            operator.</span>
+        </div>
+
+        <!-- Phase 17: Accessibility Disclaimer Banner -->
+        <div id="accessibility-disclaimer-banner" class="banner banner-info"
+          style="margin-bottom: 12px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 10px 14px; border-radius: 6px; font-size: 13px;">
+          <span>&#9432; Accessibility information is not available in this catalogue. Please confirm with the
+            operator.</span>
         </div>
 
         <div id="no-perfect-banner" class="banner banner-warning hidden" role="alert">
@@ -341,7 +668,8 @@
         <div id="relax-constraints-bar" class="relax-constraints-container hidden">
           <span class="relax-label">Relax a constraint for this search:</span>
           <div class="relax-buttons-group">
-            <button type="button" id="btn-relax-overnight" class="btn btn-outline-warning btn-sm" data-action="overnight">
+            <button type="button" id="btn-relax-overnight" class="btn btn-outline-warning btn-sm"
+              data-action="overnight">
               <span>Allow overnight travel</span>
             </button>
             <button type="button" id="btn-relax-deadline" class="btn btn-outline-warning btn-sm" data-action="deadline">
@@ -350,19 +678,22 @@
             <button type="button" id="btn-relax-budget" class="btn btn-outline-warning btn-sm" data-action="budget">
               <span>Raise budget by 25%</span>
             </button>
-            <button type="button" id="btn-relax-reset" class="btn btn-outline-secondary btn-sm hidden" data-action="reset">
+            <button type="button" id="btn-relax-reset" class="btn btn-outline-secondary btn-sm hidden"
+              data-action="reset">
               <span>Reset constraints</span>
             </button>
           </div>
         </div>
 
         <div id="options-cards-container" class="options-grid">
-          <p class="empty-state">No recovery options generated yet. Inject a disruption and click "Find Recovery Options".</p>
+          <p class="empty-state">No recovery options generated yet. Inject a disruption and click "Find Recovery
+            Options".</p>
         </div>
 
         <!-- Collapsible Rejected Options List -->
         <div id="rejected-options-wrapper" class="rejected-options-section hidden">
-          <button id="btn-toggle-rejected" class="btn-accordion" aria-expanded="false" aria-controls="rejected-options-content">
+          <button id="btn-toggle-rejected" class="btn-accordion" aria-expanded="false"
+            aria-controls="rejected-options-content">
             <span>View Filtered Out / Rejected Options (<span id="rejected-count">0 options</span>)</span>
             <span class="accordion-arrow" aria-hidden="true">&#9662;</span>
           </button>
@@ -381,110 +712,389 @@
           </div>
         </div>
 
-        <!-- Trade-off Explanation Card -->
-        <div class="plan-subsection">
-          <h3 class="subsection-title">Trade-Off Analysis & Rationale</h3>
-          <div id="tradeoff-box" class="callout-box"></div>
+        <!-- Empty State when no plan drafted yet -->
+        <div id="plan-empty-state" class="empty-state-card hidden" style="padding: 2.5rem 1rem; text-align: center;">
+          <p class="empty-state" style="font-size: 1rem; margin-bottom: 1.25rem;">No recovery plan composed yet. Please
+            select an option under Recovery Options to generate a plan.</p>
+          <button type="button" id="btn-plan-goto-recovery" class="btn btn-gold btn-sm">
+            <span>View Recovery Options &rarr;</span>
+          </button>
         </div>
 
-        <!-- Before / After Itinerary Diff Table -->
-        <div class="plan-subsection">
-          <h3 class="subsection-title">Itinerary Diff (Before vs. After)</h3>
-          <div class="table-responsive">
-            <table class="data-table" aria-label="Itinerary diff comparison table">
-              <thead>
-                <tr>
-                  <th scope="col">Booking / Service</th>
-                  <th scope="col">Original Start</th>
-                  <th scope="col">Original Status</th>
-                  <th scope="col">Revised Start</th>
-                  <th scope="col">Revised Status</th>
-                  <th scope="col">Change Description</th>
-                </tr>
-              </thead>
-              <tbody id="diff-table-body"></tbody>
-            </table>
+        <div id="plan-content-wrap">
+          <!-- Trade-off Explanation Card -->
+          <div class="plan-subsection">
+            <h3 class="subsection-title">Trade-Off Analysis & Rationale</h3>
+            <div id="tradeoff-box" class="callout-box"></div>
           </div>
-        </div>
 
-        <!-- Net Cost Breakdown -->
-        <div class="plan-subsection">
-          <h3 class="subsection-title">Net Financial Breakdown</h3>
-          <div class="cost-breakdown-card">
-            <div id="cost-lines-container" class="cost-lines-list"></div>
-            <div class="cost-summary-bar">
-              <div class="cost-total-item">
-                <span class="cost-total-label">Net Trip Cost:</span>
-                <span id="cost-net-total" class="cost-total-value">Rs 0.00</span>
+          <!-- Before / After Itinerary Diff Table -->
+          <div class="plan-subsection">
+            <h3 class="subsection-title">Itinerary Diff (Before vs. After)</h3>
+            <div class="table-responsive">
+              <table class="data-table" aria-label="Itinerary diff comparison table">
+                <thead>
+                  <tr>
+                    <th scope="col">Booking / Service</th>
+                    <th scope="col">Original Start</th>
+                    <th scope="col">Original Status</th>
+                    <th scope="col">Revised Start</th>
+                    <th scope="col">Revised Status</th>
+                    <th scope="col">Change Description</th>
+                  </tr>
+                </thead>
+                <tbody id="diff-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Net Cost Breakdown -->
+          <div class="plan-subsection">
+            <h3 class="subsection-title">Net Financial Breakdown</h3>
+            <div class="cost-breakdown-card">
+              <div id="cost-lines-container" class="cost-lines-list"></div>
+              <div class="cost-summary-bar">
+                <div class="cost-total-item">
+                  <span class="cost-total-label">Net Trip Cost:</span>
+                  <span id="cost-net-total" class="cost-total-value">Rs 0.00</span>
+                </div>
+                <div class="cost-total-item">
+                  <span class="cost-total-label">Budget Limit:</span>
+                  <span id="cost-max-budget" class="cost-total-value">Rs 0.00</span>
+                </div>
+                <div class="cost-total-item highlight">
+                  <span class="cost-total-label">Remaining Budget:</span>
+                  <span id="cost-remaining-budget" class="cost-total-value">Rs 0.00</span>
+                </div>
               </div>
-              <div class="cost-total-item">
-                <span class="cost-total-label">Budget Limit:</span>
-                <span id="cost-max-budget" class="cost-total-value">Rs 0.00</span>
+            </div>
+
+            <!-- Traveller Needs & Assistance (Phase 17) -->
+            <div class="service-option-card">
+              <div class="section-subtitle"
+                style="font-weight: 600; margin-bottom: 8px; color: var(--text-heading, #0f172a);">
+                Traveller Needs &amp; Special Assistance
               </div>
-              <div class="cost-total-item highlight">
-                <span class="cost-total-label">Remaining Budget:</span>
-                <span id="cost-remaining-budget" class="cost-total-value">Rs 0.00</span>
+              <p class="form-help-text" style="font-size: 0.8rem; color: #64748b; margin-bottom: 12px;">
+                Sensitive: declared needs are visible only to the trip owner. Emergency contact is masked in logs and
+                exported only when opted in.
+              </p>
+              <div class="form-group-checkbox">
+                <label>
+                  <input type="checkbox" id="create-trip-need-mobility">
+                  <span>Mobility Assistance (wheelchair boarding, step-free access)</span>
+                </label>
+              </div>
+              <div class="form-group-checkbox">
+                <label>
+                  <input type="checkbox" id="create-trip-need-elderly">
+                  <span>Elderly Traveller (slower transitions, shorter walking distance)</span>
+                </label>
+              </div>
+              <div class="form-group-checkbox">
+                <label>
+                  <input type="checkbox" id="create-trip-need-children">
+                  <span>Travelling with Children (family seating, extra connection time)</span>
+                </label>
+              </div>
+              <div class="form-group-checkbox">
+                <label>
+                  <input type="checkbox" id="create-trip-need-medical">
+                  <span>Medical Needs (special accommodation / assistance)</span>
+                </label>
+              </div>
+              <div class="form-group" style="margin-top: 10px;">
+                <label for="create-trip-needs-note">Special Needs Note (Max 300 chars)</label>
+                <textarea id="create-trip-needs-note" class="form-control" rows="2" maxlength="300"
+                  placeholder="Optional notes for special accommodations (max 300 characters)..."></textarea>
+                <span id="err-create-needs-note" class="field-error"></span>
+              </div>
+              <div class="form-row" style="margin-top: 8px;">
+                <div class="form-group flex-1">
+                  <label for="create-trip-emergency-name">Emergency Contact Name</label>
+                  <input type="text" id="create-trip-emergency-name" class="form-control"
+                    placeholder="e.g. Ramesh Kumar">
+                </div>
+                <div class="form-group flex-1">
+                  <label for="create-trip-emergency-phone">Emergency Contact Phone (10 digits)</label>
+                  <input type="tel" id="create-trip-emergency-phone" class="form-control" placeholder="e.g. 9876543210">
+                  <span id="err-create-emergency-phone" class="field-error"></span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Action Checklist with Working Local Checkboxes -->
-        <div class="plan-subsection">
-          <h3 class="subsection-title">Execution Checklist</h3>
-          <p class="section-hint">Review each step required to execute this recovery route:</p>
-          <ul id="checklist-container" class="action-checklist" aria-label="Execution action checklist"></ul>
-        </div>
+          <!-- Action Checklist with Working Local Checkboxes -->
+          <div class="plan-subsection">
+            <h3 class="subsection-title">Execution Checklist</h3>
+            <p class="section-hint">Review each step required to execute this recovery route:</p>
+            <ul id="checklist-container" class="action-checklist" aria-label="Execution action checklist"></ul>
+          </div>
 
-        <!-- Hotel Late Check-in Draft Message with Copy Button & Email Action -->
-        <div id="plan-hotel-message-section" class="plan-subsection">
-          <div class="subsection-header-flex">
-            <div>
-              <h3 class="subsection-title">Draft Hotel Message</h3>
-              <p id="hotel-message-recipient-info" class="section-hint" style="margin: 0;"></p>
+          <!-- Hotel Late Check-in Draft Message with Copy Button & Email Action -->
+          <div id="plan-hotel-message-section" class="plan-subsection">
+            <div class="subsection-header-flex">
+              <div>
+                <h3 class="subsection-title">Draft Hotel Message</h3>
+                <p id="hotel-message-recipient-info" class="section-hint" style="margin: 0;"></p>
+              </div>
+              <div class="btn-group">
+                <button id="btn-send-hotel-email" class="btn btn-primary btn-sm hidden"
+                  aria-label="Send hotel update by email">
+                  <span class="btn-text">Send by email</span>
+                  <span class="spinner" aria-hidden="true"></span>
+                </button>
+                <a id="link-mailto-hotel" class="btn btn-outline btn-sm hidden" target="_blank"
+                  rel="noopener noreferrer">
+                  Open in Email
+                </a>
+                <button id="btn-copy-hotel-message" class="btn btn-secondary btn-sm"
+                  aria-label="Copy drafted hotel message to clipboard">
+                  <span class="btn-text">Copy message</span>
+                </button>
+              </div>
+            </div>
+            <div class="hotel-message-wrapper">
+              <pre id="hotel-message-box" class="code-box"></pre>
+            </div>
+          </div>
+
+          <!-- 7. Approval Gate Controls -->
+          <div class="approval-action-bar">
+            <div class="approval-notice">
+              <span class="notice-title">Human-in-the-Loop Approval Gate:</span>
+              <span class="notice-desc">Committing this plan will rebook transit, update statuses, and resolve the
+                trip.</span>
             </div>
             <div class="btn-group">
-              <button id="btn-send-hotel-email" class="btn btn-primary btn-sm hidden" aria-label="Send hotel update by email">
-                <span class="btn-text">Send by email</span>
+              <button id="btn-reject-plan" class="btn btn-outline-danger" aria-label="Reject proposed recovery plan">
+                <span class="btn-text">Reject</span>
                 <span class="spinner" aria-hidden="true"></span>
               </button>
-              <a id="link-mailto-hotel" class="btn btn-outline btn-sm hidden" target="_blank" rel="noopener noreferrer">
-                Open in Email
-              </a>
-              <button id="btn-copy-hotel-message" class="btn btn-secondary btn-sm" aria-label="Copy drafted hotel message to clipboard">
-                <span class="btn-text">Copy message</span>
+              <button id="btn-approve-plan" class="btn btn-success btn-lg"
+                aria-label="Approve and commit recovery plan">
+                <span class="btn-text">Approve plan</span>
+                <span class="spinner" aria-hidden="true"></span>
               </button>
             </div>
           </div>
-          <div class="hotel-message-wrapper">
-            <pre id="hotel-message-box" class="code-box"></pre>
-          </div>
-        </div>
-
-        <!-- 7. Approval Gate Controls -->
-        <div class="approval-action-bar">
-          <div class="approval-notice">
-            <span class="notice-title">Human-in-the-Loop Approval Gate:</span>
-            <span class="notice-desc">Committing this plan will rebook transit, update statuses, and resolve the trip.</span>
-          </div>
-          <div class="btn-group">
-            <button id="btn-reject-plan" class="btn btn-outline-danger" aria-label="Reject proposed recovery plan">
-              <span class="btn-text">Reject</span>
-              <span class="spinner" aria-hidden="true"></span>
-            </button>
-            <button id="btn-approve-plan" class="btn btn-success btn-lg" aria-label="Approve and commit recovery plan">
-              <span class="btn-text">Approve plan</span>
-              <span class="spinner" aria-hidden="true"></span>
-            </button>
-          </div>
-        </div>
+        </div> <!-- /plan-content-wrap -->
       </section>
 
       <!-- Resolved Confirmation Banner (shown when trip status is RESOLVED) -->
-      <section id="section-resolved-banner" class="banner banner-success hidden" role="region" aria-label="Trip resolved confirmation">
+      <section id="section-resolved-banner" class="banner banner-success hidden" role="region"
+        aria-label="Trip resolved confirmation">
         <div class="banner-content">
           <h3 class="banner-title">Trip Disruption Resolved Successfully</h3>
-          <p id="resolved-banner-desc">The approved recovery plan has been committed to the itinerary. All replacement legs and cab transfers are confirmed, and the timeline reflects the updated bookings.</p>
+          <p id="resolved-banner-desc">The approved recovery plan has been committed to the itinerary. All replacement
+            legs and cab transfers are confirmed, and the timeline reflects the updated bookings.</p>
+        </div>
+      </section>
+
+      <!-- Phase 11: Recovery Progress Tracker (shown only after plan approval) -->
+      <section id="section-recovery-tracker" class="card hidden" role="region" aria-label="Recovery progress tracker">
+        <div class="card-header">
+          <div>
+            <h3>Recovery Progress</h3>
+            <p class="card-subtitle">Track execution of your approved recovery actions. Marking an action done records
+              your confirmation only.</p>
+          </div>
+          <span id="tracker-progress-badge" class="badge badge-info">0 of 0 done</span>
+        </div>
+        <div class="card-body">
+          <div class="tracker-progress-bar-wrap" aria-label="Recovery execution progress bar">
+            <div id="tracker-progress-bar-fill" class="tracker-progress-bar-fill" style="width: 0%;"></div>
+          </div>
+          <p id="tracker-order-notice" class="tracker-order-notice hidden">Order protection active: Complete or skip
+            your replacement booking step before cancelling old bookings or requesting refunds.</p>
+          <div id="tracker-actions-list" class="tracker-actions-list"></div>
+        </div>
+      </section>
+
+      <!-- Phase 12: Costs and Refunds Ledger -->
+      <section id="section-ledger" class="card hidden" role="region" aria-label="Costs and refunds ledger">
+        <div class="card-header">
+          <div>
+            <h3>Costs and Refunds</h3>
+            <p class="card-subtitle">Honest ledger for disrupted and recovered trips &bull; Estimates are not confirmed
+              amounts</p>
+          </div>
+          <div class="btn-group">
+            <button type="button" id="btn-export-ledger-csv" class="btn btn-outline btn-sm"
+              aria-label="Export ledger as CSV">
+              <span class="btn-text">Export CSV</span>
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="ledger-summary-grid">
+            <div class="summary-metric">
+              <span class="metric-label">Original Cost</span>
+              <span id="ledger-sum-original" class="metric-value">Rs 0.00</span>
+              <span class="metric-sub">Confirmed bookings</span>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Replacement Cost</span>
+              <span id="ledger-sum-replacement" class="metric-value">Rs 0.00</span>
+              <span class="metric-sub">New leg ticket</span>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Estimated Extra Cost</span>
+              <span id="ledger-sum-extra" class="metric-value">Rs 0.00</span>
+              <span class="metric-sub">Cab transfer</span>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Expected Refunds</span>
+              <span id="ledger-sum-expected-refunds" class="metric-value text-emerald">Rs 0.00</span>
+              <span class="metric-sub">Estimated from plan</span>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Recorded Refunds</span>
+              <span id="ledger-sum-recorded-refunds" class="metric-value text-emerald">Rs 0.00</span>
+              <span class="metric-sub">User-reported, not verified</span>
+            </div>
+            <div class="summary-metric">
+              <span class="metric-label">Outstanding Refunds</span>
+              <span id="ledger-sum-outstanding-refunds" class="metric-value text-amber">Rs 0.00</span>
+              <span class="metric-sub">Pending receipt</span>
+            </div>
+            <div class="summary-metric metric-highlight">
+              <span class="metric-label">Net Total</span>
+              <span id="ledger-sum-net" class="metric-value">Rs 0.00</span>
+              <span class="metric-sub">Plan reconciliation</span>
+            </div>
+          </div>
+
+          <div id="ledger-timing-note" class="ledger-disclaimer-notice">
+            Refunds are not instant. They usually take a few working days (typically 5 to 7). This is an estimate, not a
+            guarantee, and depends on the operator and the payment method. Odyssey cannot confirm when a refund is
+            received.
+          </div>
+
+          <!-- Per-Booking Refund Summaries -->
+          <div id="ledger-booking-summaries-wrap" class="ledger-booking-summaries-wrap hidden"
+            style="margin-top: 1rem;">
+            <h4 class="refund-form-title">Refund Breakdown by Booking</h4>
+            <div class="ledger-table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Booking</th>
+                    <th>Original Cost</th>
+                    <th>Gross Refund</th>
+                    <th>Deductions / Reason</th>
+                    <th>Net Refund</th>
+                    <th>Reduction</th>
+                    <th>Status</th>
+                    <th>Outstanding</th>
+                  </tr>
+                </thead>
+                <tbody id="ledger-booking-summaries-body">
+                  <!-- Dynamically populated booking summaries -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Ledger Entries Table -->
+          <div class="ledger-table-wrap">
+            <h4 class="refund-form-title" style="margin-top: 1.25rem;">Ledger Entries</h4>
+            <table class="data-table ledger-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Booking</th>
+                  <th>Amount (INR)</th>
+                  <th>Basis</th>
+                  <th>Category / Description</th>
+                  <th>Status</th>
+                  <th>Reference / Notes</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="ledger-table-body">
+                <!-- Dynamically populated rows -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Record a Refund Form -->
+          <div class="ledger-record-refund-wrap">
+            <h4 class="refund-form-title">Record a Refund</h4>
+            <p class="refund-form-hint">Record an actual refund received for a booking. User-reported, not verified.
+              Reduced refunds must have deduction reasons.</p>
+            <form id="form-record-refund" class="ledger-refund-form">
+              <div class="refund-form-row">
+                <div class="form-group flex-2">
+                  <label for="ledger-refund-booking-select">Booking</label>
+                  <select id="ledger-refund-booking-select" class="form-control" required>
+                    <option value="">Select booking...</option>
+                  </select>
+                </div>
+                <div class="form-group flex-1">
+                  <label for="ledger-refund-amount-input">Gross Amount (INR)</label>
+                  <input type="number" id="ledger-refund-amount-input" class="form-control" step="0.01" min="0.01"
+                    placeholder="e.g. 1800.00" required>
+                </div>
+                <div class="form-group flex-1">
+                  <label for="ledger-refund-status-select">Refund Status</label>
+                  <select id="ledger-refund-status-select" class="form-control">
+                    <option value="RECEIVED" selected>RECEIVED (User-reported)</option>
+                    <option value="REQUESTED">REQUESTED</option>
+                    <option value="EXPECTED">EXPECTED</option>
+                  </select>
+                </div>
+                <div class="form-group flex-1">
+                  <label for="ledger-refund-date-input">Received On</label>
+                  <input type="date" id="ledger-refund-date-input" class="form-control" required>
+                </div>
+              </div>
+
+              <!-- Deductions Section -->
+              <div class="refund-deductions-section"
+                style="margin: 0.75rem 0; padding: 0.75rem; background: rgba(15, 23, 42, 0.4); border: 1px dashed #334155; border-radius: 4px;">
+                <div class="refund-deductions-header"
+                  style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <span style="font-size: 0.875rem; font-weight: 600; color: #cbd5e1;">Deductions (Required if Net &lt;
+                    Booking Cost)</span>
+                  <button type="button" id="btn-add-deduction-row" class="btn btn-outline btn-xs">+ Add
+                    Deduction</button>
+                </div>
+                <div id="refund-deductions-list" class="refund-deductions-list"
+                  style="display: flex; flex-direction: column; gap: 0.5rem;">
+                  <!-- Dynamic deduction rows -->
+                </div>
+              </div>
+
+              <!-- Live Net Calculation Preview & Reduction Explanation -->
+              <div id="refund-live-preview-box" class="refund-live-preview-box"
+                style="padding: 0.5rem 0.75rem; background: rgba(30, 41, 59, 0.6); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; margin-bottom: 0.75rem;">
+                <span id="refund-live-net-preview" style="font-weight: 600; color: #38bdf8;">Net Refund: Rs 0.00</span>
+                <span id="refund-live-reduction-preview" class="text-amber hidden" style="font-weight: 600;">Reduction:
+                  Rs 0.00</span>
+              </div>
+
+              <div class="refund-form-row">
+                <div class="form-group flex-1">
+                  <label for="ledger-refund-ref-input">Reference (Optional, max 60 chars)</label>
+                  <input type="text" id="ledger-refund-ref-input" maxlength="60" class="form-control"
+                    placeholder="Bank UTR / PNR / Refund Ref">
+                </div>
+                <div class="form-group flex-2">
+                  <label for="ledger-refund-note-input">Note (Optional)</label>
+                  <input type="text" id="ledger-refund-note-input" class="form-control"
+                    placeholder="e.g. Credited back to credit card">
+                </div>
+                <div class="form-group flex-auto align-self-end">
+                  <button type="button" id="btn-submit-record-refund" class="btn btn-primary">
+                    <span class="btn-text">Record Refund</span>
+                    <span class="spinner" aria-hidden="true"></span>
+                  </button>
+                </div>
+              </div>
+              <div id="refund-form-error" class="form-error hidden" style="margin-top: 0.5rem;" role="alert"></div>
+            </form>
+          </div>
         </div>
       </section>
 
@@ -493,7 +1103,8 @@
         <div class="card-header">
           <div>
             <h2 id="heading-handoff" class="section-title">Complete Your Bookings</h2>
-            <p class="section-hint">Replacement legs confirmed in recovery plan &bull; Book via official providers and confirm your PNR / ticket reference</p>
+            <p class="section-hint">Replacement legs confirmed in recovery plan &bull; Book via official providers and
+              confirm your PNR / ticket reference</p>
           </div>
           <span id="handoff-status-badge" class="badge badge-amber">PENDING CONFIRMATION</span>
         </div>
@@ -510,19 +1121,305 @@
         </div>
       </section>
 
+      <!-- Phase 13: Expedition Communications Assistant Section -->
+      <section id="section-messages" class="card" aria-labelledby="heading-messages">
+        <div class="card-header">
+          <div>
+            <h2 id="heading-messages" class="section-title">Expedition Communications Assistant</h2>
+            <p class="section-hint">Compose, verify, and dispatch communications &bull; Deterministic templates &amp;
+              LLM rewording strictly bound to facts</p>
+          </div>
+          <span id="messages-count-badge" class="badge badge-neutral">0 messages</span>
+        </div>
+
+        <div class="card-body">
+          <!-- Draft Creation Controls -->
+          <div class="msg-composer-box"
+            style="padding: 1rem; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--border-subtle); border-radius: 6px; margin-bottom: 1.25rem;">
+            <div class="form-row" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+              <div class="form-group flex-1">
+                <label for="select-msg-recipient-type">Recipient Type</label>
+                <select id="select-msg-recipient-type" class="form-control">
+                  <option value="HOTEL" selected>Hotel / Accommodation</option>
+                  <option value="OPERATOR">Transit Operator (Bus / Train / Flight)</option>
+                  <option value="EVENT_ORGANISER">Event Organiser</option>
+                  <option value="FAMILY">Family / Emergency Contact</option>
+                  <option value="OTHER">Other Recipient</option>
+                </select>
+              </div>
+
+              <div class="form-group flex-1">
+                <label for="select-msg-draft-kind">Draft Kind</label>
+                <select id="select-msg-draft-kind" class="form-control">
+                  <option value="LATE_CHECKIN" selected>Late Check-in Notice</option>
+                  <option value="DELAY_NOTICE">Delay Notice</option>
+                  <option value="CANCELLATION_AND_REFUND_REQUEST">Cancellation &amp; Refund Request</option>
+                  <option value="REBOOKING_NOTICE">Rebooking Notice</option>
+                  <option value="ARRIVAL_UPDATE">Arrival Update</option>
+                </select>
+              </div>
+
+              <div class="form-group flex-1">
+                <label for="select-msg-booking">Related Booking</label>
+                <select id="select-msg-booking" class="form-control">
+                  <option value="">-- Trip Level / No Specific Booking --</option>
+                </select>
+              </div>
+
+              <div class="form-group flex-auto align-self-end">
+                <button type="button" id="btn-generate-draft" class="btn btn-gold">
+                  <span class="btn-text">Generate Draft</span>
+                  <span class="spinner" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Draft Editor and Dispatch Drawer -->
+          <div id="msg-active-editor-container" class="msg-editor-drawer hidden"
+            style="padding: 1.25rem; background: rgba(18, 30, 51, 0.7); border: 1px solid var(--gold-border); border-radius: 6px; margin-bottom: 1.5rem;">
+            <div class="msg-editor-header"
+              style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <h3 style="font-size: 1.1rem; color: var(--gold-light); margin: 0;">Message Draft</h3>
+                <span id="badge-msg-generated-by" class="badge badge-info">Template</span>
+                <span id="badge-msg-status" class="badge badge-neutral">DRAFT</span>
+              </div>
+              <input type="hidden" id="input-active-msg-id" value="">
+            </div>
+
+            <!-- Subject & Body Inputs -->
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+              <label for="input-msg-subject">Subject</label>
+              <input type="text" id="input-msg-subject" class="form-control" placeholder="Message Subject"
+                style="font-weight: 600;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0.5rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                <label for="textarea-msg-body">Message Content (Plain text, max 4000 characters)</label>
+                <span id="msg-char-counter" style="font-size: 0.8rem; color: var(--text-dim);">0 / 4000</span>
+              </div>
+              <textarea id="textarea-msg-body" class="form-control" rows="8" maxlength="4000"
+                style="font-family: var(--font-mono); font-size: 0.9rem; line-height: 1.5;"></textarea>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 1.25rem;">
+              <button type="button" id="btn-save-msg-edits" class="btn btn-outline btn-sm">
+                <span class="btn-text">Save Changes</span>
+                <span class="spinner" aria-hidden="true"></span>
+              </button>
+            </div>
+
+            <!-- Dispatch Controls -->
+            <div class="msg-dispatch-box"
+              style="padding: 1rem; background: rgba(9, 18, 32, 0.6); border-radius: 4px; border-left: 3px solid var(--gold-primary);">
+              <h4 style="font-size: 0.95rem; color: var(--text-main); margin-bottom: 0.75rem;">Dispatch Channel &amp;
+                Recipient</h4>
+              <div class="form-row" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+                <div class="form-group flex-1">
+                  <label for="select-msg-channel">Channel</label>
+                  <select id="select-msg-channel" class="form-control">
+                    <option value="EMAIL">Email (Real SMTP / Simulated Fallback)</option>
+                    <option value="SMS">SMS (Twilio / Simulated Fallback)</option>
+                    <option value="MAILTO">Mailto Link (Open Client, Not sent by Odyssey)</option>
+                    <option value="COPY">Copy to Clipboard (Not sent by Odyssey)</option>
+                  </select>
+                </div>
+
+                <div class="form-group flex-2">
+                  <label for="input-msg-recipient">Recipient Contact (Email or 10-digit Phone)</label>
+                  <input type="text" id="input-msg-recipient" class="form-control"
+                    placeholder="recipient@example.com or 9876543210">
+                </div>
+
+                <div class="form-group flex-auto">
+                  <button type="button" id="btn-send-message-open" class="btn btn-primary">
+                    <span class="btn-text">Approve &amp; Send</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Inline Confirmation Box (Human-in-the-loop explicit confirm) -->
+              <div id="msg-send-confirm-box" class="hidden"
+                style="margin-top: 1rem; padding: 0.75rem; background: rgba(245, 158, 11, 0.1); border: 1px solid var(--status-amber); border-radius: 4px;">
+                <p style="margin-bottom: 0.5rem; font-size: 0.9rem; color: #fde68a;">
+                  <strong>Confirm Dispatch:</strong> Are you sure you want to approve and send this communication?
+                </p>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <button type="button" id="btn-confirm-send-message" class="btn btn-success btn-sm">
+                    <span class="btn-text">Yes, Approve &amp; Send</span>
+                    <span class="spinner" aria-hidden="true"></span>
+                  </button>
+                  <button type="button" id="btn-cancel-send-message" class="btn btn-secondary btn-sm">Cancel</button>
+                </div>
+              </div>
+
+              <!-- Dispatch Result Alert Banner -->
+              <div id="msg-dispatch-result-banner" class="banner hidden" style="margin-top: 1rem;" role="alert">
+                <span id="msg-dispatch-result-text"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Message History Table -->
+          <h3 class="subsection-title" style="margin-top: 1.5rem;">Expedition Communications History</h3>
+          <div class="table-responsive">
+            <table class="data-table" aria-label="Expedition Communications History Table">
+              <thead>
+                <tr>
+                  <th scope="col" style="width: 150px;">Logged Time</th>
+                  <th scope="col" style="width: 140px;">Recipient</th>
+                  <th scope="col" style="width: 170px;">Draft Kind</th>
+                  <th scope="col" style="width: 100px;">Channel</th>
+                  <th scope="col" style="width: 160px;">Contact (Masked)</th>
+                  <th scope="col" style="width: 130px;">Generated By</th>
+                  <th scope="col" style="width: 130px;">Status</th>
+                  <th scope="col" style="width: 90px;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="messages-table-body">
+                <tr>
+                  <td colspan="8" class="empty-state">No communications drafted yet for this trip.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Phase 14: Trip Wallet Section -->
+      <section id="section-wallet" class="card" aria-labelledby="heading-wallet">
+        <div class="card-header">
+          <div>
+            <h2 id="heading-wallet" class="section-title">Trip Wallet</h2>
+            <p class="section-hint">Consolidated digital travel documents, offline itinerary, printable summary &amp;
+              calendar export</p>
+          </div>
+          <div class="wallet-header-actions">
+            <button id="btn-wallet-print" class="btn btn-outline btn-sm" type="button">Print Summary</button>
+            <button id="btn-wallet-calendar" class="btn btn-outline btn-sm" type="button">Download Calendar
+              (.ics)</button>
+            <button id="btn-wallet-pack" class="btn btn-primary btn-sm" type="button">Download Trip Pack</button>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div id="wallet-info-banner" class="banner banner-info" style="margin-bottom: 1rem;">
+            <span>Self-contained offline document. This is a saved file to keep on your device, not an installed offline
+              app.</span>
+          </div>
+
+          <div id="wallet-ledger-summary-line" class="wallet-ledger-line hidden"
+            style="margin-bottom: 1.25rem; padding: 10px 14px; background: rgba(212,175,55,0.08); border: 1px solid rgba(212,175,55,0.3); border-radius: 6px; font-size: 0.85rem;">
+            <!-- Populated by JavaScript -->
+          </div>
+
+          <div id="wallet-bookings-container" class="wallet-timeline-container">
+            <p class="empty-state">No bookings loaded in this trip wallet.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Phase 15: Trip Readiness Section -->
+      <section id="section-readiness" class="card" aria-labelledby="heading-readiness">
+        <div class="card-header">
+          <div>
+            <h2 id="heading-readiness" class="section-title">Trip Readiness Score</h2>
+            <p class="section-hint">Data-driven verification across connection buffers, commitment slack, completeness,
+              and alternatives</p>
+          </div>
+          <div class="header-actions">
+            <button id="btn-refresh-readiness" class="btn btn-outline btn-sm" type="button">Refresh Readiness</button>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div id="readiness-disclaimer-banner" class="banner banner-info" style="margin-bottom: 1.25rem;">
+            <span class="banner-icon" aria-hidden="true">&#9432;</span>
+            <span id="readiness-disclaimer-text"><strong>Notice:</strong> Readiness checks your trip data. It does not
+              predict disruptions.</span>
+          </div>
+
+          <div id="readiness-score-card"
+            style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding: 1.25rem; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; margin-bottom: 1.5rem;">
+            <div>
+              <div
+                style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">
+                Overall Trip Readiness</div>
+              <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span id="readiness-score-display"
+                  style="font-size: 2.2rem; font-weight: 700; color: #f8fafc;">--</span>
+                <span id="readiness-score-denom" style="font-size: 1rem; color: #94a3b8;">/ 100</span>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+              <span id="readiness-band-badge" class="badge badge-neutral"
+                style="font-size: 0.95rem; padding: 6px 12px; font-weight: 600;">--</span>
+              <span id="readiness-reliability-msg" style="font-size: 0.8rem; color: #94a3b8;">Loading
+                readiness...</span>
+            </div>
+          </div>
+
+          <div class="readiness-factors-wrapper" style="margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 0.75rem; color: #f1f5f9;">Factor Breakdown
+            </h3>
+            <div class="table-responsive">
+              <table class="data-table" id="table-readiness-factors">
+                <thead>
+                  <tr>
+                    <th>Factor</th>
+                    <th style="width: 140px;">Points Earned</th>
+                    <th>Explanation</th>
+                    <th>Data Used</th>
+                  </tr>
+                </thead>
+                <tbody id="readiness-factors-tbody">
+                  <tr>
+                    <td colspan="4" class="empty-state">No readiness factors evaluated yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="readiness-unknown-container" class="hidden"
+            style="margin-bottom: 1.5rem; padding: 12px 16px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 6px;">
+            <h4 style="font-size: 0.9rem; font-weight: 600; color: #fbbf24; margin-bottom: 6px;">Excluded Factors
+              (Excluded from Denominator)</h4>
+            <ul id="readiness-unknown-list"
+              style="margin: 0; padding-left: 1.25rem; font-size: 0.85rem; color: #cbd5e1;"></ul>
+          </div>
+
+          <div id="readiness-recommendations-container"
+            style="padding: 14px 16px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px;">
+            <h3 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 0.5rem; color: #f1f5f9;">Readiness
+              Recommendations</h3>
+            <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.75rem;">Recommendations are advisory guidance
+              derived strictly from factor data. Odyssey never automatically purchases or modifies bookings.</p>
+            <ul id="readiness-recommendations-list"
+              style="margin: 0; padding-left: 1.25rem; font-size: 0.9rem; color: #e2e8f0;">
+              <li class="empty-state">No recommendations needed. All evaluated factors meet recommended standards.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
 
       <!-- 7.5. Notifications Dispatch & History Section -->
       <section id="section-notifications" class="card" aria-labelledby="heading-notifications">
         <div class="card-header">
           <div>
             <h2 id="heading-notifications" class="section-title">Expedition Dispatch &amp; Notifications</h2>
-            <p class="section-hint">Multi-channel alerting &bull; Real SMTP, Twilio SMS/WhatsApp &amp; Simulated fallback</p>
+            <p class="section-hint">Multi-channel alerting &bull; Real SMTP, Twilio SMS/WhatsApp &amp; Simulated
+              fallback</p>
           </div>
           <div class="btn-group">
-            <button id="btn-refresh-notifications" class="btn btn-outline btn-sm" aria-label="Refresh notification history">
+            <button id="btn-refresh-notifications" class="btn btn-outline btn-sm"
+              aria-label="Refresh notification history">
               <span class="btn-text">Refresh History</span>
             </button>
-            <button id="btn-send-test-alert" class="btn btn-gold btn-sm" aria-label="Send test alert across enabled channels">
+            <button id="btn-send-test-alert" class="btn btn-gold btn-sm"
+              aria-label="Send test alert across enabled channels">
               <span class="btn-text">Send test alert</span>
               <span class="spinner" aria-hidden="true"></span>
             </button>
@@ -570,6 +1467,31 @@
         </div>
       </section>
 
+      <!-- Phase 14: Trip Wallet Section -->
+      <section id="section-wallet" class="card" aria-labelledby="heading-wallet">
+        <div class="card-header">
+          <div class="header-left">
+            <h2 id="heading-wallet" class="section-title">Trip Wallet</h2>
+            <span class="badge badge-neutral">Read-Only</span>
+          </div>
+          <div class="header-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <label
+              style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; margin-right: 8px;">
+              <input type="checkbox" id="wallet-include-emergency">
+              <span>Include emergency contact in export</span>
+            </label>
+            <button type="button" id="btn-wallet-print" class="btn btn-outline btn-sm">Print Summary</button>
+            <button type="button" id="btn-wallet-calendar" class="btn btn-outline btn-sm">Export Calendar
+              (.ics)</button>
+            <button type="button" id="btn-wallet-pack" class="btn btn-gold btn-sm">Offline Pack (.html)</button>
+          </div>
+        </div>
+        <div id="wallet-ledger-summary-line" class="notice-bar hidden" style="margin-bottom: 12px;"></div>
+        <div id="wallet-bookings-container" class="wallet-bookings-grid">
+          <p class="empty-state">Select or load a trip to view its wallet.</p>
+        </div>
+      </section>
+
       <!-- 8. Real-time Audit Log Section -->
       <section id="section-audit" class="card" aria-labelledby="heading-audit">
         <div class="card-header">
@@ -596,12 +1518,409 @@
       </section>
     </div> <!-- /workspace-container -->
 
+    <!-- ========================================== -->
+    <!-- VIEW C: PROVIDER PORTAL                    -->
+    <!-- ========================================== -->
+    <section id="section-provider-portal" class="card hidden" aria-labelledby="heading-provider-portal">
+      <div class="card-header">
+        <div>
+          <h2 id="heading-provider-portal" class="section-title">Provider Operations Portal</h2>
+          <p class="section-hint">Manage vehicle fleet, intercity schedules, 14-day departures, and real-time transit
+            status</p>
+        </div>
+      </div>
+
+      <!-- 1. Unregistered Onboarding Panel -->
+      <div id="panel-provider-register" class="hidden">
+        <div class="banner banner-info" style="margin-bottom: 1.5rem;">
+          <p><strong>Register as an Odyssey Transport & Hospitality Provider:</strong> Onboard your business to publish
+            schedules, manage vehicle inventory, and provide verified travel services to travellers across the Odyssey
+            network.</p>
+        </div>
+        <form id="form-provider-register" class="provider-form" style="max-width: 600px;">
+          <div class="form-group">
+            <label for="provider-reg-business-name">Business / Company Name <span class="required">*</span></label>
+            <input type="text" id="provider-reg-business-name" class="form-control"
+              placeholder="e.g. SRS Express Travels" required maxlength="100">
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="provider-reg-business-type">Business Type <span class="required">*</span></label>
+              <select id="provider-reg-business-type" class="form-control" required>
+                <option value="TRANSPORT">TRANSPORT</option>
+                <option value="HOTEL">HOTEL</option>
+                <option value="BOTH">BOTH</option>
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label for="provider-reg-city">Operating Base City <span class="required">*</span></label>
+              <input type="text" id="provider-reg-city" class="form-control" placeholder="e.g. Bengaluru"
+                list="city-datalist" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="provider-reg-contact-email">Contact Email <span class="required">*</span></label>
+              <input type="email" id="provider-reg-contact-email" class="form-control"
+                placeholder="e.g. ops@srstravels.com" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="provider-reg-contact-phone">Contact Phone (10 digits) <span class="required">*</span></label>
+              <input type="tel" id="provider-reg-contact-phone" class="form-control" placeholder="9876543210"
+                pattern="[0-9]{10}" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="provider-reg-desc">Business Description</label>
+            <textarea id="provider-reg-desc" class="form-control" rows="3"
+              placeholder="Brief description of operations, fleet types, and key routes..." maxlength="500"></textarea>
+          </div>
+          <div class="form-actions" style="margin-top: 1rem;">
+            <button type="submit" id="btn-submit-provider-register" class="btn btn-primary">
+              <span class="btn-text">Submit Provider Registration</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 2. Registered Provider Dashboard -->
+      <div id="panel-provider-dashboard" class="hidden">
+        <!-- Status Banner -->
+        <div id="provider-status-banner" class="provider-banner-wrapper" style="margin-bottom: 1.5rem;">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- Sub navigation tabs -->
+        <div class="tab-group"
+          style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; flex-wrap: wrap;">
+          <button type="button" id="btn-prov-tab-vehicles" class="btn btn-outline btn-sm active">Fleet Vehicles (<span
+              id="prov-vehicles-count">0</span>/20)</button>
+          <button type="button" id="btn-prov-tab-schedules" class="btn btn-outline btn-sm">Schedules (<span
+              id="prov-schedules-count">0</span>/60)</button>
+          <button type="button" id="btn-prov-tab-departures" class="btn btn-outline btn-sm">14-Day Departures (<span
+              id="prov-departures-count">0</span>)</button>
+          <button type="button" id="btn-prov-tab-hotels" class="btn btn-outline btn-sm">Hotels &amp; Rooms (<span
+              id="prov-hotels-count">0</span>/10)</button>
+          <button type="button" id="btn-prov-tab-cabs" class="btn btn-outline btn-sm">Cab Services (<span
+              id="prov-cabs-count">0</span>/20)</button>
+          <button type="button" id="btn-prov-tab-refunds" class="btn btn-outline btn-sm">Refunds (<span
+              id="prov-refunds-count">0</span>)</button>
+          <button type="button" id="btn-prov-tab-pending" class="btn btn-outline btn-sm">Pending Requests (<span
+              id="prov-pending-count">0</span>)</button>
+        </div>
+
+        <!-- Sub-tab 1: Vehicles -->
+        <div id="prov-tab-content-vehicles">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 1.1rem; color: var(--gold-color);">Fleet Vehicles</h3>
+            <button type="button" id="btn-prov-add-vehicle" class="btn btn-gold btn-sm">+ Add Vehicle</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table audit-table">
+              <thead>
+                <tr>
+                  <th>Vehicle Number</th>
+                  <th>Mode</th>
+                  <th>Total Seats</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="prov-vehicles-tbody">
+                <tr>
+                  <td colspan="5" class="empty-state">No vehicles in fleet. Click "+ Add Vehicle" to add one.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Sub-tab 2: Schedules -->
+        <div id="prov-tab-content-schedules" class="hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 1.1rem; color: var(--gold-color);">Transport Schedules</h3>
+            <button type="button" id="btn-prov-add-schedule" class="btn btn-gold btn-sm">+ Add Schedule</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table audit-table">
+              <thead>
+                <tr>
+                  <th>Route</th>
+                  <th>Vehicle</th>
+                  <th>Timings</th>
+                  <th>Days</th>
+                  <th>Price</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="prov-schedules-tbody">
+                <tr>
+                  <td colspan="7" class="empty-state">No schedules configured. Click "+ Add Schedule" to create one.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Sub-tab 3: Departures -->
+        <div id="prov-tab-content-departures" class="hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 1.1rem; color: var(--gold-color);">Upcoming 14-Day Departures</h3>
+            <button type="button" id="btn-refresh-prov-departures" class="btn btn-outline btn-sm">Refresh
+              Departures</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table audit-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Route</th>
+                  <th>Vehicle</th>
+                  <th>Time</th>
+                  <th>Seats Booked / Total</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="prov-departures-tbody">
+                <tr>
+                  <td colspan="7" class="empty-state">No upcoming departures materialised.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Sub-tab 4: Hotels & Rooms (Phase 18B) -->
+        <div id="prov-tab-content-hotels" class="hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+              <h3 style="margin: 0; font-size: 1.1rem; color: var(--gold-color);">Registered Hotels &amp; Accommodations
+              </h3>
+              <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: #94a3b8;">Manage up to 10 hotels, room
+                categories, pricing, and 14-day date availability</p>
+            </div>
+            <button type="button" id="btn-prov-add-hotel" class="btn btn-gold btn-sm">+ Add Hotel</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table audit-table">
+              <thead>
+                <tr>
+                  <th>Hotel Name</th>
+                  <th>City &amp; Address</th>
+                  <th>Check-In / Out</th>
+                  <th>Contact Email</th>
+                  <th>Room Types</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="prov-hotels-tbody">
+                <tr>
+                  <td colspan="7" class="empty-state">No hotels registered. Click "+ Add Hotel" to create a hotel
+                    listing.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Selected Hotel Room Types Container -->
+          <div id="prov-hotel-rooms-section" class="hidden"
+            style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <div>
+                <h4 id="prov-selected-hotel-title" style="margin: 0; font-size: 1rem; color: #f8fafc;">Room Types</h4>
+                <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: #94a3b8;">Max 10 room types per hotel. Pricing
+                  and rooms inventory.</p>
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <button type="button" id="btn-prov-add-room-type" class="btn btn-gold btn-sm">+ Add Room Type</button>
+                <button type="button" id="btn-prov-close-rooms-view" class="btn btn-outline btn-sm">Close Rooms</button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table audit-table">
+                <thead>
+                  <tr>
+                    <th>Room Type</th>
+                    <th>Max Guests</th>
+                    <th>Price / Night</th>
+                    <th>Total Rooms</th>
+                    <th>Amenities</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="prov-room-types-tbody">
+                  <tr>
+                    <td colspan="7" class="empty-state">No room types configured. Click "+ Add Room Type" to configure
+                      rooms.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-tab 5: Cab Services (Phase 18B) -->
+        <div id="prov-tab-content-cabs" class="hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+              <h3 style="margin: 0; font-size: 1.1rem; color: var(--gold-color);">Point-to-Point Cab Services</h3>
+              <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: #94a3b8;">Register city cab fleets with estimated
+                pricing (Base fare + Per km rate)</p>
+            </div>
+            <button type="button" id="btn-prov-add-cab" class="btn btn-gold btn-sm">+ Add Cab Service</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table audit-table">
+              <thead>
+                <tr>
+                  <th>City</th>
+                  <th>Category</th>
+                  <th>Vehicle Reg</th>
+                  <th>Base Fare</th>
+                  <th>Per KM Rate</th>
+                  <th>Seats</th>
+                  <th>Operating Hours</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="prov-cabs-tbody">
+                <tr>
+                  <td colspan="9" class="empty-state">No cab services registered. Click "+ Add Cab Service" to create
+                    one.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Sub-tab 6: Refunds (Phase 18C) -->
+        <div id="prov-tab-content-refunds" class="hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+              <h3 style="margin: 0; font-size: 1.1rem; color: var(--gold-color);">Cancelled Bookings &amp; Provider
+                Refunds</h3>
+              <p class="section-hint" style="margin-top: 4px;">Issue provider refunds directly for cancelled departures
+                or "cannot honour" stays. Refunds update the traveller's Costs &amp; Refunds ledger.</p>
+            </div>
+            <button type="button" id="btn-refresh-prov-refunds" class="btn btn-outline btn-sm">Refresh Bookings</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table audit-table">
+              <thead>
+                <tr>
+                  <th>Booking Ref</th>
+                  <th>Type</th>
+                  <th>Service / Route</th>
+                  <th>Guest / Pax</th>
+                  <th>Cost</th>
+                  <th>Status</th>
+                  <th>Refund State</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="prov-refunds-tbody">
+                <tr>
+                  <td colspan="8" class="empty-state">No cancelled or unhonoured bookings eligible for refund.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Sub-tab 7: Pending Requests -->
+        <div id="prov-tab-content-pending" class="hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+              <h3 style="margin: 0; font-size: 1.1rem; color: var(--gold-color);">Pending Booking Requests</h3>
+              <p class="section-hint" style="margin-top: 4px;">Accept or decline booking requests from travellers before the confirmation window expires.</p>
+            </div>
+            <button type="button" id="btn-refresh-prov-pending" class="btn btn-outline btn-sm">Refresh Requests</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table audit-table">
+              <thead>
+                <tr>
+                  <th>Booking Ref</th>
+                  <th>Type</th>
+                  <th>Service / Destination</th>
+                  <th>Dates / Details</th>
+                  <th>Traveller</th>
+                  <th>Amount</th>
+                  <th>Expires In</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="prov-pending-tbody">
+                <tr>
+                  <td colspan="8" class="empty-state">No pending booking requests.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- VIEW D: ADMIN PORTAL                       -->
+    <!-- ========================================== -->
+    <section id="section-admin-portal" class="card hidden" aria-labelledby="heading-admin-portal">
+      <div class="card-header">
+        <div>
+          <h2 id="heading-admin-portal" class="section-title">Odyssey Provider Administration</h2>
+          <p class="section-hint">Review provider applications, approve listings, and manage suspension lifecycle</p>
+        </div>
+        <div class="btn-group">
+          <button id="btn-refresh-admin-providers" class="btn btn-outline btn-sm">Refresh Queue</button>
+        </div>
+      </div>
+
+      <!-- Filter pills -->
+      <div class="admin-filter-bar" style="margin-bottom: 1.5rem; display: flex; gap: 0.5rem;">
+        <button type="button" class="btn btn-outline btn-sm admin-filter-btn active" data-status="">All</button>
+        <button type="button" class="btn btn-outline btn-sm admin-filter-btn" data-status="PENDING">PENDING</button>
+        <button type="button" class="btn btn-outline btn-sm admin-filter-btn" data-status="APPROVED">APPROVED</button>
+        <button type="button" class="btn btn-outline btn-sm admin-filter-btn" data-status="SUSPENDED">SUSPENDED</button>
+        <button type="button" class="btn btn-outline btn-sm admin-filter-btn" data-status="REJECTED">REJECTED</button>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table audit-table">
+          <thead>
+            <tr>
+              <th>Business Name</th>
+              <th>Type</th>
+              <th>City</th>
+              <th>Contact Info</th>
+              <th>Counts</th>
+              <th>Status</th>
+              <th>Review / Audit</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admin-providers-tbody">
+            <tr>
+              <td colspan="8" class="empty-state">No providers in this queue.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
   </main>
 
   <!-- ========================================== -->
   <!-- MODAL: CREATE NEW TRIP                     -->
   <!-- ========================================== -->
-  <div id="modal-create-trip" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-create-title">
+  <div id="modal-create-trip" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-create-title">
     <div class="modal-dialog">
       <div class="modal-header">
         <h2 id="modal-create-title" class="modal-title">Chart a New Expedition</h2>
@@ -612,7 +1931,8 @@
           <div class="form-row">
             <div class="form-group flex-2">
               <label for="create-trip-title">Trip Title <span class="required">*</span></label>
-              <input type="text" id="create-trip-title" class="form-control" placeholder="e.g. Hubballi to Goa Vacation" required>
+              <input type="text" id="create-trip-title" class="form-control" placeholder="e.g. Hubballi to Goa Vacation"
+                required>
               <span id="err-create-title" class="field-error"></span>
             </div>
             <div class="form-group flex-1">
@@ -624,7 +1944,8 @@
           <div class="form-row">
             <div class="form-group flex-1">
               <label for="create-trip-phone">Phone Number (10 digits) <span class="required">*</span></label>
-              <input type="tel" id="create-trip-phone" class="form-control" placeholder="10-digit number e.g. 9876543210" required>
+              <input type="tel" id="create-trip-phone" class="form-control"
+                placeholder="10-digit number e.g. 9876543210" required>
               <span id="err-create-phone" class="field-error"></span>
             </div>
             <div class="form-group flex-1">
@@ -656,12 +1977,14 @@
           <div class="form-row">
             <div class="form-group flex-1">
               <label for="create-trip-budget">Max Budget (INR) <span class="required">*</span></label>
-              <input type="number" id="create-trip-budget" class="form-control" min="1000" step="500" value="15000" required>
+              <input type="number" id="create-trip-budget" class="form-control" min="1000" step="500" value="15000"
+                required>
               <span id="err-create-budget" class="field-error"></span>
             </div>
             <div class="form-group flex-1">
               <label for="create-trip-deadline">Must Arrive By <span class="required">*</span></label>
-              <input type="datetime-local" id="create-trip-deadline" class="form-control" value="2026-10-21T18:00" required>
+              <input type="datetime-local" id="create-trip-deadline" class="form-control" value="2026-10-21T18:00"
+                required>
               <span id="err-create-deadline" class="field-error"></span>
             </div>
           </div>
@@ -681,7 +2004,8 @@
             </div>
             <p class="form-help-text">Non-negotiable milestones during this trip (stored in hard_commitments table).</p>
             <div id="create-commitments-container" class="commitments-table-wrapper">
-              <div id="create-commitments-empty" class="commitments-empty-hint">No hard commitments added yet. Click "+ Add Commitment" to add non-negotiable milestones.</div>
+              <div id="create-commitments-empty" class="commitments-empty-hint">No hard commitments added yet. Click "+
+                Add Commitment" to add non-negotiable milestones.</div>
               <div id="create-commitments-list" class="commitments-rows-list"></div>
             </div>
           </div>
@@ -705,12 +2029,14 @@
               <div class="form-row">
                 <div class="form-group flex-2">
                   <label for="create-trip-cab-dropoff">Drop-off Location <span class="required">*</span></label>
-                  <input type="text" id="create-trip-cab-dropoff" class="form-control" placeholder="e.g. Calangute, Goa">
+                  <input type="text" id="create-trip-cab-dropoff" class="form-control"
+                    placeholder="e.g. Calangute, Goa">
                   <span id="err-create-cab-dropoff" class="field-error"></span>
                 </div>
                 <div class="form-group flex-1">
                   <label for="create-trip-cab-provider">Cab Provider (Optional)</label>
-                  <input type="text" id="create-trip-cab-provider" class="form-control" placeholder="e.g. Goa Miles / Local Taxi">
+                  <input type="text" id="create-trip-cab-provider" class="form-control"
+                    placeholder="e.g. Goa Miles / Local Taxi">
                 </div>
               </div>
             </div>
@@ -728,24 +2054,28 @@
               <div class="form-row">
                 <div class="form-group flex-1">
                   <label for="create-trip-hotel-name">Hotel Name <span class="required">*</span></label>
-                  <input type="text" id="create-trip-hotel-name" class="form-control" placeholder="e.g. Taj Holiday Village Resort">
+                  <input type="text" id="create-trip-hotel-name" class="form-control"
+                    placeholder="e.g. Taj Holiday Village Resort">
                   <span id="err-create-hotel-name" class="field-error"></span>
                 </div>
                 <div class="form-group flex-1">
                   <label for="create-trip-hotel-address">Hotel Address <span class="required">*</span></label>
-                  <input type="text" id="create-trip-hotel-address" class="form-control" placeholder="e.g. Candolim Beach Road, Goa">
+                  <input type="text" id="create-trip-hotel-address" class="form-control"
+                    placeholder="e.g. Candolim Beach Road, Goa">
                   <span id="err-create-hotel-address" class="field-error"></span>
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group flex-1">
                   <label for="create-trip-hotel-checkin">Check-in Time <span class="required">*</span></label>
-                  <input type="datetime-local" id="create-trip-hotel-checkin" class="form-control" value="2026-10-21T15:00">
+                  <input type="datetime-local" id="create-trip-hotel-checkin" class="form-control"
+                    value="2026-10-21T15:00">
                   <span id="err-create-hotel-checkin" class="field-error"></span>
                 </div>
                 <div class="form-group flex-1">
                   <label for="create-trip-hotel-checkout">Check-out Time <span class="required">*</span></label>
-                  <input type="datetime-local" id="create-trip-hotel-checkout" class="form-control" value="2026-10-22T11:00">
+                  <input type="datetime-local" id="create-trip-hotel-checkout" class="form-control"
+                    value="2026-10-22T11:00">
                   <span id="err-create-hotel-checkout" class="field-error"></span>
                 </div>
                 <div class="form-group flex-1">
@@ -757,8 +2087,62 @@
               <div class="form-row">
                 <div class="form-group flex-1">
                   <label for="create-trip-hotel-email">Hotel Contact Email (Optional)</label>
-                  <input type="email" id="create-trip-hotel-email" class="form-control" placeholder="reservations@hotel.com">
+                  <input type="email" id="create-trip-hotel-email" class="form-control"
+                    placeholder="reservations@hotel.com">
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Traveller Needs & Assistance (Phase 17) -->
+          <div class="service-option-card">
+            <div class="section-subtitle"
+              style="font-weight: 600; margin-bottom: 8px; color: var(--text-heading, #0f172a);">
+              Traveller Needs &amp; Special Assistance
+            </div>
+            <p class="form-help-text" style="font-size: 0.8rem; color: #64748b; margin-bottom: 12px;">
+              Sensitive: declared needs are visible only to the trip owner. Emergency contact is masked in logs and
+              exported only when opted in.
+            </p>
+            <div class="form-group-checkbox">
+              <label>
+                <input type="checkbox" id="create-trip-need-mobility">
+                <span>Mobility Assistance (wheelchair boarding, step-free access)</span>
+              </label>
+            </div>
+            <div class="form-group-checkbox">
+              <label>
+                <input type="checkbox" id="create-trip-need-elderly">
+                <span>Elderly Traveller (slower transitions, shorter walking distance)</span>
+              </label>
+            </div>
+            <div class="form-group-checkbox">
+              <label>
+                <input type="checkbox" id="create-trip-need-children">
+                <span>Travelling with Children (family seating, extra connection time)</span>
+              </label>
+            </div>
+            <div class="form-group-checkbox">
+              <label>
+                <input type="checkbox" id="create-trip-need-medical">
+                <span>Medical Needs (special accommodation / assistance)</span>
+              </label>
+            </div>
+            <div class="form-group" style="margin-top: 10px;">
+              <label for="create-trip-needs-note">Special Needs Note (Max 300 chars)</label>
+              <textarea id="create-trip-needs-note" class="form-control" rows="2" maxlength="300"
+                placeholder="Optional notes for special accommodations (max 300 characters)..."></textarea>
+              <span id="err-create-needs-note" class="field-error"></span>
+            </div>
+            <div class="form-row" style="margin-top: 8px;">
+              <div class="form-group flex-1">
+                <label for="create-trip-emergency-name">Emergency Contact Name</label>
+                <input type="text" id="create-trip-emergency-name" class="form-control" placeholder="e.g. Ramesh Kumar">
+              </div>
+              <div class="form-group flex-1">
+                <label for="create-trip-emergency-phone">Emergency Contact Phone (10 digits)</label>
+                <input type="tel" id="create-trip-emergency-phone" class="form-control" placeholder="e.g. 9876543210">
+                <span id="err-create-emergency-phone" class="field-error"></span>
               </div>
             </div>
           </div>
@@ -772,8 +2156,10 @@
                   <span class="parser-title">1. Paste Itinerary Text</span>
                   <span class="badge badge-neutral">Smart Parser</span>
                 </div>
-                <p class="parser-hint">Paste ticket confirmation text to automatically extract bookings into the builder list:</p>
-                <textarea id="create-email-text" class="form-control parser-textarea" rows="5" placeholder="e.g. Bus confirmation KSRTC Sarige departs Hubballi 10:00 arrives Goa 14:30 cost Rs 650&#10;Cab booking Ola from Goa to Hotel departs 2026-10-21 14:30 arrives 2026-10-21 15:15 cost INR 600&#10;Hotel booking Taj Resort Goa check-in 2026-10-21 16:00"></textarea>
+                <p class="parser-hint">Paste ticket confirmation text to automatically extract bookings into the builder
+                  list:</p>
+                <textarea id="create-email-text" class="form-control parser-textarea" rows="5"
+                  placeholder="e.g. Bus confirmation KSRTC Sarige departs Hubballi 10:00 arrives Goa 14:30 cost Rs 650&#10;Cab booking Ola from Goa to Hotel departs 2026-10-21 14:30 arrives 2026-10-21 15:15 cost INR 600&#10;Hotel booking Taj Resort Goa check-in 2026-10-21 16:00"></textarea>
                 <div class="parser-actions">
                   <button id="btn-parse-email-create" type="button" class="btn btn-secondary btn-sm">
                     <span class="btn-text">Extract Bookings From Text</span>
@@ -795,7 +2181,8 @@
                     + Add Booking
                   </button>
                 </div>
-                <p class="builder-hint">Parsed and manually added bookings appear here. Edit any field before saving:</p>
+                <p class="builder-hint">Parsed and manually added bookings appear here. Edit any field before saving:
+                </p>
                 <div id="create-builder-empty" class="builder-empty-hint">
                   No bookings added yet. Paste confirmation text or click "+ Add Booking" to build your itinerary.
                 </div>
@@ -820,7 +2207,8 @@
   <!-- ========================================== -->
   <!-- MODAL: ADD / EDIT BOOKING                  -->
   <!-- ========================================== -->
-  <div id="modal-booking-editor" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-booking-title">
+  <div id="modal-booking-editor" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-booking-title">
     <div class="modal-dialog">
       <div class="modal-header">
         <h2 id="modal-booking-title" class="modal-title">Add / Edit Itinerary Booking</h2>
@@ -844,7 +2232,8 @@
             </div>
             <div class="form-group flex-2">
               <label for="booking-input-provider">Provider / Name <span class="required">*</span></label>
-              <input type="text" id="booking-input-provider" class="form-control" placeholder="e.g. Vande Bharat Express" required>
+              <input type="text" id="booking-input-provider" class="form-control"
+                placeholder="e.g. Vande Bharat Express" required>
               <span id="err-booking-provider" class="field-error"></span>
             </div>
           </div>
@@ -852,7 +2241,8 @@
           <div class="form-row">
             <div class="form-group flex-1">
               <label for="booking-input-from">From (Origin) <span class="required">*</span></label>
-              <input type="text" id="booking-input-from" class="form-control" placeholder="Origin location / station" required>
+              <input type="text" id="booking-input-from" class="form-control" placeholder="Origin location / station"
+                required>
             </div>
             <div class="form-group flex-1">
               <label for="booking-input-to">To (Destination) <span class="required">*</span></label>
@@ -893,7 +2283,8 @@
           <div class="form-row" id="booking-row-hotel-email">
             <div class="form-group flex-1">
               <label for="booking-input-hotel-email">Hotel Contact Email (Optional)</label>
-              <input type="email" id="booking-input-hotel-email" class="form-control" placeholder="reservations@hotel.com">
+              <input type="email" id="booking-input-hotel-email" class="form-control"
+                placeholder="reservations@hotel.com">
             </div>
           </div>
 
@@ -922,7 +2313,8 @@
   <!-- ========================================== -->
   <!-- MODAL: EDIT TRIP PREFERENCES               -->
   <!-- ========================================== -->
-  <div id="modal-edit-trip" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-edit-title">
+  <div id="modal-edit-trip" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-edit-title">
     <div class="modal-dialog">
       <div class="modal-header">
         <h2 id="modal-edit-title" class="modal-title">Edit Trip Preferences</h2>
@@ -1016,8 +2408,57 @@
                 </div>
                 <div class="form-group flex-1">
                   <label for="edit-trip-cab-provider">Cab Provider (Optional)</label>
-                  <input type="text" id="edit-trip-cab-provider" class="form-control" placeholder="e.g. Goa Miles / Local Taxi">
+                  <input type="text" id="edit-trip-cab-provider" class="form-control"
+                    placeholder="e.g. Goa Miles / Local Taxi">
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Edit Traveller Needs & Assistance (Phase 17) -->
+          <div class="service-option-card">
+            <div class="section-subtitle" style="font-weight: 600; margin-bottom: 8px;">
+              Traveller Needs &amp; Special Assistance
+            </div>
+            <div class="form-group-checkbox">
+              <label>
+                <input type="checkbox" id="edit-trip-need-mobility">
+                <span>Mobility Assistance (wheelchair boarding, step-free access)</span>
+              </label>
+            </div>
+            <div class="form-group-checkbox">
+              <label>
+                <input type="checkbox" id="edit-trip-need-elderly">
+                <span>Elderly Traveller (slower transitions, shorter walking distance)</span>
+              </label>
+            </div>
+            <div class="form-group-checkbox">
+              <label>
+                <input type="checkbox" id="edit-trip-need-children">
+                <span>Travelling with Children (family seating, extra connection time)</span>
+              </label>
+            </div>
+            <div class="form-group-checkbox">
+              <label>
+                <input type="checkbox" id="edit-trip-need-medical">
+                <span>Medical Needs (special accommodation / assistance)</span>
+              </label>
+            </div>
+            <div class="form-group" style="margin-top: 10px;">
+              <label for="edit-trip-needs-note">Special Needs Note (Max 300 chars)</label>
+              <textarea id="edit-trip-needs-note" class="form-control" rows="2" maxlength="300"
+                placeholder="Optional notes for special accommodations (max 300 characters)..."></textarea>
+              <span id="err-edit-needs-note" class="field-error"></span>
+            </div>
+            <div class="form-row" style="margin-top: 8px;">
+              <div class="form-group flex-1">
+                <label for="edit-trip-emergency-name">Emergency Contact Name</label>
+                <input type="text" id="edit-trip-emergency-name" class="form-control" placeholder="e.g. Ramesh Kumar">
+              </div>
+              <div class="form-group flex-1">
+                <label for="edit-trip-emergency-phone">Emergency Contact Phone (10 digits)</label>
+                <input type="tel" id="edit-trip-emergency-phone" class="form-control" placeholder="e.g. 9876543210">
+                <span id="err-edit-emergency-phone" class="field-error"></span>
               </div>
             </div>
           </div>
@@ -1035,7 +2476,8 @@
   </div>
 
   <!-- Modal: Report Problem for Booking -->
-  <div id="modal-report-problem" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-report-problem-title">
+  <div id="modal-report-problem" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-report-problem-title">
     <div class="modal-dialog">
       <div class="modal-header">
         <h2 id="modal-report-problem-title" class="modal-title">Report a Problem</h2>
@@ -1058,12 +2500,14 @@
 
           <div id="group-report-delay" class="form-group">
             <label for="report-delay-minutes">Delay Minutes</label>
-            <input type="number" id="report-delay-minutes" class="form-control" min="5" step="5" value="60" placeholder="e.g. 60">
+            <input type="number" id="report-delay-minutes" class="form-control" min="5" step="5" value="60"
+              placeholder="e.g. 60">
           </div>
 
           <div class="form-group">
             <label for="report-problem-note">Note / Description</label>
-            <textarea id="report-problem-note" class="form-control" rows="3" placeholder="Explain what happened (e.g. Flight delayed due to weather)"></textarea>
+            <textarea id="report-problem-note" class="form-control" rows="3"
+              placeholder="Explain what happened (e.g. Flight delayed due to weather)"></textarea>
           </div>
 
           <div class="modal-footer" style="padding-top: 1rem;">
@@ -1078,61 +2522,197 @@
     </div>
   </div>
 
-  <!-- Modals: Authentication & Account (Phase 9) -->
-  <!-- 1. Sign In Modal -->
-  <div id="modal-login" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-login-title">
-    <div class="modal-dialog" style="max-width: 440px;">
+  <!-- Modals: Authentication & Account (Phase 9 & Phase 18D) -->
+  <!-- 1. Sign In Modal (Dual Entry Point: Traveller & Provider) -->
+  <div id="modal-login" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-login-title">
+    <div class="modal-dialog" style="max-width: 500px;">
       <div class="modal-header">
         <h2 id="modal-login-title" class="modal-title">Sign In to Odyssey</h2>
         <button id="btn-close-login-modal" class="btn-close" type="button" aria-label="Close modal">&times;</button>
       </div>
       <div class="modal-body">
-        <form id="form-login">
-          <div id="err-login" class="form-error hidden" style="margin-bottom: 1rem;"></div>
-          <div class="form-group">
-            <label for="login-email">Email Address</label>
-            <input type="email" id="login-email" class="form-control" required placeholder="traveller@example.com" autocomplete="username">
-          </div>
-          <div class="form-group">
-            <label for="login-password">Password</label>
-            <input type="password" id="login-password" class="form-control" required placeholder="••••••••" autocomplete="current-password">
-          </div>
-          <div class="modal-footer" style="padding-top: 1rem; flex-direction: column; gap: 0.75rem;">
-            <button type="submit" id="btn-submit-login" class="btn btn-gold" style="width: 100%;">
-              <span class="btn-text">Sign In</span>
-              <span class="spinner" aria-hidden="true"></span>
-            </button>
-            <div style="text-align: center; font-size: 0.85rem; color: #94a3b8;">
-              Don't have an account? <button type="button" id="link-goto-register" class="btn-link" style="color: var(--gold-light); background: none; border: none; cursor: pointer; text-decoration: underline;">Register here</button>
+        <!-- Auth Role Choice Header -->
+        <div class="auth-role-tabs">
+          <button type="button" id="tab-auth-traveller" class="auth-role-tab active">
+            <span class="role-icon">🧳</span>
+            <span>I'm a Traveller</span>
+          </button>
+          <button type="button" id="tab-auth-provider" class="auth-role-tab">
+            <span class="role-icon">🏢</span>
+            <span>I'm a Provider / Business</span>
+          </button>
+        </div>
+
+        <!-- Section A: Traveller Login -->
+        <div id="auth-section-traveller">
+          <form id="form-login">
+            <div id="err-login" class="form-error hidden" style="margin-bottom: 1rem;"></div>
+            <div class="form-group">
+              <label for="login-email">Email Address</label>
+              <input type="email" id="login-email" class="form-control" required placeholder="traveller@example.com"
+                autocomplete="username">
             </div>
+            <div class="form-group">
+              <label for="login-password">Password</label>
+              <input type="password" id="login-password" class="form-control" required placeholder="••••••••"
+                autocomplete="current-password">
+            </div>
+            <div class="modal-footer" style="padding-top: 1rem; flex-direction: column; gap: 0.75rem;">
+              <button type="submit" id="btn-submit-login" class="btn btn-gold" style="width: 100%;">
+                <span class="btn-text">Sign In as Traveller</span>
+                <span class="spinner" aria-hidden="true"></span>
+              </button>
+              <div style="text-align: center; font-size: 0.85rem; color: #94a3b8;">
+                Don't have an account? <button type="button" id="link-goto-register" class="btn-link"
+                  style="color: var(--gold-light); background: none; border: none; cursor: pointer; text-decoration: underline;">Create
+                  traveller account</button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- Section B: Provider / Business Entry Point -->
+        <div id="auth-section-provider" class="hidden">
+          <div
+            style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">
+            <button type="button" id="tab-prov-auth-login" class="btn btn-outline btn-sm active"
+              style="flex: 1;">Provider Sign In</button>
+            <button type="button" id="tab-prov-auth-register" class="btn btn-outline btn-sm" style="flex: 1;">Register
+              Your Business</button>
           </div>
-        </form>
+
+          <!-- Provider Login Form -->
+          <form id="form-provider-login">
+            <div id="err-provider-login" class="form-error hidden" style="margin-bottom: 1rem;"></div>
+            <div class="form-group">
+              <label for="prov-login-email">Business / Account Email</label>
+              <input type="email" id="prov-login-email" class="form-control" required placeholder="operator@example.com"
+                autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label for="prov-login-password">Password</label>
+              <input type="password" id="prov-login-password" class="form-control" required placeholder="••••••••"
+                autocomplete="current-password">
+            </div>
+            <div class="modal-footer" style="padding-top: 1rem; flex-direction: column; gap: 0.75rem;">
+              <button type="submit" id="btn-submit-provider-login" class="btn btn-gold" style="width: 100%;">
+                <span class="btn-text">Sign In as Provider</span>
+                <span class="spinner" aria-hidden="true"></span>
+              </button>
+              <div style="text-align: center; font-size: 0.85rem; color: #94a3b8;">
+                New transport or lodging partner? <button type="button" id="link-goto-prov-register" class="btn-link"
+                  style="color: var(--gold-light); background: none; border: none; cursor: pointer; text-decoration: underline;">Register
+                  your business</button>
+              </div>
+            </div>
+          </form>
+
+          <!-- Provider Combined Registration Form (Atomic) -->
+          <form id="form-provider-signup" class="hidden">
+            <div id="err-provider-signup" class="form-error hidden" style="margin-bottom: 1rem;"></div>
+            <div style="font-size: 0.82rem; color: #94a3b8; margin-bottom: 0.75rem;">
+              Create your business profile &amp; user account in one step. Your listing dashboard will be ready
+              immediately.
+            </div>
+            <div class="form-row" style="display: flex; gap: 0.5rem;">
+              <div class="form-group" style="flex: 1;">
+                <label for="prov-signup-name">Contact Person <span class="required">*</span></label>
+                <input type="text" id="prov-signup-name" class="form-control" required placeholder="Ramesh Kumar">
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label for="prov-signup-phone">Phone Number <span class="required">*</span></label>
+                <input type="tel" id="prov-signup-phone" class="form-control" required placeholder="9876543210">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="prov-signup-email">Account &amp; Contact Email <span class="required">*</span></label>
+              <input type="email" id="prov-signup-email" class="form-control" required
+                placeholder="operator@example.com">
+            </div>
+            <div class="form-group">
+              <label for="prov-signup-password">Account Password <span class="required">*</span></label>
+              <input type="password" id="prov-signup-password" class="form-control" required
+                placeholder="Min 8 chars with 1 letter &amp; 1 digit">
+            </div>
+            <div class="form-group">
+              <label for="prov-signup-biz-name">Business / Fleet Name <span class="required">*</span></label>
+              <input type="text" id="prov-signup-biz-name" class="form-control" required
+                placeholder="e.g. Kaveri Express Travels">
+            </div>
+            <div class="form-row" style="display: flex; gap: 0.5rem;">
+              <div class="form-group" style="flex: 1;">
+                <label for="prov-signup-biz-type">Business Type <span class="required">*</span></label>
+                <select id="prov-signup-biz-type" class="form-control" required>
+                  <option value="TRANSPORT">Transit (Bus / Train / Flight)</option>
+                  <option value="HOTEL">Hotels &amp; Lodging</option>
+                  <option value="BOTH">Both (Transit &amp; Lodging)</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label for="prov-signup-city">Operating City <span class="required">*</span></label>
+                <input type="text" id="prov-signup-city" class="form-control" required placeholder="e.g. Bengaluru">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="prov-signup-desc">Description (Optional)</label>
+              <textarea id="prov-signup-desc" class="form-control" rows="2" maxlength="500"
+                placeholder="Brief summary of fleet, routes, or properties operated..."></textarea>
+            </div>
+            <div class="modal-footer" style="padding-top: 1rem; flex-direction: column; gap: 0.75rem;">
+              <button type="submit" id="btn-submit-provider-signup" class="btn btn-gold" style="width: 100%;">
+                <span class="btn-text">Register Business &amp; Open Portal</span>
+                <span class="spinner" aria-hidden="true"></span>
+              </button>
+              <div style="text-align: center; font-size: 0.85rem; color: #94a3b8;">
+                Already have an account? <button type="button" id="link-goto-prov-login-from-reg" class="btn-link"
+                  style="color: var(--gold-light); background: none; border: none; cursor: pointer; text-decoration: underline;">Provider
+                  sign in</button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- 2. Register Modal -->
-  <div id="modal-register" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-register-title">
-    <div class="modal-dialog" style="max-width: 460px;">
+  <!-- 2. Register Modal (Traveller) -->
+  <div id="modal-register" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-register-title">
+    <div class="modal-dialog" style="max-width: 500px;">
       <div class="modal-header">
         <h2 id="modal-register-title" class="modal-title">Create Odyssey Account</h2>
         <button id="btn-close-register-modal" class="btn-close" type="button" aria-label="Close modal">&times;</button>
       </div>
       <div class="modal-body">
+        <div class="auth-role-tabs">
+          <button type="button" id="tab-reg-traveller" class="auth-role-tab active">
+            <span class="role-icon">🧳</span>
+            <span>I'm a Traveller</span>
+          </button>
+          <button type="button" id="tab-reg-provider" class="auth-role-tab">
+            <span class="role-icon">🏢</span>
+            <span>I'm a Provider / Business</span>
+          </button>
+        </div>
         <form id="form-register">
           <div id="err-register" class="form-error hidden" style="margin-bottom: 1rem;"></div>
           <div class="form-group">
             <label for="reg-name">Full Name</label>
-            <input type="text" id="reg-name" class="form-control" required placeholder="e.g. Ananya Sharma" autocomplete="name">
+            <input type="text" id="reg-name" class="form-control" required placeholder="e.g. Ananya Sharma"
+              autocomplete="name">
           </div>
           <div class="form-group">
             <label for="reg-email">Email Address</label>
-            <input type="email" id="reg-email" class="form-control" required placeholder="e.g. ananya@example.com" autocomplete="email">
+            <input type="email" id="reg-email" class="form-control" required placeholder="e.g. ananya@example.com"
+              autocomplete="email">
           </div>
           <div class="form-group">
             <label for="reg-password">Password</label>
-            <input type="password" id="reg-password" class="form-control" required placeholder="At least 8 chars with 1 digit & 1 letter" autocomplete="new-password">
-            <small style="color: #94a3b8; font-size: 0.75rem;">Minimum 8 characters, at least 1 letter and 1 number.</small>
+            <input type="password" id="reg-password" class="form-control" required
+              placeholder="At least 8 chars with 1 digit & 1 letter" autocomplete="new-password">
+            <small style="color: #94a3b8; font-size: 0.75rem;">Minimum 8 characters, at least 1 letter and 1
+              number.</small>
           </div>
           <div class="form-group">
             <label for="reg-phone">Phone Number (Optional)</label>
@@ -1140,11 +2720,13 @@
           </div>
           <div class="modal-footer" style="padding-top: 1rem; flex-direction: column; gap: 0.75rem;">
             <button type="submit" id="btn-submit-register" class="btn btn-gold" style="width: 100%;">
-              <span class="btn-text">Create Account</span>
+              <span class="btn-text">Create Traveller Account</span>
               <span class="spinner" aria-hidden="true"></span>
             </button>
             <div style="text-align: center; font-size: 0.85rem; color: #94a3b8;">
-              Already have an account? <button type="button" id="link-goto-login" class="btn-link" style="color: var(--gold-light); background: none; border: none; cursor: pointer; text-decoration: underline;">Sign in</button>
+              Already have an account? <button type="button" id="link-goto-login" class="btn-link"
+                style="color: var(--gold-light); background: none; border: none; cursor: pointer; text-decoration: underline;">Sign
+                in</button>
             </div>
           </div>
         </form>
@@ -1153,7 +2735,8 @@
   </div>
 
   <!-- 3. Account Settings Modal -->
-  <div id="modal-account" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-account-title">
+  <div id="modal-account" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-account-title">
     <div class="modal-dialog" style="max-width: 500px;">
       <div class="modal-header">
         <h2 id="modal-account-title" class="modal-title">Account Settings</h2>
@@ -1161,13 +2744,14 @@
       </div>
       <div class="modal-body">
         <div id="err-account" class="form-error hidden" style="margin-bottom: 1rem;"></div>
-        
+
         <!-- Profile Details -->
         <form id="form-account-profile">
           <h3 style="font-size: 1rem; color: var(--gold-light); margin-bottom: 0.75rem;">Profile Information</h3>
           <div class="form-group">
             <label for="account-email">Email Address (Read-only)</label>
-            <input type="email" id="account-email" class="form-control" readonly style="opacity: 0.8; background: rgba(0,0,0,0.3);">
+            <input type="email" id="account-email" class="form-control" readonly
+              style="opacity: 0.8; background: rgba(0,0,0,0.3);">
           </div>
           <div class="form-group">
             <label for="account-name">Full Name</label>
@@ -1190,17 +2774,32 @@
           <h3 style="font-size: 1rem; color: var(--gold-light); margin-bottom: 0.75rem;">Change Password</h3>
           <div class="form-group">
             <label for="account-curr-password">Current Password</label>
-            <input type="password" id="account-curr-password" class="form-control" required placeholder="••••••••" autocomplete="current-password">
+            <input type="password" id="account-curr-password" class="form-control" required placeholder="••••••••"
+              autocomplete="current-password">
           </div>
           <div class="form-group">
             <label for="account-new-password">New Password</label>
-            <input type="password" id="account-new-password" class="form-control" required placeholder="Min 8 chars with letter & digit" autocomplete="new-password">
+            <input type="password" id="account-new-password" class="form-control" required
+              placeholder="Min 8 chars with letter & digit" autocomplete="new-password">
           </div>
           <button type="submit" id="btn-submit-change-password" class="btn btn-outline btn-sm">
             <span class="btn-text">Change Password</span>
             <span class="spinner" aria-hidden="true"></span>
           </button>
         </form>
+
+        <!-- Secondary Upgrade to Provider for Existing Travellers -->
+        <div id="account-provider-upgrade-section" class="hidden"
+          style="margin: 1.25rem 0 1rem 0; padding: 1rem; background: rgba(212, 160, 23, 0.06); border: 1px dashed var(--gold-dark); border-radius: 6px;">
+          <h4
+            style="font-size: 0.95rem; color: var(--gold-light); margin: 0 0 0.25rem 0; font-family: 'Cinzel', serif;">
+            Business &amp; Operator Access</h4>
+          <p style="font-size: 0.8rem; color: #94a3b8; margin: 0 0 0.75rem 0;">Are you a transport operator or hotel
+            owner? Apply to list services on the Odyssey marketplace.</p>
+          <button type="button" id="btn-open-provider-upgrade" class="btn btn-outline btn-sm">
+            Apply as a Provider
+          </button>
+        </div>
 
         <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 1.5rem 0 1rem 0;">
 
@@ -1214,8 +2813,70 @@
     </div>
   </div>
 
+  <!-- Secondary Provider Upgrade Modal for Travellers -->
+  <div id="modal-provider-apply" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-apply-title">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-apply-title" class="modal-title">Apply as a Provider</h2>
+        <button id="btn-close-prov-apply-modal" class="btn-close" type="button"
+          aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-account-provider-apply">
+          <div id="err-account-provider-apply" class="form-error hidden" style="margin-bottom: 1rem;"></div>
+          <div class="form-group">
+            <label for="apply-biz-name">Business / Operator Name <span class="required">*</span></label>
+            <input type="text" id="apply-biz-name" class="form-control" required
+              placeholder="e.g. Skyline Logistics &amp; Travel">
+          </div>
+          <div class="form-row" style="display: flex; gap: 0.5rem;">
+            <div class="form-group" style="flex: 1;">
+              <label for="apply-biz-type">Business Type <span class="required">*</span></label>
+              <select id="apply-biz-type" class="form-control" required>
+                <option value="TRANSPORT">Transit (Bus / Train / Flight)</option>
+                <option value="HOTEL">Hotels &amp; Lodging</option>
+                <option value="BOTH">Both (Transit &amp; Lodging)</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="apply-city">Operating City <span class="required">*</span></label>
+              <input type="text" id="apply-city" class="form-control" required placeholder="e.g. Bengaluru">
+            </div>
+          </div>
+          <div class="form-row" style="display: flex; gap: 0.5rem;">
+            <div class="form-group" style="flex: 1;">
+              <label for="apply-phone">Contact Phone <span class="required">*</span></label>
+              <input type="tel" id="apply-phone" class="form-control" required placeholder="9876543210">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="apply-email">Contact Email <span class="required">*</span></label>
+              <input type="email" id="apply-email" class="form-control" required placeholder="contact@operator.com">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="apply-desc">Description (Optional)</label>
+            <textarea id="apply-desc" class="form-control" rows="2" maxlength="500"
+              placeholder="Brief summary of operations..."></textarea>
+          </div>
+          <div class="modal-footer" style="padding-top: 1rem; flex-direction: column; gap: 0.75rem;">
+            <button type="submit" id="btn-submit-account-provider-apply" class="btn btn-gold" style="width: 100%;">
+              <span class="btn-text">Submit Provider Application</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  </div>
+  </div>
+  </div>
+  </div>
+
   <!-- 4. Confirm Replacement Booking Modal -->
-  <div id="modal-confirm-booking" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-confirm-booking-title">
+  <div id="modal-confirm-booking" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-confirm-booking-title">
     <div class="modal-dialog" style="max-width: 480px;">
       <div class="modal-header">
         <h2 id="modal-confirm-booking-title" class="modal-title">Confirm Replacement Booking</h2>
@@ -1229,8 +2890,10 @@
           </div>
           <div class="form-group">
             <label for="confirm-booking-ref">Booking Reference / PNR (Optional)</label>
-            <input type="text" id="confirm-booking-ref" class="form-control" placeholder="e.g. PNR-123456 or TICKET-8899">
-            <small style="color: #94a3b8; font-size: 0.75rem;">Enter the reference or PNR provided by the transport operator for your records.</small>
+            <input type="text" id="confirm-booking-ref" class="form-control"
+              placeholder="e.g. PNR-123456 or TICKET-8899">
+            <small style="color: #94a3b8; font-size: 0.75rem;">Enter the reference or PNR provided by the transport
+              operator for your records.</small>
           </div>
           <div class="modal-footer" style="padding-top: 1rem;">
             <button type="button" id="btn-cancel-confirm-booking" class="btn btn-outline">Cancel</button>
@@ -1244,13 +2907,989 @@
     </div>
   </div>
 
+  <!-- 5. Provider Vehicle Modal -->
+  <div id="modal-prov-vehicle" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-vehicle-title">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-vehicle-title" class="modal-title">Add Vehicle</h2>
+        <button id="btn-close-prov-vehicle-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-prov-vehicle">
+          <input type="hidden" id="prov-veh-id">
+          <div class="form-group">
+            <label for="prov-veh-number">Vehicle Number <span class="required">*</span></label>
+            <input type="text" id="prov-veh-number" class="form-control" placeholder="e.g. KA-01-AB-1234" required
+              pattern="^[A-Za-z0-9 -]{3,20}$" maxlength="20">
+            <small style="color: #94a3b8; font-size: 0.75rem;">3 to 20 alphanumeric characters, dashes, or
+              spaces.</small>
+          </div>
+          <div class="form-group">
+            <label for="prov-veh-mode">Transport Mode <span class="required">*</span></label>
+            <select id="prov-veh-mode" class="form-control" required>
+              <option value="BUS">BUS</option>
+              <option value="TRAIN">TRAIN</option>
+              <option value="FLIGHT">FLIGHT</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="prov-veh-type">Vehicle Type / Model <span class="required">*</span></label>
+            <input type="text" id="prov-veh-type" class="form-control" placeholder="e.g. AC Multi-Axle Sleeper" required
+              maxlength="100">
+          </div>
+          <div class="form-group">
+            <label for="prov-veh-seats">Total Seats <span class="required">*</span></label>
+            <input type="number" id="prov-veh-seats" class="form-control" min="1" max="500" value="40" required>
+            <small style="color: #94a3b8; font-size: 0.75rem;">Capacity between 1 and 500 seats.</small>
+          </div>
+          <div class="form-group-checkbox" style="margin-top: 1rem;">
+            <label>
+              <input type="checkbox" id="prov-veh-active" checked>
+              <span>Active (Eligible for scheduling)</span>
+            </label>
+          </div>
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-prov-vehicle" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-prov-vehicle" class="btn btn-primary">
+              <span class="btn-text">Save Vehicle</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Provider Schedule Modal -->
+  <div id="modal-prov-schedule" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-schedule-title">
+    <div class="modal-dialog" style="max-width: 540px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-schedule-title" class="modal-title">Add Schedule</h2>
+        <button id="btn-close-prov-schedule-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-prov-schedule">
+          <input type="hidden" id="prov-sch-id">
+          <div class="form-group">
+            <label for="prov-sch-vehicle">Assigned Vehicle <span class="required">*</span></label>
+            <select id="prov-sch-vehicle" class="form-control" required></select>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="prov-sch-origin">Origin City <span class="required">*</span></label>
+              <input type="text" id="prov-sch-origin" class="form-control" placeholder="e.g. Bengaluru"
+                list="city-datalist" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="prov-sch-dest">Destination City <span class="required">*</span></label>
+              <input type="text" id="prov-sch-dest" class="form-control" placeholder="e.g. Mysuru" list="city-datalist"
+                required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="prov-sch-origin-stop">Origin Stop / Station <span class="required">*</span></label>
+              <input type="text" id="prov-sch-origin-stop" class="form-control" placeholder="e.g. Majestic Bus Station"
+                required maxlength="255">
+            </div>
+            <div class="form-group flex-1">
+              <label for="prov-sch-dest-stop">Destination Stop <span class="required">*</span></label>
+              <input type="text" id="prov-sch-dest-stop" class="form-control" placeholder="e.g. Mysuru Suburb Stand"
+                required maxlength="255">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="prov-sch-dep-time">Departure Time <span class="required">*</span></label>
+              <input type="time" id="prov-sch-dep-time" class="form-control" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="prov-sch-arr-time">Arrival Time <span class="required">*</span></label>
+              <input type="time" id="prov-sch-arr-time" class="form-control" required>
+            </div>
+          </div>
+          <div class="form-group-checkbox">
+            <label>
+              <input type="checkbox" id="prov-sch-next-day">
+              <span>Arrives Next Day (+1)</span>
+            </label>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="prov-sch-price">Base Fare / Price (INR) <span class="required">*</span></label>
+              <input type="number" id="prov-sch-price" class="form-control" min="1" step="0.5" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="prov-sch-seats-offered">Seats Offered</label>
+              <input type="number" id="prov-sch-seats-offered" class="form-control" min="1" max="500"
+                placeholder="Defaults to vehicle capacity">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="prov-sch-valid-from">Valid From <span class="required">*</span></label>
+              <input type="date" id="prov-sch-valid-from" class="form-control" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="prov-sch-valid-to">Valid To <span class="required">*</span></label>
+              <input type="date" id="prov-sch-valid-to" class="form-control" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Operating Days of Week <span class="required">*</span></label>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <label><input type="checkbox" class="prov-day-chk" value="MONDAY" checked> Mon</label>
+              <label><input type="checkbox" class="prov-day-chk" value="TUESDAY" checked> Tue</label>
+              <label><input type="checkbox" class="prov-day-chk" value="WEDNESDAY" checked> Wed</label>
+              <label><input type="checkbox" class="prov-day-chk" value="THURSDAY" checked> Thu</label>
+              <label><input type="checkbox" class="prov-day-chk" value="FRIDAY" checked> Fri</label>
+              <label><input type="checkbox" class="prov-day-chk" value="SATURDAY" checked> Sat</label>
+              <label><input type="checkbox" class="prov-day-chk" value="SUNDAY" checked> Sun</label>
+            </div>
+          </div>
+          <div id="prov-sch-error" class="form-error hidden" style="margin-bottom: 0.75rem;"></div>
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-prov-schedule" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-prov-schedule" class="btn btn-primary">
+              <span class="btn-text">Save Schedule</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Provider Report Status Modal -->
+  <div id="modal-prov-status" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-status-title">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-status-title" class="modal-title">Report Departure Status</h2>
+        <button id="btn-close-prov-status-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-prov-status">
+          <input type="hidden" id="prov-status-dep-id">
+          <div id="prov-status-dep-summary" class="booking-summary-banner" style="margin-bottom: 1rem;"></div>
+          <div class="form-group">
+            <label for="prov-status-state">Reported Status <span class="required">*</span></label>
+            <select id="prov-status-state" class="form-control" required>
+              <option value="DELAYED">DELAYED</option>
+              <option value="CANCELLED">CANCELLED</option>
+              <option value="SCHEDULED">SCHEDULED (Clear Delay)</option>
+            </select>
+          </div>
+          <div class="form-group" id="prov-status-delay-group">
+            <label for="prov-status-delay">Delay Minutes <span class="required">*</span></label>
+            <input type="number" id="prov-status-delay" class="form-control" min="1" max="1440" value="30">
+            <small style="color: #94a3b8; font-size: 0.75rem;">1 to 1440 minutes (up to 24 hours).</small>
+          </div>
+          <div class="form-group">
+            <label for="prov-status-reason">Explanation / Reason <span class="required">*</span></label>
+            <textarea id="prov-status-reason" class="form-control" rows="3" minlength="5" maxlength="200" required
+              placeholder="Describe reason for delay or cancellation (5 to 200 chars)..."></textarea>
+            <small style="color: #94a3b8; font-size: 0.75rem;">Travellers will see: "Provider-reported, not
+              independently verified".</small>
+          </div>
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-prov-status" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-prov-status" class="btn btn-warning">
+              <span class="btn-text">Publish Status Report</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Provider Sanitized Bookings Modal -->
+  <div id="modal-prov-bookings" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-bookings-title">
+    <div class="modal-dialog" style="max-width: 680px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-bookings-title" class="modal-title">Departure Passenger Manifest</h2>
+        <button id="btn-close-prov-bookings-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="prov-bookings-dep-summary" style="margin-bottom: 0.75rem; font-size: 0.9rem; color: #cbd5e1;"></div>
+        <div class="banner banner-info" style="margin-bottom: 1rem; font-size: 0.8rem;">
+          <span>&#128274; <strong>Privacy Guaranteed:</strong> Sensitive traveller personal details (contact phone,
+            email, and payment methods) are never shown to protect customer privacy.</span>
+        </div>
+        <h3 style="margin: 0.5rem 0 0.5rem; font-size: 1rem; color: var(--gold-color);">Confirmed Passenger Manifest</h3>
+        <div class="table-responsive">
+          <table class="table audit-table">
+            <thead>
+              <tr>
+                <th>Booking Ref</th>
+                <th>Traveller Name</th>
+                <th>Passengers</th>
+                <th>Seats</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="prov-bookings-tbody">
+              <tr>
+                <td colspan="5" class="empty-state">No bookings on this departure yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="margin: 1.5rem 0 0.5rem; font-size: 1rem; color: #f87171;">Cancelled Bookings / Released Seats</h3>
+        <div class="table-responsive">
+          <table class="table audit-table">
+            <thead>
+              <tr>
+                <th>Booking Ref</th>
+                <th>Passenger</th>
+                <th>Seat Released</th>
+                <th>Cancelled At</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="prov-cancellations-tbody">
+              <tr>
+                <td colspan="5" class="empty-state">No cancelled bookings for this departure.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-footer" style="padding-top: 1rem;">
+          <button type="button" id="btn-close-prov-bookings" class="btn btn-outline">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8b. Provider Offer Alternative Vehicle Modal (Phase 19) -->
+  <div id="modal-prov-offer-alternative" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-offer-alt-title">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-offer-alt-title" class="modal-title">Offer Alternative Vehicle</h2>
+        <button id="btn-close-prov-offer-alt-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="prov-offer-alt-dep-summary" class="banner banner-info" style="margin-bottom: 1rem; font-size: 0.85rem;"></div>
+        <form id="form-prov-offer-alt">
+          <input type="hidden" id="prov-offer-alt-dep-id">
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="prov-offer-alt-select" style="display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: #cbd5e1;">Select Alternative Vehicle Departure <span style="color: #ef4444;">*</span></label>
+            <select id="prov-offer-alt-select" class="form-control" style="width: 100%; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px; color: #f8fafc;" required>
+              <option value="">-- Choose replacement vehicle --</option>
+            </select>
+            <small class="form-text" style="color: #94a3b8; font-size: 0.75rem; display: block; margin-top: 0.25rem;">Only your other departures on the exact same route and date with available seats are shown.</small>
+          </div>
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="prov-offer-alt-reason" style="display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: #cbd5e1;">Reason / Note to Traveller (Optional)</label>
+            <textarea id="prov-offer-alt-reason" class="form-control" rows="2" style="width: 100%; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px; color: #f8fafc;" placeholder="e.g. Mechanical issue with primary vehicle; offering luxury replacement departure"></textarea>
+          </div>
+          <div class="modal-footer" style="padding-top: 1rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button type="button" id="btn-cancel-prov-offer-alt" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-prov-offer-alt" class="btn btn-gold">
+              <span class="btn-text">Confirm &amp; Offer Replacement</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. Admin Provider Action Modal (Reject / Suspend Reason) -->
+  <div id="modal-admin-action" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-admin-action-title">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2 id="modal-admin-action-title" class="modal-title">Provider Review Action</h2>
+        <button id="btn-close-admin-action-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-admin-action">
+          <input type="hidden" id="admin-action-prov-id">
+          <input type="hidden" id="admin-action-type">
+          <p id="admin-action-prompt" style="font-size: 0.9rem; margin-bottom: 1rem;"></p>
+          <div class="form-group">
+            <label for="admin-action-reason">Reason <span class="required">*</span></label>
+            <textarea id="admin-action-reason" class="form-control" rows="3" required minlength="5" maxlength="500"
+              placeholder="Explain the decision clearly for the provider and audit record..."></textarea>
+          </div>
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-admin-action" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-admin-action" class="btn btn-danger">
+              <span class="btn-text">Confirm Action</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10. Provider Hotel Modal (Phase 18B) -->
+  <div id="modal-prov-hotel" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-hotel-title">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-hotel-title" class="modal-title">Register Hotel Property</h2>
+        <button id="btn-close-prov-hotel-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-prov-hotel">
+          <input type="hidden" id="prov-hotel-id">
+          <div class="form-group">
+            <label for="prov-hotel-name">Hotel Name <span class="required">*</span></label>
+            <input type="text" id="prov-hotel-name" class="form-control" required maxlength="100"
+              placeholder="e.g. Royal Heritage Resort">
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="prov-hotel-city">City <span class="required">*</span></label>
+              <input type="text" id="prov-hotel-city" class="form-control" placeholder="e.g. Bengaluru"
+                list="city-datalist" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="prov-hotel-email">Booking Contact Email <span class="required">*</span></label>
+              <input type="email" id="prov-hotel-email" class="form-control" required maxlength="100"
+                placeholder="reservations@hotel.com">
+              <small style="color: #94a3b8; font-size: 0.75rem;">Shown to traveller ONLY after booking.</small>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="prov-hotel-address">Physical Address <span class="required">*</span></label>
+            <input type="text" id="prov-hotel-address" class="form-control" required maxlength="255"
+              placeholder="e.g. 12 Palace Road, Vasanth Nagar">
+          </div>
+          <div class="form-group">
+            <label for="prov-hotel-desc">Description</label>
+            <textarea id="prov-hotel-desc" class="form-control" rows="2" maxlength="500"
+              placeholder="Hotel overview, facilities, policies (max 500 chars)..."></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="prov-hotel-checkin">Check-In Time</label>
+              <input type="time" id="prov-hotel-checkin" class="form-control" value="14:00">
+            </div>
+            <div class="form-group flex-1">
+              <label for="prov-hotel-checkout">Check-Out Time</label>
+              <input type="time" id="prov-hotel-checkout" class="form-control" value="11:00">
+            </div>
+          </div>
+          <div id="prov-sch-error" class="form-error hidden" style="margin-bottom: 0.75rem;"></div>
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-prov-hotel" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-prov-hotel" class="btn btn-primary">
+              <span class="btn-text">Save Hotel</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 11. Provider Room Type Modal (Phase 18B) -->
+  <div id="modal-prov-room-type" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-room-title">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-room-title" class="modal-title">Configure Room Type</h2>
+        <button id="btn-close-prov-room-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-prov-room-type">
+          <input type="hidden" id="prov-room-hotel-id">
+          <input type="hidden" id="prov-room-type-id">
+          <div class="form-group">
+            <label for="prov-room-name">Room Category Name <span class="required">*</span></label>
+            <input type="text" id="prov-room-name" class="form-control" required maxlength="100"
+              placeholder="e.g. Deluxe King Suite">
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="prov-room-price">Price Per Night (INR) <span class="required">*</span></label>
+              <input type="number" id="prov-room-price" class="form-control" min="1" step="0.5" required
+                placeholder="e.g. 2500">
+            </div>
+            <div class="form-group flex-1">
+              <label for="prov-room-total">Total Rooms <span class="required">*</span></label>
+              <input type="number" id="prov-room-total" class="form-control" min="1" max="200" required
+                placeholder="e.g. 10">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="prov-room-max-guests">Max Guests per Room <span class="required">*</span></label>
+            <input type="number" id="prov-room-max-guests" class="form-control" min="1" max="10" value="2" required>
+          </div>
+          <div class="form-group">
+            <label for="prov-room-amenities">Amenities</label>
+            <input type="text" id="prov-room-amenities" class="form-control" maxlength="200"
+              placeholder="e.g. WiFi, Air Conditioning, Breakfast Included, Balcony">
+          </div>
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-prov-room" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-prov-room" class="btn btn-primary">
+              <span class="btn-text">Save Room Type</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 12. Provider Date Availability Calendar Modal (Phase 18B) -->
+  <div id="modal-prov-availability" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-avail-title">
+    <div class="modal-dialog" style="max-width: 650px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-avail-title" class="modal-title">14-Day Date Availability Calendar</h2>
+        <button id="btn-close-prov-avail-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="prov-avail-room-summary" style="font-size: 0.9rem; margin-bottom: 1rem; color: #cbd5e1;"></p>
+        <div class="table-responsive">
+          <table class="table audit-table">
+            <thead>
+              <tr>
+                <th>Stay Date</th>
+                <th>Total Rooms</th>
+                <th>Booked</th>
+                <th>Available</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="prov-avail-tbody">
+              <tr>
+                <td colspan="6" class="empty-state">Loading date availability...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-footer" style="padding-top: 1rem;">
+          <button type="button" id="btn-close-prov-avail" class="btn btn-outline">Close Calendar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 13. Provider Cab Service Modal (Phase 18B) -->
+  <div id="modal-prov-cab" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-cab-title">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-cab-title" class="modal-title">Register Cab Service</h2>
+        <button id="btn-close-prov-cab-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-prov-cab">
+          <input type="hidden" id="prov-cab-id">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="prov-cab-city">Operating City <span class="required">*</span></label>
+              <input type="text" id="prov-cab-city" class="form-control" placeholder="e.g. Bengaluru"
+                list="city-datalist" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="prov-cab-category">Vehicle Category <span class="required">*</span></label>
+              <select id="prov-cab-category" class="form-control" required>
+                <option value="HATCHBACK">HATCHBACK (e.g. WagonR / Tiago)</option>
+                <option value="SEDAN" selected>SEDAN (e.g. Dzire / Etios)</option>
+                <option value="SUV">SUV (e.g. Innova / Ertiga)</option>
+                <option value="TEMPO_TRAVELLER">TEMPO_TRAVELLER (e.g. 12-16 seater)</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="prov-cab-base-fare">Base Fare (INR) <span class="required">*</span></label>
+              <input type="number" id="prov-cab-base-fare" class="form-control" min="50" max="500" step="0.5"
+                value="100" required>
+              <small style="color: #94a3b8; font-size: 0.75rem;">Allowed: &#8377;50 - &#8377;500</small>
+            </div>
+            <div class="form-group flex-1">
+              <label for="prov-cab-per-km">Per KM Rate (INR) <span class="required">*</span></label>
+              <input type="number" id="prov-cab-per-km" class="form-control" min="10" max="50" step="0.5" value="15"
+                required>
+              <small style="color: #94a3b8; font-size: 0.75rem;">Allowed: &#8377;10 - &#8377;50</small>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="prov-cab-seats">Passenger Seats <span class="required">*</span></label>
+              <input type="number" id="prov-cab-seats" class="form-control" min="1" max="20" value="4" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="prov-cab-vehicle-num">Vehicle Reg (Optional)</label>
+              <input type="text" id="prov-cab-vehicle-num" class="form-control" placeholder="e.g. KA-01-AB-1234"
+                maxlength="20">
+              <small style="color: #94a3b8; font-size: 0.75rem;">Letters, digits, space, hyphen only.</small>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="prov-cab-hours">Operating Hours <span class="required">*</span></label>
+            <input type="text" id="prov-cab-hours" class="form-control" value="06:00 - 23:00" required maxlength="100"
+              placeholder="e.g. 06:00 - 23:00 or 24/7">
+          </div>
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-prov-cab" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-prov-cab" class="btn btn-primary">
+              <span class="btn-text">Save Cab Service</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 14. Provider Hotel Bookings Manifest Modal (Phase 18B) -->
+  <div id="modal-prov-hotel-bookings" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-hotel-bkg-title">
+    <div class="modal-dialog" style="max-width: 720px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-hotel-bkg-title" class="modal-title">Hotel Upcoming Bookings Manifest</h2>
+        <button id="btn-close-prov-hotel-bkg-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="banner banner-info" style="margin-bottom: 1rem; font-size: 0.8rem;">
+          <span>&#128274; <strong>Privacy Policy:</strong> In compliance with security standards, guest phone number,
+            email, credit card data, and full trip itinerary details are strictly excluded from the provider
+            manifest.</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table audit-table">
+            <thead>
+              <tr>
+                <th>Booking Ref</th>
+                <th>Guest Name</th>
+                <th>Room Type</th>
+                <th>Stay Dates</th>
+                <th>Rooms</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="prov-hotel-bookings-tbody">
+              <tr>
+                <td colspan="7" class="empty-state">No confirmed bookings for this hotel.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-footer" style="padding-top: 1rem;">
+          <button type="button" id="btn-close-prov-hotel-bookings" class="btn btn-outline">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 15. Provider Cannot Honour Modal (Phase 18B) -->
+  <div id="modal-prov-cannot-honour" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="modal-prov-honour-title">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2 id="modal-prov-honour-title" class="modal-title">Report Cannot Honour Booking</h2>
+        <button id="btn-close-prov-honour-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-prov-cannot-honour">
+          <input type="hidden" id="prov-cannot-honour-bkg-id">
+          <div class="banner banner-warning" style="margin-bottom: 1rem; font-size: 0.85rem;">
+            <strong>Notice:</strong> This action flags the booking as unable to be honoured and creates an alert on the
+            traveller's trip. It does <em>not</em> cancel the booking automatically; the traveller decides how to
+            proceed.
+          </div>
+          <div class="form-group">
+            <label for="prov-cannot-honour-reason">Reason / Explanation <span class="required">*</span></label>
+            <textarea id="prov-cannot-honour-reason" class="form-control" rows="3" required minlength="5"
+              maxlength="200"
+              placeholder="Describe the reason (e.g. Maintenance emergency on plumbing, facility outage)... (5-200 chars)"></textarea>
+          </div>
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-prov-honour" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-prov-honour" class="btn btn-danger">
+              <span class="btn-text">Submit Cannot Honour Report</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 16. Modal: Seat Selection -->
+  <div id="modal-seat-selection" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="seat-modal-title">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <div class="modal-header">
+        <h2 id="seat-modal-title" class="modal-title">Select Seats &amp; Passengers</h2>
+        <button id="btn-close-seat-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="seat-modal-service-summary" style="margin-bottom: 1rem; font-size: 0.9rem; color: #cbd5e1;"></div>
+        <div id="flight-seat-selector" class="form-group hidden" style="margin-bottom: 1rem;">
+          <label for="flight-passenger-count">Number of Passengers (1-6)</label>
+          <input type="number" id="flight-passenger-count" class="form-control" min="1" max="6" value="1">
+        </div>
+        <div id="seat-grid"
+          style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem;"></div>
+        <div id="passenger-inputs-container" style="display: flex; flex-direction: column; gap: 0.75rem;"></div>
+        <div class="modal-footer" style="padding-top: 1rem;">
+          <button type="button" id="btn-cancel-seat-selection" class="btn btn-outline">Cancel</button>
+          <button type="button" id="btn-proceed-to-checkout" class="btn btn-primary">Proceed to Checkout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 17. Modal: Checkout & Payment (Phase 18C Payment Modes & Cab/Hotel Addons) -->
+  <div id="modal-checkout" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="checkout-modal-title">
+    <div class="modal-dialog" style="max-width: 680px;">
+      <div class="modal-header">
+        <h2 id="checkout-modal-title" class="modal-title">Complete Reservation &amp; Payment</h2>
+        <button id="btn-close-checkout-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-mock-payment">
+          <!-- Order Summary -->
+          <div id="checkout-order-summary" class="card"
+            style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(212, 175, 55, 0.2); padding: 1rem; margin-bottom: 1rem;">
+          </div>
+
+          <!-- Trip Assignment -->
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label style="font-weight: 600; color: #cbd5e1;">Itinerary Integration</label>
+            <div style="display: flex; gap: 1.5rem; margin-top: 0.25rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="radio" id="choice-create-trip" name="checkoutTripChoice" value="new" checked>
+                <span>Create New Trip</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="radio" id="choice-existing-trip" name="checkoutTripChoice" value="existing">
+                <span>Add to Existing Trip</span>
+              </label>
+            </div>
+            <div id="checkout-existing-trip-container" class="hidden" style="margin-top: 0.5rem;">
+              <select id="checkout-trip-select" class="form-control">
+                <option value="" disabled selected>Select an existing trip...</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Cab & Hotel Add-ons (Restored from Phase 10A) -->
+          <div id="checkout-addons-section" class="card"
+            style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); padding: 1rem; margin-bottom: 1rem;">
+            <h4 style="margin: 0 0 0.5rem; font-size: 0.95rem; color: var(--gold-color);">Optional Journey Add-ons</h4>
+
+            <!-- Cab Add-on -->
+            <div style="margin-bottom: 0.75rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500;">
+                <input type="checkbox" id="checkout-addon-cab-toggle">
+                <span>Add Cab Transfer at Destination (+&#8377;350 est.)</span>
+              </label>
+              <div id="checkout-addon-cab-container" class="hidden"
+                style="margin-top: 0.5rem; padding: 0.75rem; background: rgba(15, 23, 42, 0.5); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                  <div>
+                    <label style="font-size: 0.8rem; color: #94a3b8;">Pickup Location</label>
+                    <input type="text" id="checkout-cab-pickup" class="form-control"
+                      placeholder="Destination Bus Stand / Landmark">
+                    <small style="font-size: 0.72rem; color: #94a3b8; display: block; margin-top: 2px;">Arriving bus stop or famous place in destination</small>
+                  </div>
+                  <div>
+                    <label style="font-size: 0.8rem; color: #94a3b8;">Dropoff Location</label>
+                    <input type="text" id="checkout-cab-dropoff" class="form-control" placeholder="Select a hotel or enter dropoff">
+                    <small style="font-size: 0.72rem; color: #94a3b8; display: block; margin-top: 2px;">Syncs with selected hotel, or enter destination address</small>
+                  </div>
+                </div>
+                <div style="margin-top: 0.5rem;">
+                  <label style="font-size: 0.8rem; color: #94a3b8; display: block; margin-bottom: 0.25rem;">Choose Cab Provider</label>
+                  <div id="checkout-cab-options-list" style="max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem;">
+                    <div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available cabs...</div>
+                  </div>
+                  <input type="hidden" id="checkout-selected-cab-id">
+                </div>
+              </div>
+            </div>
+
+            <!-- Hotel Add-on -->
+            <div>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500;">
+                <input type="checkbox" id="checkout-addon-hotel-toggle">
+                <span>Add Hotel Stay at Destination</span>
+              </label>
+              <div id="checkout-addon-hotel-container" class="hidden"
+                style="margin-top: 0.5rem; padding: 0.75rem; background: rgba(15, 23, 42, 0.5); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                  <div>
+                    <label style="font-size: 0.8rem; color: #94a3b8;">Nights</label>
+                    <input type="number" id="checkout-hotel-nights" class="form-control" value="1" min="1" max="14">
+                  </div>
+                  <div>
+                    <label style="font-size: 0.8rem; color: #94a3b8;">Rooms</label>
+                    <input type="number" id="checkout-hotel-rooms" class="form-control" value="1" min="1" max="5">
+                  </div>
+                </div>
+                <input type="hidden" id="checkout-hotel-name" class="form-control">
+                <div style="margin-top: 0.5rem;">
+                  <label style="font-size: 0.8rem; color: #94a3b8; display: block; margin-bottom: 0.25rem;">Choose Hotel &amp; Room</label>
+                  <div id="checkout-hotel-options-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem;">
+                    <div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available hotels...</div>
+                  </div>
+                  <input type="hidden" id="checkout-selected-hotel-id">
+                  <input type="hidden" id="checkout-selected-room-type-id">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment Mode Selection (CARD, UPI, NETBANKING) -->
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label style="font-weight: 600; color: #cbd5e1; margin-bottom: 0.5rem; display: block;">Payment
+              Method</label>
+            <div style="display: flex; gap: 1.5rem; margin-bottom: 0.75rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="radio" id="payment-method-card" name="paymentMethod" value="CARD" checked>
+                <span>Credit / Debit Card</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="radio" id="payment-method-upi" name="paymentMethod" value="UPI">
+                <span>UPI / QR</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="radio" id="payment-method-netbanking" name="paymentMethod" value="NETBANKING">
+                <span>Net Banking</span>
+              </label>
+            </div>
+
+            <!-- Card Fields -->
+            <div id="checkout-card-fields">
+              <div class="form-group" style="margin-bottom: 0.5rem;">
+                <label for="card-holder-name">Name on Card</label>
+                <input type="text" id="card-holder-name" class="form-control" placeholder="Alex Mercer">
+              </div>
+              <div class="form-group" style="margin-bottom: 0.5rem;">
+                <label for="card-number">Card Number</label>
+                <input type="text" id="card-number" class="form-control" placeholder="4111 2222 3333 4444">
+                <small style="color: #94a3b8; font-size: 0.75rem;">Simulate decline with: 4000000000000002</small>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div class="form-group">
+                  <label for="card-expiry">Expiry (MM/YY)</label>
+                  <input type="text" id="card-expiry" class="form-control" placeholder="12/28">
+                </div>
+                <div class="form-group">
+                  <label for="card-cvv">CVV</label>
+                  <input type="password" id="card-cvv" class="form-control" placeholder="123" maxlength="4">
+                </div>
+              </div>
+            </div>
+
+            <!-- UPI Fields -->
+            <div id="checkout-upi-fields" class="hidden">
+              <div class="form-group" style="margin-bottom: 0.5rem;">
+                <label for="checkout-upi-id">UPI ID (VPA)</label>
+                <input type="text" id="checkout-upi-id" class="form-control" placeholder="alex@okhdfcbank">
+                <small style="color: #94a3b8; font-size: 0.75rem;">Valid format: username@bank. Simulate decline with:
+                  fail@test</small>
+              </div>
+            </div>
+
+            <!-- Net Banking Fields -->
+            <div id="checkout-netbanking-fields" class="hidden">
+              <div class="form-group" style="margin-bottom: 0.5rem;">
+                <label for="checkout-bank-select">Select Your Bank</label>
+                <select id="checkout-bank-select" class="form-control">
+                  <option value="HDFC Bank">HDFC Bank</option>
+                  <option value="ICICI Bank">ICICI Bank</option>
+                  <option value="State Bank of India">State Bank of India</option>
+                  <option value="Axis Bank">Axis Bank</option>
+                  <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+                  <option value="Test Failure Bank">Test Failure Bank (Simulate Decline)</option>
+                </select>
+                <small style="color: #94a3b8; font-size: 0.75rem;">Selecting 'Test Failure Bank' triggers simulated
+                  payment failure</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Spot 1: Checkout Disclaimer -->
+          <div class="banner banner-info" style="margin-top: 1rem; font-size: 0.85rem;">
+            <span id="checkout-disclaimer">Marketplace bookings are simulated for this project — no real ticket is issued, no real payment is taken.</span>
+          </div>
+
+          <div id="checkout-error-msg" class="field-error hidden" style="margin-top: 0.5rem;"></div>
+
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-checkout" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-pay-now" class="btn btn-primary">
+              <span id="btn-pay-now-text">Pay &amp; Confirm Booking</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Waiting for Provider Confirmation -->
+  <div id="modal-provider-pending" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="pending-modal-title">
+    <div class="modal-dialog" style="max-width: 500px; text-align: center;">
+      <div class="modal-header" style="justify-content: center; border-bottom: none; padding-bottom: 0;">
+        <h2 id="pending-modal-title" class="modal-title" style="color: var(--gold-color);">Awaiting Provider Confirmation</h2>
+      </div>
+      <div class="modal-body" style="padding-top: 0.5rem;">
+        <div style="margin: 1.5rem 0;">
+          <div id="pending-countdown-timer" style="font-size: 3rem; font-weight: 700; color: #38bdf8;">60s</div>
+          <div style="background: rgba(255,255,255,0.1); border-radius: 999px; height: 8px; margin: 1rem 0; overflow: hidden;">
+            <div id="pending-progress-bar" style="background: #38bdf8; width: 100%; height: 100%; transition: width 1s linear;"></div>
+          </div>
+          <p id="pending-provider-message" style="color: #cbd5e1; font-size: 1rem; line-height: 1.5;">Waiting for provider to confirm your request...</p>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;">No payment has been charged. You will only proceed to payment once confirmed.</p>
+        </div>
+        <div id="pending-action-feedback" class="hidden" style="margin-top: 1rem; padding: 0.75rem; border-radius: 6px; font-weight: 500;"></div>
+        <div style="margin-top: 1.5rem;">
+          <button type="button" id="btn-cancel-pending-request" class="btn btn-secondary">Choose Another Option</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 18. Modal: Booking Confirmation -->
+  <div id="modal-confirmation" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="confirmation-modal-title">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <div class="modal-header">
+        <h2 id="confirmation-modal-title" class="modal-title">Booking Confirmed!</h2>
+        <button id="btn-close-confirmation-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+          <div style="font-size: 2.5rem; color: #4ade80; margin-bottom: 0.5rem;">&#10003;</div>
+          <h3 style="margin: 0; color: #f8fafc; font-size: 1.25rem;">Reservation Sealed</h3>
+          <p style="color: #94a3b8; margin: 0.25rem 0 0;">Reference: <strong id="confirmed-booking-ref"
+              style="color: var(--gold-color); font-family: monospace; font-size: 1.1rem;"></strong></p>
+        </div>
+
+        <div id="confirmed-booking-details" class="card"
+          style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); padding: 1rem; margin-bottom: 1rem;">
+        </div>
+
+        <div id="confirmed-trip-info" class="hidden" style="margin-bottom: 1rem; text-align: center;">
+          <span style="color: #94a3b8; font-size: 0.85rem;">Linked to Expedition: </span>
+          <strong id="confirmed-trip-title" style="color: #f8fafc;"></strong>
+        </div>
+
+        <!-- Spot 2: Confirmation Disclaimer -->
+        <div class="banner banner-info" style="margin-bottom: 1.25rem; font-size: 0.85rem;">
+          <span>Marketplace bookings are simulated for this project — no real ticket is issued, no real payment is
+            taken.</span>
+        </div>
+
+        <div class="modal-footer" style="display: flex; justify-content: space-between; padding-top: 0.5rem;">
+          <button type="button" id="btn-confirm-go-to-bookings" class="btn btn-outline">My Bookings</button>
+          <div style="display: flex; gap: 0.5rem;">
+            <a id="btn-download-confirmed-summary" href="#" target="_blank" class="btn btn-outline">Print Summary</a>
+            <button type="button" id="btn-open-confirmed-trip" class="btn btn-gold">Open in Trip Workspace</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 19. Modal: Cancel Booking -->
+  <div id="modal-cancel-booking" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="cancel-modal-title">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2 id="cancel-modal-title" class="modal-title">Cancel Marketplace Booking</h2>
+        <button id="btn-close-cancel-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: #cbd5e1; margin-bottom: 1rem;">
+          Are you sure you want to cancel booking <strong id="cancel-modal-ref"
+            style="color: var(--gold-color);"></strong>?
+        </p>
+        <div id="cancel-modal-policy-notice" style="margin-bottom: 1rem;"></div>
+        <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 1rem;">
+          The inventory hold will be released and the booking will be marked as CANCELLED.
+        </p>
+        <div class="modal-footer" style="padding-top: 1rem;">
+          <button type="button" id="btn-dismiss-cancel-booking" class="btn btn-outline">Keep Booking</button>
+          <button type="button" id="btn-execute-cancel-booking" class="btn btn-danger">Confirm Cancellation</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 20. Modal: Provider Issue Refund (Phase 18C) -->
+  <div id="modal-prov-refund" class="modal-overlay hidden" role="dialog" aria-modal="true"
+    aria-labelledby="prov-refund-title">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header">
+        <h2 id="prov-refund-title" class="modal-title">Issue Provider Refund</h2>
+        <button id="btn-close-prov-refund-modal" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-prov-refund">
+          <input type="hidden" id="prov-refund-booking-id">
+          <div class="banner banner-info" style="margin-bottom: 1rem; font-size: 0.85rem;">
+            <strong>Provider Notice:</strong> Refunding a cancelled or unhonoured booking records a credit on the
+            traveller's Costs &amp; Refunds ledger as <em>PROVIDER_REPORTED</em>.
+          </div>
+          <div
+            style="background: rgba(15, 23, 42, 0.6); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+              <span style="color: #94a3b8;">Booking Reference:</span>
+              <strong id="prov-refund-booking-ref" style="color: var(--gold-color); font-family: monospace;"></strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: #94a3b8;">Original Booking Fare:</span>
+              <strong id="prov-refund-original-cost" style="color: #4ade80;"></strong>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="prov-refund-amount">Refund Amount (&#8377;) <span class="required">*</span></label>
+            <input type="number" id="prov-refund-amount" class="form-control" min="1" step="0.01" required
+              placeholder="Enter amount (up to original fare)">
+            <small style="color: #94a3b8; font-size: 0.75rem;">Cannot exceed the original booking cost.</small>
+          </div>
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="prov-refund-reason">Reason for Refund <span class="required">*</span></label>
+            <textarea id="prov-refund-reason" class="form-control" rows="3" required minlength="10" maxlength="200"
+              placeholder="Provide refund reason (e.g. Departure cancelled due to severe weather)... (10-200 chars)"></textarea>
+          </div>
+          <div id="prov-refund-error-msg" class="field-error hidden" style="margin-bottom: 0.5rem;"></div>
+          <div class="modal-footer" style="padding-top: 1rem;">
+            <button type="button" id="btn-cancel-prov-refund" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-submit-prov-refund" class="btn btn-gold">
+              <span class="btn-text">Issue Refund</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <footer class="app-footer">
     <div class="meander-strip thin" aria-hidden="true"></div>
     <div class="footer-content">
-      <p>Odyssey Disruption Engine &copy; 2026. Built with resilience, classical precision, and deterministic guarantees.</p>
+      <p>Odyssey Disruption Engine &copy; 2026. Built with resilience, classical precision, and deterministic
+        guarantees.</p>
     </div>
   </footer>
 
-  <script src="app.js"></script>
+  <script src="/app.js"></script>
 </body>
+
 </html>

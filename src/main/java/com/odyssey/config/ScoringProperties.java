@@ -9,13 +9,15 @@ public class ScoringProperties {
 
     private Weights weights = new Weights();
     private Penalties penalties = new Penalties();
+    private TravellerNeeds travellerNeeds = new TravellerNeeds();
 
     public ScoringProperties() {
     }
 
-    public ScoringProperties(Weights weights, Penalties penalties) {
+    public ScoringProperties(Weights weights, Penalties penalties, TravellerNeeds travellerNeeds) {
         this.weights = weights != null ? weights : new Weights();
         this.penalties = penalties != null ? penalties : new Penalties();
+        this.travellerNeeds = travellerNeeds != null ? travellerNeeds : new TravellerNeeds();
     }
 
     public Weights getWeights() {
@@ -32,6 +34,14 @@ public class ScoringProperties {
 
     public void setPenalties(Penalties penalties) {
         this.penalties = penalties;
+    }
+
+    public TravellerNeeds getTravellerNeeds() {
+        return travellerNeeds;
+    }
+
+    public void setTravellerNeeds(TravellerNeeds travellerNeeds) {
+        this.travellerNeeds = travellerNeeds;
     }
 
     public static class Weights {
@@ -129,6 +139,65 @@ public class ScoringProperties {
 
         public void setOvernightTravel(double overnightTravel) {
             this.overnightTravel = overnightTravel;
+        }
+    }
+
+    public static class TravellerNeeds {
+        private double directRouteBonus = 5.0;
+        private double transferPenalty = 5.0;
+        private double shortWaitBonus = 5.0;
+        private double extraBufferBonus = 5.0;
+        private double daytimeBonus = 5.0;
+
+        public TravellerNeeds() {
+        }
+
+        public TravellerNeeds(double directRouteBonus, double transferPenalty, double shortWaitBonus, double extraBufferBonus, double daytimeBonus) {
+            this.directRouteBonus = directRouteBonus;
+            this.transferPenalty = transferPenalty;
+            this.shortWaitBonus = shortWaitBonus;
+            this.extraBufferBonus = extraBufferBonus;
+            this.daytimeBonus = daytimeBonus;
+        }
+
+        public double getDirectRouteBonus() {
+            return directRouteBonus;
+        }
+
+        public void setDirectRouteBonus(double directRouteBonus) {
+            this.directRouteBonus = directRouteBonus;
+        }
+
+        public double getTransferPenalty() {
+            return transferPenalty;
+        }
+
+        public void setTransferPenalty(double transferPenalty) {
+            this.transferPenalty = transferPenalty;
+        }
+
+        public double getShortWaitBonus() {
+            return shortWaitBonus;
+        }
+
+        public void setShortWaitBonus(double shortWaitBonus) {
+            this.shortWaitBonus = shortWaitBonus;
+        }
+
+        public double getExtraBufferBonus() {
+            return extraBufferBonus;
+        }
+
+        public void setExtraBufferBonus(double extraBufferBonus) {
+            this.extraBufferBonus = extraBufferBonus;
+        }
+
+        public double getDaytimeBonus() {
+            return daytimeBonus;
+        }
+
+        public void setDaytimeBonus(double daytimeBonus) {
+            this.daytimeBonus = daytimeBonus;
         }
     }
 }

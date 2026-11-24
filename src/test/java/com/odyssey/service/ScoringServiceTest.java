@@ -230,9 +230,11 @@ class ScoringServiceTest {
         assertEquals("INV-BS-003", response.getRejectedOptions().get(0).getId());
         assertTrue(response.getRejectedOptions().get(0).getReason().contains("Overnight travel violates avoid-overnight constraint"));
 
-        // Only 1 feasible option (day flight)
-        assertEquals(1, response.getOptions().size());
+        // Only 1 feasible option (day flight), returned as FASTEST and SAFEST ("Same result as FASTEST")
+        assertEquals(2, response.getOptions().size());
         assertEquals("OPT-FASTEST-INV-FL-002", response.getOptions().get(0).getId());
+        assertEquals("OPT-SAFEST-INV-FL-002", response.getOptions().get(1).getId());
+        assertTrue(response.getOptions().get(1).getBestAvailableNote().contains("Same result as FASTEST"));
         assertTrue(response.getExplanation().contains("Only 1 feasible option available"));
     }
 
@@ -279,8 +281,12 @@ class ScoringServiceTest {
         assertEquals("Departs 07:30, before the disruption was reported at 09:00 (earliest feasible departure 09:45)",
                 rejected.getReason());
 
-        assertEquals(1, response.getOptions().size());
+        assertEquals(2, response.getOptions().size());
+        assertEquals(OptionLabel.FASTEST, response.getOptions().get(0).getLabel());
         assertEquals("BKG-REC-INV-TR-003", response.getOptions().get(0).getLegs().get(0).getId());
+        assertEquals(OptionLabel.SAFEST, response.getOptions().get(1).getLabel());
+        assertEquals("BKG-REC-INV-TR-003", response.getOptions().get(1).getLegs().get(0).getId());
+        assertTrue(response.getOptions().get(1).getBestAvailableNote().contains("Same result as FASTEST"));
     }
 
     @Test

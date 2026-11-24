@@ -22,6 +22,9 @@ public class TripEntityMapper {
     private static final Logger log = LoggerFactory.getLogger(TripEntityMapper.class);
     private final ObjectMapper objectMapper;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.odyssey.repository.jpa.ProviderJpaRepository providerRepo;
+
     public TripEntityMapper() {
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
@@ -113,6 +116,13 @@ public class TripEntityMapper {
                 .notifyEmail(entity.getNotifyEmail() == null || entity.getNotifyEmail())
                 .notifySms(entity.getNotifySms() == null || entity.getNotifySms())
                 .notifyWhatsapp(Boolean.TRUE.equals(entity.getNotifyWhatsapp()))
+                .hasMobilityAssistance(Boolean.TRUE.equals(entity.getHasMobilityAssistance()))
+                .hasElderlyTraveller(Boolean.TRUE.equals(entity.getHasElderlyTraveller()))
+                .hasTravellingWithChildren(Boolean.TRUE.equals(entity.getHasTravellingWithChildren()))
+                .hasMedicalNeeds(Boolean.TRUE.equals(entity.getHasMedicalNeeds()))
+                .specialNeedsNote(entity.getSpecialNeedsNote())
+                .emergencyContactName(entity.getEmergencyContactName())
+                .emergencyContactPhone(entity.getEmergencyContactPhone())
                 .status(entity.getStatus())
                 .userId(entity.getUserId())
                 .constraints(constraints)
@@ -143,6 +153,13 @@ public class TripEntityMapper {
                 .notifyEmail(model.getNotifyEmail() == null || model.getNotifyEmail())
                 .notifySms(model.getNotifySms() == null || model.getNotifySms())
                 .notifyWhatsapp(Boolean.TRUE.equals(model.getNotifyWhatsapp()))
+                .hasMobilityAssistance(Boolean.TRUE.equals(model.getHasMobilityAssistance()))
+                .hasElderlyTraveller(Boolean.TRUE.equals(model.getHasElderlyTraveller()))
+                .hasTravellingWithChildren(Boolean.TRUE.equals(model.getHasTravellingWithChildren()))
+                .hasMedicalNeeds(Boolean.TRUE.equals(model.getHasMedicalNeeds()))
+                .specialNeedsNote(model.getSpecialNeedsNote())
+                .emergencyContactName(model.getEmergencyContactName())
+                .emergencyContactPhone(model.getEmergencyContactPhone())
                 .status(model.getStatus() != null ? model.getStatus() : "CONFIRMED")
                 .createdAt(model.getCreatedAt() != null ? model.getCreatedAt() : LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -251,6 +268,15 @@ public class TripEntityMapper {
             status = BookingStatus.CONFIRMED;
         }
 
+        String providerStatus = null;
+        if (entity.getProviderId() != null && providerRepo != null) {
+            try {
+                providerStatus = providerRepo.findById(entity.getProviderId())
+                        .map(p -> p.getStatus().name())
+                        .orElse(null);
+            } catch (Exception ignored) {}
+        }
+
         return Booking.builder()
                 .id(entity.getId())
                 .type(type)
@@ -261,7 +287,7 @@ public class TripEntityMapper {
                 .endTime(entity.getEndTime())
                 .cost(entity.getCost())
                 .status(status)
-                .source(entity.getType() != null ? "INVENTORY" : "INVENTORY")
+                .source(entity.getSource() != null ? entity.getSource() : "INVENTORY")
                 .dependsOn(entity.getDependsOn() != null ? new ArrayList<>(entity.getDependsOn()) : new ArrayList<>())
                 .lastStatusState(entity.getLastStatusState())
                 .lastDelayMinutes(entity.getLastDelayMinutes())
@@ -271,6 +297,27 @@ public class TripEntityMapper {
                 .lastDedupKey(entity.getLastDedupKey())
                 .hotelContactEmail(entity.getHotelContactEmail())
                 .bookingReference(entity.getBookingReference())
+                .userId(entity.getUser() != null ? entity.getUser().getId() : null)
+                .serviceId(entity.getServiceId())
+                .departureId(entity.getDepartureId())
+                .providerId(entity.getProviderId())
+                .vehicleNumber(entity.getVehicleNumber())
+                .operator(entity.getOperator())
+                .seatNumbers(entity.getSeatNumbers())
+                .passengerNames(entity.getPassengerNames())
+                .paymentStatus(entity.getPaymentStatus())
+                .paymentMethod(entity.getPaymentMethod())
+                .hotelRoomTypeId(entity.getHotelRoomTypeId())
+                .cannotHonour(entity.getCannotHonour())
+                .cannotHonourReason(entity.getCannotHonourReason())
+                .cannotHonourAt(entity.getCannotHonourAt())
+                .providerStatus(providerStatus)
+                .confirmationExpiresAt(entity.getConfirmationExpiresAt())
+                .providerConfirmationStatus(entity.getProviderConfirmationStatus())
+                .cancelledAt(entity.getCancelledAt())
+                .cancelledBy(entity.getCancelledBy())
+                .assignedDriverName(entity.getAssignedDriverName())
+                .alternativeDepartureId(entity.getAlternativeDepartureId())
                 .build();
     }
 
@@ -287,6 +334,7 @@ public class TripEntityMapper {
                 .endTime(model.getEndTime())
                 .cost(model.getCost())
                 .status(model.getStatus() != null ? model.getStatus().name() : BookingStatus.CONFIRMED.name())
+                .source(model.getSource() != null ? model.getSource() : "INVENTORY")
                 .dependsOn(model.getDependsOn() != null ? new ArrayList<>(model.getDependsOn()) : new ArrayList<>())
                 .lastStatusState(model.getLastStatusState())
                 .lastDelayMinutes(model.getLastDelayMinutes())
@@ -296,6 +344,25 @@ public class TripEntityMapper {
                 .lastDedupKey(model.getLastDedupKey())
                 .hotelContactEmail(model.getHotelContactEmail())
                 .bookingReference(model.getBookingReference())
+                .serviceId(model.getServiceId())
+                .departureId(model.getDepartureId())
+                .providerId(model.getProviderId())
+                .vehicleNumber(model.getVehicleNumber())
+                .operator(model.getOperator())
+                .seatNumbers(model.getSeatNumbers())
+                .passengerNames(model.getPassengerNames())
+                .paymentStatus(model.getPaymentStatus())
+                .paymentMethod(model.getPaymentMethod())
+                .hotelRoomTypeId(model.getHotelRoomTypeId())
+                .cannotHonour(model.getCannotHonour() != null ? model.getCannotHonour() : false)
+                .cannotHonourReason(model.getCannotHonourReason())
+                .cannotHonourAt(model.getCannotHonourAt())
+                .confirmationExpiresAt(model.getConfirmationExpiresAt())
+                .providerConfirmationStatus(model.getProviderConfirmationStatus())
+                .cancelledAt(model.getCancelledAt())
+                .cancelledBy(model.getCancelledBy())
+                .assignedDriverName(model.getAssignedDriverName())
+                .alternativeDepartureId(model.getAlternativeDepartureId())
                 .build();
     }
 
@@ -395,6 +462,11 @@ public class TripEntityMapper {
                             .cost(leg.getCost())
                             .status(BookingStatus.PROPOSED)
                             .source(leg.getSource() != null ? leg.getSource() : "INVENTORY")
+                            .departureId(leg.getServiceDepartureId())
+                            .operator(leg.getOperator())
+                            .vehicleNumber(leg.getVehicleNumber())
+                            .seatsAvailable(leg.getSeatsAvailable())
+                            .scheduleLabel(leg.getScheduleLabel())
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -406,6 +478,7 @@ public class TripEntityMapper {
                 .totalCost(entity.getTotalCost())
                 .arrivalTime(entity.getArrivalTime())
                 .explanation(entity.getExplanation())
+                .bestAvailableNote(entity.getBestAvailableNote())
                 .source(entity.getSource() != null ? entity.getSource() : "INVENTORY")
                 .constraintsMet(met)
                 .constraintsViolated(violated)
@@ -423,6 +496,7 @@ public class TripEntityMapper {
                 .totalCost(model.getTotalCost())
                 .arrivalTime(model.getArrivalTime() != null ? model.getArrivalTime() : LocalDateTime.now())
                 .explanation(model.getExplanation())
+                .bestAvailableNote(model.getBestAvailableNote())
                 .source(model.getSource() != null ? model.getSource() : "INVENTORY")
                 .constraintsMet(serializeStringList(model.getConstraintsMet()))
                 .constraintsViolated(serializeStringList(model.getConstraintsViolated()))
@@ -430,11 +504,16 @@ public class TripEntityMapper {
                 .build();
 
         if (model.getLegs() != null) {
+            String tripScope = trip != null && trip.getId() != null ? trip.getId() : "";
             List<OptionLegEntity> legs = new ArrayList<>();
             for (int i = 0; i < model.getLegs().size(); i++) {
                 Booking leg = model.getLegs().get(i);
+                // Scope each OptionLegEntity PK by trip and option so shared candidates (e.g. FASTEST and SAFEST)
+                // do not collide under option_legs.id during JPA merge.
+                String legKey = tripScope + ":" + entity.getId() + ":" + (leg.getId() != null ? leg.getId() : "") + ":" + i;
+                String legEntityId = "LEG-" + UUID.nameUUIDFromBytes(legKey.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 legs.add(OptionLegEntity.builder()
-                        .id(leg.getId() != null ? leg.getId() : "LEG-" + entity.getId() + "-" + (i + 1))
+                        .id(legEntityId)
                         .recoveryOption(entity)
                         .type(leg.getType() != null ? leg.getType().name() : BookingType.FLIGHT.name())
                         .provider(leg.getProvider())
@@ -445,6 +524,11 @@ public class TripEntityMapper {
                         .cost(leg.getCost())
                         .source(leg.getSource() != null ? leg.getSource() : model.getSource())
                         .legOrder(i)
+                        .serviceDepartureId(leg.getDepartureId())
+                        .operator(leg.getOperator())
+                        .vehicleNumber(leg.getVehicleNumber())
+                        .seatsAvailable(leg.getSeatsAvailable())
+                        .scheduleLabel(leg.getScheduleLabel())
                         .build());
             }
             entity.setLegs(legs);
@@ -472,11 +556,23 @@ public class TripEntityMapper {
         }
         List<ActionChecklistItem> checklist = entity.getChecklistItems().stream()
                 .sorted(Comparator.comparing(PlanChecklistItemEntity::getItemOrder))
-                .map(item -> ActionChecklistItem.builder()
-                        .id(item.getId())
-                        .text(item.getText())
-                        .done(item.getDone())
-                        .build())
+                .map(item -> {
+                    RecoveryActionStatus status = item.getStatus() != null
+                            ? item.getStatus()
+                            : (Boolean.TRUE.equals(item.getDone()) ? RecoveryActionStatus.DONE : RecoveryActionStatus.PENDING);
+                    return ActionChecklistItem.builder()
+                            .id(item.getId())
+                            .type(item.getType())
+                            .text(item.getText())
+                            .status(status)
+                            .done(status == RecoveryActionStatus.DONE || Boolean.TRUE.equals(item.getDone()))
+                            .note(item.getNote())
+                            .completedAt(item.getCompletedAt())
+                            .relatedBookingId(item.getRelatedBookingId())
+                            .bookingReference(item.getBookingReference())
+                            .contactInfo(item.getContactInfo())
+                            .build();
+                })
                 .collect(Collectors.toList());
 
         OptionLabel chosenOptionLabel = null;
@@ -565,20 +661,49 @@ public class TripEntityMapper {
                 .build();
 
         if (model.getChecklist() != null) {
+            String tripId = trip != null ? trip.getId() : model.getTripId();
             List<PlanChecklistItemEntity> items = new ArrayList<>();
             for (int i = 0; i < model.getChecklist().size(); i++) {
                 ActionChecklistItem item = model.getChecklist().get(i);
+                RecoveryActionStatus status = item.getStatus() != null
+                        ? item.getStatus()
+                        : (item.isDone() ? RecoveryActionStatus.DONE : RecoveryActionStatus.PENDING);
+                boolean doneFlag = status == RecoveryActionStatus.DONE;
                 items.add(PlanChecklistItemEntity.builder()
-                        .id(item.getId() != null ? item.getId() : "CHK-" + entity.getId() + "-" + (i + 1))
+                        .id(resolveChecklistEntityId(entity.getId(), item.getId(), i))
                         .recoveryPlan(entity)
+                        .tripId(tripId)
+                        .type(item.getType())
                         .text(item.getText())
-                        .done(item.isDone())
+                        .status(status)
+                        .done(doneFlag)
+                        .note(item.getNote())
+                        .completedAt(item.getCompletedAt())
+                        .relatedBookingId(item.getRelatedBookingId())
+                        .bookingReference(item.getBookingReference())
+                        .contactInfo(item.getContactInfo())
                         .itemOrder(i)
                         .build());
             }
             entity.setChecklistItems(items);
         }
         return entity;
+    }
+
+    private String resolveChecklistEntityId(String planId, String rawItemId, int index) {
+        if (rawItemId == null || rawItemId.isBlank()) {
+            return ("CHK-" + planId + "-" + (index + 1));
+        }
+        String prefix = planId + "-";
+        if (rawItemId.startsWith(prefix)) {
+            return rawItemId.length() <= 64 ? rawItemId : rawItemId.substring(0, 64);
+        }
+        String scoped = prefix + rawItemId;
+        if (scoped.length() <= 64) {
+            return scoped;
+        }
+        String suffix = "-" + Integer.toHexString(scoped.hashCode());
+        return scoped.substring(0, 64 - suffix.length()) + suffix;
     }
 
     private String serializeStringList(List<String> list) {

@@ -4,12 +4,15 @@ import com.odyssey.dto.request.AddBookingRequest;
 import com.odyssey.dto.request.CreateTripRequest;
 import com.odyssey.dto.request.UpdateConstraintsRequest;
 import com.odyssey.dto.response.ApiResponse;
+import com.odyssey.dto.parse.ConfirmImportRequest;
+import com.odyssey.dto.parse.ParsePreviewResponse;
 import com.odyssey.dto.response.ParseResult;
 import com.odyssey.model.AuditEntry;
 import com.odyssey.model.Booking;
 import com.odyssey.model.Trip;
 import com.odyssey.dto.request.BookBookingRequest;
 import com.odyssey.dto.response.HandoffLegDto;
+import com.odyssey.service.BookingImportService;
 import com.odyssey.service.HandoffService;
 import com.odyssey.service.TripAccessService;
 import com.odyssey.service.LlmService;
@@ -17,8 +20,10 @@ import com.odyssey.service.TripService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -32,16 +37,19 @@ public class TripController {
     private final LlmService llmService;
     private final TripAccessService tripAccessService;
     private final HandoffService handoffService;
+    private final BookingImportService bookingImportService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<Trip>>> getAllTrips() {
         List<Trip> trips = tripService.getAllTrips();
+        trips.forEach(tripAccessService::filterSensitiveNeedsForNonOwners);
         return ResponseEntity.ok(ApiResponse.ok("Retrieved " + trips.size() + " trips", trips));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<Trip>> getTripById(@PathVariable String id) {
         Trip trip = tripAccessService.requireReadAccess(id);
+        tripAccessService.filterSensitiveNeedsForNonOwners(trip);
         return ResponseEntity.ok(ApiResponse.ok(trip));
     }
 
@@ -139,21 +147,45 @@ public class TripController {
         return ResponseEntity.ok(ApiResponse.ok("Handoff legs retrieved", legs));
     }
 
-    @PostMapping("/parse")
-    public ResponseEntity<ApiResponse<ParseResult>> parseConfirmationTextGeneral(
-            @RequestBody Map<String, String> body) {
-        String text = body != null ? body.get("text") : "";
-        ParseResult result = llmService.parseText(text);
-        return ResponseEntity.ok(ApiResponse.ok("Parsed " + result.getBookings().size() + " bookings from text", result));
+    @PostMapping(value = "/parse", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<ParsePreviewResponse>> parseConfirmationTextGeneral(
+            @RequestBody(required = false) Map<String, Object> body) {
+        String text = body != null && body.get("text") != null ? String.valueOf(body.get("text")) : "";
+        ParsePreviewResponse response = bookingImportService.parseGeneralConfirmation(text, null);
+        return ResponseEntity.ok(ApiResponse.ok("Extracted " + response.getBookings().size() + " bookings from text", response));
     }
 
-    @PostMapping("/{id}/parse")
-    public ResponseEntity<ApiResponse<ParseResult>> parseConfirmationText(
+    @PostMapping(value = "/parse", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE})
+    public ResponseEntity<ApiResponse<ParsePreviewResponse>> parseConfirmationFileGeneral(
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "text", required = false) String text) {
+        ParsePreviewResponse response = bookingImportService.parseGeneralConfirmation(text, file);
+        return ResponseEntity.ok(ApiResponse.ok("Extracted " + response.getBookings().size() + " bookings from text", response));
+    }
+
+    @PostMapping(value = "/{id}/parse", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<ParsePreviewResponse>> parseTripTextJson(
             @PathVariable String id,
-            @RequestBody Map<String, String> body) {
-        tripAccessService.requireOwner(id);
-        String text = body != null ? body.get("text") : "";
-        ParseResult result = llmService.parseText(text);
-        return ResponseEntity.ok(ApiResponse.ok("Parsed " + result.getBookings().size() + " bookings from text", result));
+            @RequestBody(required = false) Map<String, Object> body) {
+        String text = body != null && body.get("text") != null ? String.valueOf(body.get("text")) : "";
+        ParsePreviewResponse response = bookingImportService.parseTripConfirmation(id, text, null);
+        return ResponseEntity.ok(ApiResponse.ok("Extracted " + response.getBookings().size() + " bookings for review", response));
+    }
+
+    @PostMapping(value = "/{id}/parse", consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE})
+    public ResponseEntity<ApiResponse<ParsePreviewResponse>> parseTripTextMultipart(
+            @PathVariable String id,
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "text", required = false) String text) {
+        ParsePreviewResponse response = bookingImportService.parseTripConfirmation(id, text, file);
+        return ResponseEntity.ok(ApiResponse.ok("Extracted " + response.getBookings().size() + " bookings for review", response));
+    }
+
+    @PostMapping("/{id}/parse/confirm")
+    public ResponseEntity<ApiResponse<Trip>> confirmParsedBookings(
+            @PathVariable String id,
+            @Valid @RequestBody ConfirmImportRequest request) {
+        Trip updated = bookingImportService.confirmImport(id, request);
+        return ResponseEntity.ok(ApiResponse.ok("Imported " + request.getBookings().size() + " bookings into trip", updated));
     }
 }

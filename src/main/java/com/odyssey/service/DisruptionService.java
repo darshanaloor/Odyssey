@@ -13,11 +13,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import com.odyssey.entity.ServiceDepartureEntity;
+import com.odyssey.entity.ServiceEntity;
+import com.odyssey.repository.jpa.ServiceDepartureJpaRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
 @Service
@@ -30,6 +36,23 @@ public class DisruptionService {
     private final InventoryService inventoryService;
     private final ScoringService scoringService;
     private final com.odyssey.config.RecoveryProperties recoveryProperties;
+
+    @Autowired(required = false)
+    private MarketplaceService marketplaceService;
+
+    @Autowired(required = false)
+    private ServiceDepartureJpaRepository departureRepo;
+
+    @Autowired(required = false)
+    private com.odyssey.repository.jpa.ProviderJpaRepository providerRepo;
+
+    public void setMarketplaceService(MarketplaceService marketplaceService) {
+        this.marketplaceService = marketplaceService;
+    }
+
+    public void setDepartureRepo(ServiceDepartureJpaRepository departureRepo) {
+        this.departureRepo = departureRepo;
+    }
 
     public DisruptionResponse reportDisruption(String tripId, ReportDisruptionRequest request) {
         Trip trip = tripRepository.findById(tripId)
@@ -112,7 +135,8 @@ public class DisruptionService {
         try {
             notificationService.sendDisruptionAlert(trip, disruptedBooking, disruption, impactReport);
         } catch (Exception e) {
-            log.error("Failed to dispatch disruption notification: {}", e.getMessage());
+            log.error("Failed to dispatch disruption notification for trip {} disruption {}: {}",
+                    tripId, disruption.getId(), e.getClass().getSimpleName());
         }
 
         // 6. Write AuditEntry records (SYSTEM and AGENT)
@@ -278,9 +302,162 @@ public class DisruptionService {
         String destinationKey = InventoryService.normalizeCityKey(destination);
         int totalInventorySize = inventoryService.getAll().size();
 
-        // Route filter: search inventory by normalised city keys (falls back to synthetic if route not in inventory)
-        List<InventoryItem> candidates = inventoryService.search(origin, destination, earliestFeasibleDeparture);
-        int matchesAfterRouteFilter = candidates.size();
+        List<InventoryItem> candidates = new ArrayList<>();
+        List<RejectedOption> marketplaceRejected = new ArrayList<>();
+
+        // 1. Search marketplace departures for this city pair if available
+        CityInfo c1 = InventoryService.findCity(origin);
+        CityInfo c2 = InventoryService.findCity(destination);
+
+        if (c1 != null && c2 != null && !c1.getKey().equalsIgnoreCase(c2.getKey()) && departureRepo != null) {
+            LocalDate startDate = earliestFeasibleDeparture.toLocalDate();
+            LocalDate endDate = startDate.plusDays(1);
+            if (trip.getConstraints() != null && trip.getConstraints().getMustArriveBy() != null) {
+                LocalDate dl = trip.getConstraints().getMustArriveBy().toLocalDate();
+                if (dl.isAfter(endDate)) {
+                    endDate = dl;
+                }
+            }
+
+            // Addition 6: On-demand generation during recovery covers only the dates needed, is idempotent and transactional, and never blocks recovery if generation fails
+            if (marketplaceService != null) {
+                try {
+                    marketplaceService.ensureServicesAndDeparturesForDates(c1, c2, startDate, endDate);
+                } catch (Exception e) {
+                    log.warn("On-demand marketplace generation failed for {} -> {}: {}. Falling back to ESTIMATED.", c1.getKey(), c2.getKey(), e.getMessage());
+                }
+            }
+
+            List<ServiceDepartureEntity> departures = departureRepo.findDeparturesBetweenDates(
+                    c1.getKey(), c1.getName(), c2.getKey(), c2.getName(), startDate, endDate);
+
+            int passengers = 1;
+            if (disruptedBooking.getSeatNumbers() != null && !disruptedBooking.getSeatNumbers().isBlank()) {
+                passengers = Math.max(1, disruptedBooking.getSeatNumbers().split(",").length);
+            } else if (disruptedBooking.getPassengerNames() != null && !disruptedBooking.getPassengerNames().isBlank()) {
+                passengers = Math.max(1, disruptedBooking.getPassengerNames().split(",").length);
+            }
+
+            String disruptedDepId = disruptedBooking.getDepartureId();
+
+            for (ServiceDepartureEntity dep : departures) {
+                ServiceEntity s = dep.getService();
+                LocalDate depDate = dep.getTravelDate();
+                LocalDate arrDate = Boolean.TRUE.equals(s.getArrivesNextDay()) ? depDate.plusDays(1) : depDate;
+                int delay = dep.getDelayMinutes() != null ? dep.getDelayMinutes() : 0;
+                LocalDateTime depDateTime = depDate.atTime(s.getDepartureTime()).plusMinutes(delay);
+                LocalDateTime arrDateTime = arrDate.atTime(s.getArrivalTime()).plusMinutes(delay);
+                BigDecimal totalLegCost = s.getPrice().multiply(BigDecimal.valueOf(passengers));
+
+                BookingType mode;
+                try {
+                    mode = BookingType.valueOf(s.getMode().toUpperCase());
+                } catch (Exception e) {
+                    mode = BookingType.BUS;
+                }
+
+                String opName = s.getOperator() != null ? s.getOperator().getName() : "Odyssey Partner";
+                boolean isGen = "GENERATED".equalsIgnoreCase(s.getSource());
+                boolean isProvider = "PROVIDER".equalsIgnoreCase(s.getSource()) || "PROVIDER".equalsIgnoreCase(dep.getSource());
+
+                if (isProvider) {
+                    String provId = dep.getProviderId() != null ? dep.getProviderId() : s.getProviderId();
+                    if (provId == null || providerRepo == null) {
+                        continue;
+                    }
+                    com.odyssey.entity.ProviderEntity prov = providerRepo.findById(provId).orElse(null);
+                    if (prov == null || prov.getStatus() != com.odyssey.model.enums.ProviderStatus.APPROVED) {
+                        continue; // Exclude unapproved, suspended, or rejected provider departures
+                    }
+                }
+
+                String schedLabel;
+                if (isProvider) {
+                    schedLabel = "Provider-listed";
+                } else if (isGen) {
+                    schedLabel = "Generated schedule, not an official timetable";
+                } else {
+                    schedLabel = "Official schedule";
+                }
+
+                // Addition 7: Exclude the disrupted departure itself from recovery candidates
+                if (disruptedDepId != null && disruptedDepId.equals(dep.getId())) {
+                    marketplaceRejected.add(RejectedOption.builder()
+                            .id(dep.getId())
+                            .mode(mode)
+                            .provider(opName)
+                            .cost(totalLegCost)
+                            .departure(depDateTime)
+                            .arrival(arrDateTime)
+                            .reason("Disrupted departure (cannot rebook the same service)")
+                            .blockedBy("Disrupted")
+                            .build());
+                    continue;
+                }
+
+                if ("CANCELLED".equalsIgnoreCase(dep.getStatus())) {
+                    marketplaceRejected.add(RejectedOption.builder()
+                            .id(dep.getId())
+                            .mode(mode)
+                            .provider(opName)
+                            .cost(totalLegCost)
+                            .departure(depDateTime)
+                            .arrival(arrDateTime)
+                            .reason("Departure is cancelled by carrier")
+                            .blockedBy("Cancelled")
+                            .build());
+                    continue;
+                }
+
+                if (dep.getSeatsAvailable() < passengers) {
+                    marketplaceRejected.add(RejectedOption.builder()
+                            .id(dep.getId())
+                            .mode(mode)
+                            .provider(opName)
+                            .cost(totalLegCost)
+                            .departure(depDateTime)
+                            .arrival(arrDateTime)
+                            .reason("Sold out (no seats available)")
+                            .blockedBy("Capacity")
+                            .build());
+                    continue;
+                }
+
+                candidates.add(InventoryItem.builder()
+                        .id(dep.getId())
+                        .mode(mode)
+                        .provider(opName)
+                        .from(s.getOriginCity())
+                        .to(s.getDestinationCity())
+                        .departure(depDateTime)
+                        .arrival(arrDateTime)
+                        .cost(totalLegCost)
+                        .transfers(0)
+                        .seatsAvailable(dep.getSeatsAvailable())
+                        .reliabilityScore(s.getReliabilityScore())
+                        .source("MARKETPLACE")
+                        .operator(opName)
+                        .vehicleNumber(s.getVehicleNumber())
+                        .serviceDepartureId(dep.getId())
+                        .scheduleLabel(schedLabel)
+                        .build());
+            }
+        }
+
+        // Also search inventory items
+        List<InventoryItem> invItems = inventoryService.search(origin, destination, earliestFeasibleDeparture);
+        if (candidates.isEmpty()) {
+            candidates.addAll(invItems);
+        } else {
+            for (InventoryItem inv : invItems) {
+                if (!"ESTIMATED".equalsIgnoreCase(inv.getSource())) {
+                    candidates.add(inv);
+                }
+            }
+            if (candidates.isEmpty()) {
+                candidates.addAll(invItems);
+            }
+        }
 
         // Effective constraints (cloned for temporary relaxation without modifying saved trip)
         Constraints savedConstraints = trip.getConstraints();
@@ -325,6 +502,102 @@ public class DisruptionService {
         // Score and rank with effective constraints
         RecoveryResponse response = scoringService.scoreAndRank(trip, disruptedBooking, candidates,
                 earliestFeasibleDeparture, disruptionTime, stationBufferMinutes);
+
+        // Phase 19: Check if provider offered an alternative vehicle for this disrupted departure
+        String altDepId = disruptedBooking.getAlternativeDepartureId();
+        if (altDepId == null && disruptedBooking.getDepartureId() != null && departureRepo != null) {
+            ServiceDepartureEntity depEntity = departureRepo.findById(disruptedBooking.getDepartureId()).orElse(null);
+            if (depEntity != null) {
+                altDepId = depEntity.getAlternativeDepartureId();
+            }
+        }
+        if (altDepId != null && departureRepo != null) {
+            ServiceDepartureEntity altDep = departureRepo.findById(altDepId).orElse(null);
+            if (altDep != null && altDep.getSeatsAvailable() != null && altDep.getSeatsAvailable() > 0) {
+                String provName = "Provider";
+                if (altDep.getProviderId() != null && providerRepo != null) {
+                    provName = providerRepo.findById(altDep.getProviderId()).map(com.odyssey.entity.ProviderEntity::getBusinessName).orElse("Provider");
+                }
+                String note = "Suggested by " + provName + " as a direct replacement";
+
+                boolean tagged = false;
+                if (response.getOptions() != null) {
+                    for (Option opt : response.getOptions()) {
+                        if (opt.getLegs() != null) {
+                            for (Booking leg : opt.getLegs()) {
+                                if (altDepId.equals(leg.getDepartureId()) || altDepId.equals(leg.getId())) {
+                                    opt.setBestAvailableNote(note);
+                                    tagged = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (tagged) break;
+                    }
+                }
+
+                if (!tagged) {
+                    ServiceEntity s = altDep.getService();
+                    BookingType mode = BookingType.BUS;
+                    try {
+                        if (s != null && s.getMode() != null) mode = BookingType.valueOf(s.getMode().toUpperCase());
+                    } catch (Exception ignored) {}
+
+                    int passengers = 1;
+                    if (disruptedBooking.getSeatNumbers() != null && !disruptedBooking.getSeatNumbers().isBlank()) {
+                        passengers = Math.max(1, disruptedBooking.getSeatNumbers().split(",").length);
+                    }
+                    BigDecimal legCost = (s != null && s.getPrice() != null ? s.getPrice() : BigDecimal.valueOf(500)).multiply(BigDecimal.valueOf(passengers));
+                    LocalDateTime depTime = altDep.getTravelDate().atTime(s != null && s.getDepartureTime() != null ? s.getDepartureTime() : java.time.LocalTime.of(8, 0));
+                    LocalDate arrDate = (s != null && Boolean.TRUE.equals(s.getArrivesNextDay())) ? altDep.getTravelDate().plusDays(1) : altDep.getTravelDate();
+                    LocalDateTime arrTime = arrDate.atTime(s != null && s.getArrivalTime() != null ? s.getArrivalTime() : java.time.LocalTime.of(12, 0));
+
+                    Booking altLeg = Booking.builder()
+                            .id("LEG-" + altDep.getId())
+                            .type(mode)
+                            .provider(provName)
+                            .from(s != null ? s.getOriginCity() : disruptedBooking.getFrom())
+                            .to(s != null ? s.getDestinationCity() : disruptedBooking.getTo())
+                            .startTime(depTime)
+                            .endTime(arrTime)
+                            .cost(legCost)
+                            .status(BookingStatus.PROPOSED)
+                            .source("MARKETPLACE")
+                            .departureId(altDep.getId())
+                            .operator(provName)
+                            .vehicleNumber(s != null ? s.getVehicleNumber() : "-")
+                            .seatsAvailable(altDep.getSeatsAvailable())
+                            .scheduleLabel("Provider-listed")
+                            .build();
+
+                    Option altOption = Option.builder()
+                            .id("OPT-ALT-" + altDep.getId())
+                            .label(OptionLabel.SAFEST)
+                            .legs(List.of(altLeg))
+                            .totalCost(legCost)
+                            .arrivalTime(arrTime)
+                            .score(90.0)
+                            .source("MARKETPLACE")
+                            .bestAvailableNote(note)
+                            .explanation(String.format("Alternative departure offered directly by %s (%s). Arrives at %s.",
+                                    provName, s != null ? s.getVehicleNumber() : "", arrTime.format(DateTimeFormatter.ofPattern("HH:mm"))))
+                            .build();
+
+                    if (response.getOptions() == null) {
+                        response.setOptions(new ArrayList<>());
+                    } else if (response.getOptions() instanceof java.util.Collections) {
+                        response.setOptions(new ArrayList<>(response.getOptions()));
+                    }
+                    response.getOptions().add(0, altOption);
+                }
+            }
+        }
+
+        if (!marketplaceRejected.isEmpty()) {
+            List<RejectedOption> allRejected = new ArrayList<>(response.getRejectedOptions() != null ? response.getRejectedOptions() : List.of());
+            allRejected.addAll(marketplaceRejected);
+            response.setRejectedOptions(allRejected);
+        }
 
         if (!relaxations.isEmpty()) {
             response.setRelaxationApplied(String.join("; ", relaxations));

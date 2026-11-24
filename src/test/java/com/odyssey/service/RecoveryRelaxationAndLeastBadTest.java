@@ -8,6 +8,7 @@ import com.odyssey.model.*;
 import com.odyssey.model.enums.BookingStatus;
 import com.odyssey.model.enums.BookingType;
 import com.odyssey.model.enums.DisruptionType;
+import com.odyssey.model.enums.OptionLabel;
 import com.odyssey.repository.TripRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -197,8 +198,12 @@ public class RecoveryRelaxationAndLeastBadTest {
 
         assertNotNull(relaxedResponse);
         assertFalse(relaxedResponse.isNoPerfectOption(), "Relaxing overnight travel must make the 22:54 option feasible");
-        assertEquals(1, relaxedResponse.getOptions().size());
+        assertEquals(2, relaxedResponse.getOptions().size());
+        assertEquals(OptionLabel.FASTEST, relaxedResponse.getOptions().get(0).getLabel());
         assertEquals("SYN-BS-CHEAP-2254", relaxedResponse.getOptions().get(0).getLegs().get(0).getId().replace("BKG-REC-", ""));
+        assertEquals(OptionLabel.SAFEST, relaxedResponse.getOptions().get(1).getLabel());
+        assertEquals("SYN-BS-CHEAP-2254", relaxedResponse.getOptions().get(1).getLegs().get(0).getId().replace("BKG-REC-", ""));
+        assertTrue(relaxedResponse.getOptions().get(1).getBestAvailableNote().contains("Same result as FASTEST"));
         assertNotNull(relaxedResponse.getRelaxationApplied());
         assertTrue(relaxedResponse.getRelaxationApplied().contains("overnight"));
 

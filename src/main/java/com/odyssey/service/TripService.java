@@ -10,6 +10,7 @@ import com.odyssey.model.Trip;
 import com.odyssey.model.enums.AuditActor;
 import com.odyssey.model.enums.BookingStatus;
 import com.odyssey.repository.TripRepository;
+import com.odyssey.util.EmergencyContactUtil;
 import com.odyssey.util.IdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,12 @@ public class TripService {
         String normalizedPhone = normalizePhone(request.getTravellerPhone());
         String validatedEmail = validateEmail(request.getTravellerEmail());
 
+        String normalizedEmergencyPhone = EmergencyContactUtil.normalizePhone(request.getEmergencyContactPhone());
+        String specialNote = request.getSpecialNeedsNote();
+        if (specialNote != null && specialNote.length() > 300) {
+            throw new IllegalArgumentException("Special needs note must not exceed 300 characters");
+        }
+
         com.odyssey.entity.UserEntity currentUser = authService != null ? authService.getCurrentUserEntity() : null;
         String userId = currentUser != null ? currentUser.getId() : null;
 
@@ -53,6 +60,13 @@ public class TripService {
                 .notifyEmail(request.getNotifyEmail() == null || request.getNotifyEmail())
                 .notifySms(request.getNotifySms() == null || request.getNotifySms())
                 .notifyWhatsapp(Boolean.TRUE.equals(request.getNotifyWhatsapp()))
+                .hasMobilityAssistance(Boolean.TRUE.equals(request.getHasMobilityAssistance()))
+                .hasElderlyTraveller(Boolean.TRUE.equals(request.getHasElderlyTraveller()))
+                .hasTravellingWithChildren(Boolean.TRUE.equals(request.getHasTravellingWithChildren()))
+                .hasMedicalNeeds(Boolean.TRUE.equals(request.getHasMedicalNeeds()))
+                .specialNeedsNote(specialNote)
+                .emergencyContactName(request.getEmergencyContactName())
+                .emergencyContactPhone(normalizedEmergencyPhone)
                 .status("PLANNED")
                 .bookings(request.getBookings() != null ? new ArrayList<>(request.getBookings()) : new ArrayList<>())
                 .constraints(request.getConstraints())
@@ -186,6 +200,30 @@ public class TripService {
         }
         if (request.getNotifyWhatsapp() != null) {
             trip.setNotifyWhatsapp(request.getNotifyWhatsapp());
+        }
+        if (request.getHasMobilityAssistance() != null) {
+            trip.setHasMobilityAssistance(request.getHasMobilityAssistance());
+        }
+        if (request.getHasElderlyTraveller() != null) {
+            trip.setHasElderlyTraveller(request.getHasElderlyTraveller());
+        }
+        if (request.getHasTravellingWithChildren() != null) {
+            trip.setHasTravellingWithChildren(request.getHasTravellingWithChildren());
+        }
+        if (request.getHasMedicalNeeds() != null) {
+            trip.setHasMedicalNeeds(request.getHasMedicalNeeds());
+        }
+        if (request.getSpecialNeedsNote() != null) {
+            if (request.getSpecialNeedsNote().length() > 300) {
+                throw new IllegalArgumentException("Special needs note must not exceed 300 characters");
+            }
+            trip.setSpecialNeedsNote(request.getSpecialNeedsNote());
+        }
+        if (request.getEmergencyContactName() != null) {
+            trip.setEmergencyContactName(request.getEmergencyContactName());
+        }
+        if (request.getEmergencyContactPhone() != null && !request.getEmergencyContactPhone().isBlank()) {
+            trip.setEmergencyContactPhone(EmergencyContactUtil.normalizePhone(request.getEmergencyContactPhone()));
         }
         validateTrip(trip);
 

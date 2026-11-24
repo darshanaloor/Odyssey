@@ -139,7 +139,14 @@ public class ScoringService {
             }
         } else if (feasibleEvaluations.size() == 1) {
             noPerfectOption = false;
-            topOptions.add(buildOption(feasibleEvaluations.get(0), OptionLabel.FASTEST));
+            CandidateEvaluation only = feasibleEvaluations.get(0);
+            topOptions.add(buildOption(only, OptionLabel.FASTEST));
+
+            Option safestOption = buildOption(only, OptionLabel.SAFEST);
+            safestOption.setBestAvailableNote("Same result as FASTEST (only 1 feasible option available meeting constraints)");
+            safestOption.setExplanation("Same result as FASTEST: only 1 feasible option available meeting constraints. " + safestOption.getExplanation());
+            topOptions.add(safestOption);
+
             explanation = "Only 1 feasible option available meeting all hard constraints.";
         } else if (feasibleEvaluations.size() == 2) {
             noPerfectOption = false;
@@ -154,6 +161,35 @@ public class ScoringService {
                     .min(Comparator.comparing((CandidateEvaluation e) -> e.netTripCost))
                     .orElseThrow();
             topOptions.add(buildOption(cheapest, OptionLabel.CHEAPEST));
+
+            // Select SAFEST among the 2 feasible options
+            // Rule: Never label ESTIMATED as SAFEST while a MARKETPLACE or INVENTORY option exists
+            boolean fastestIsNonEstimated = !"ESTIMATED".equalsIgnoreCase(fastest.item.getSource());
+            boolean cheapestIsNonEstimated = !"ESTIMATED".equalsIgnoreCase(cheapest.item.getSource());
+
+            CandidateEvaluation safest;
+            String safestReason;
+            if (fastestIsNonEstimated && !cheapestIsNonEstimated) {
+                safest = fastest;
+                safestReason = "Same result as FASTEST (confirmed inventory takes safety precedence over estimated service)";
+            } else if (!fastestIsNonEstimated && cheapestIsNonEstimated) {
+                safest = cheapest;
+                safestReason = "Same result as CHEAPEST (confirmed inventory takes safety precedence over estimated service)";
+            } else {
+                if (fastest.safetyScore >= cheapest.safetyScore) {
+                    safest = fastest;
+                    safestReason = "Same result as FASTEST (higher safety buffer and reliability score)";
+                } else {
+                    safest = cheapest;
+                    safestReason = "Same result as CHEAPEST (higher safety buffer and reliability score)";
+                }
+            }
+
+            Option safestOption = buildOption(safest, OptionLabel.SAFEST);
+            safestOption.setBestAvailableNote(safestReason);
+            safestOption.setExplanation(safestReason + ". " + safestOption.getExplanation());
+            topOptions.add(safestOption);
+
             explanation = "Only 2 feasible options available meeting all hard constraints.";
         } else {
             noPerfectOption = false;
@@ -516,13 +552,66 @@ public class ScoringService {
             baseScore -= p.getConstraintViolation();
         }
 
-        double finalScore = BigDecimal.valueOf(Math.max(0.0, Math.min(100.0, baseScore)))
+        // Phase 17: Traveller Needs Preferences (applied to safetyScore and as tie-breaker in finalScore)
+        double needsAdjustment = 0.0;
+        if (trip != null && trip.hasAnySpecialNeed()) {
+            var tn = scoringProperties.getTravellerNeeds();
+            if (tn == null) {
+                tn = new ScoringProperties.TravellerNeeds();
+            }
+
+            // 1. Fewer transfers preference
+            int transfers = item.getTransfers() != null ? item.getTransfers() : 0;
+            if (transfers == 0) {
+                needsAdjustment += tn.getDirectRouteBonus();
+                constraintsMet.add(String.format("Traveller needs preference: Direct route with 0 transfers (+%.1f pts)", tn.getDirectRouteBonus()));
+            } else {
+                double penalty = transfers * tn.getTransferPenalty();
+                needsAdjustment -= penalty;
+                constraintsViolated.add(String.format("Traveller needs preference: %d transfer(s) required (-%.1f pts)", transfers, penalty));
+            }
+
+            // 2. Daytime travel preference
+            boolean isDaytime = !isOvernight && (item.getDeparture() != null && item.getArrival() != null
+                    && !item.getDeparture().toLocalTime().isBefore(dayTravelStart)
+                    && !item.getArrival().toLocalTime().isAfter(dayTravelEnd));
+            if (isDaytime) {
+                needsAdjustment += tn.getDaytimeBonus();
+                constraintsMet.add(String.format("Traveller needs preference: Daytime travel departing at %s and arriving at %s (+%.1f pts)",
+                        item.getDeparture().format(TIME_FORMAT), item.getArrival().format(TIME_FORMAT), tn.getDaytimeBonus()));
+            } else {
+                needsAdjustment -= tn.getDaytimeBonus();
+                constraintsViolated.add(String.format("Traveller needs preference: Non-daytime schedule departing at %s or arriving at %s (-%.1f pts)",
+                        item.getDeparture() != null ? item.getDeparture().format(TIME_FORMAT) : "N/A",
+                        item.getArrival() != null ? item.getArrival().format(TIME_FORMAT) : "N/A",
+                        tn.getDaytimeBonus()));
+            }
+
+            // 3. Shorter waiting preference before departure
+            if (disruptionTime != null && item.getDeparture() != null && !item.getDeparture().isBefore(disruptionTime)) {
+                long waitMinutes = Duration.between(disruptionTime, item.getDeparture()).toMinutes();
+                if (waitMinutes <= 120) {
+                    needsAdjustment += tn.getShortWaitBonus();
+                    constraintsMet.add(String.format("Traveller needs preference: Shorter waiting time of %d min before departure (+%.1f pts)",
+                            waitMinutes, tn.getShortWaitBonus()));
+                }
+            }
+
+            // 4. Extended commitment buffer preference
+            if (arrivalBufferMinutes >= 60) {
+                needsAdjustment += tn.getExtraBufferBonus();
+                constraintsMet.add(String.format("Traveller needs preference: Extended commitment buffer of %d min before deadline (+%.1f pts)",
+                        arrivalBufferMinutes, tn.getExtraBufferBonus()));
+            }
+        }
+
+        double finalScore = BigDecimal.valueOf(Math.max(0.0, Math.min(100.0, baseScore + (needsAdjustment * 0.001))))
                 .setScale(2, RoundingMode.HALF_UP)
                 .doubleValue();
 
         // Safety score for SAFEST candidate ranking:
-        // safetyScore = (reliabilityScore * safetyReliability) + (arrivalBufferMinutes * safetyBuffer)
-        double safetyScore = (relScore * w.getSafetyReliability()) + (arrivalBufferMinutes * w.getSafetyBuffer());
+        // safetyScore = (reliabilityScore * safetyReliability) + (arrivalBufferMinutes * safetyBuffer) + needsAdjustment
+        double safetyScore = (relScore * w.getSafetyReliability()) + (arrivalBufferMinutes * w.getSafetyBuffer()) + needsAdjustment;
 
         return new CandidateEvaluation(item, !hardViolation, hardRejectionReason, blockedBy, totalFeasibilityDistance,
                 finalScore, safetyScore, netTripCost, replacementCabCost, nonCancelledCost, cancelledRefunds, maxBudget,
@@ -545,6 +634,11 @@ public class ScoringService {
                 .cost(item.getCost())
                 .status(BookingStatus.CONFIRMED)
                 .source(source)
+                .departureId(item.getServiceDepartureId())
+                .operator(item.getOperator() != null ? item.getOperator() : item.getProvider())
+                .vehicleNumber(item.getVehicleNumber())
+                .seatsAvailable(item.getSeatsAvailable())
+                .scheduleLabel(item.getScheduleLabel())
                 .build();
 
         String breakdown = String.format("Net trip cost Rs %s (New leg Rs %s + Cab Rs %s + Non-cancelled Rs %s - Refunds Rs %s), within Rs %s budget.",

@@ -68,4 +68,39 @@ public class TripAccessService {
 
         return trip;
     }
+
+    public UserEntity getCurrentUserEntity() {
+        return authService.getCurrentUserEntity();
+    }
+
+    /**
+     * Checks if the currently authenticated user owns the specified trip.
+     * Shared/unowned demo trips (with userId == null) return false.
+     */
+    public boolean isOwner(Trip trip) {
+        if (trip == null || trip.getUserId() == null) {
+            return false;
+        }
+        UserEntity currentUser = authService != null ? authService.getCurrentUserEntity() : null;
+        return currentUser != null && trip.getUserId().equals(currentUser.getId());
+    }
+
+    /**
+     * Strips all traveller needs fields (flags, notes, emergency contact name and phone)
+     * if the currently authenticated user does not own the trip (or for shared demo trips).
+     */
+    public void filterSensitiveNeedsForNonOwners(Trip trip) {
+        if (trip == null) {
+            return;
+        }
+        if (!isOwner(trip)) {
+            trip.setHasMobilityAssistance(false);
+            trip.setHasElderlyTraveller(false);
+            trip.setHasTravellingWithChildren(false);
+            trip.setHasMedicalNeeds(false);
+            trip.setSpecialNeedsNote(null);
+            trip.setEmergencyContactName(null);
+            trip.setEmergencyContactPhone(null);
+        }
+    }
 }

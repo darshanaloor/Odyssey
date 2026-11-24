@@ -88,6 +88,17 @@ public class SimulatedStatusProvider implements StatusProvider {
         return scriptedStates.containsKey(scopedKey) || (tripId != null && scriptedStates.containsKey(bookingId));
     }
 
+    public boolean hasScriptedStatusForBooking(String bookingId) {
+        if (bookingId == null || bookingId.isBlank()) {
+            return false;
+        }
+        if (scriptedStates.containsKey(bookingId)) {
+            return true;
+        }
+        String suffix = ":" + bookingId;
+        return scriptedStates.keySet().stream().anyMatch(k -> k.endsWith(suffix));
+    }
+
     public void clearScriptedStatus(String tripId, String bookingId) {
         scriptedStates.remove(buildKey(tripId, bookingId));
     }

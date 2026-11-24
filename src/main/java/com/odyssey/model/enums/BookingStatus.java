@@ -9,5 +9,6 @@ public enum BookingStatus {
     SAFE,
     PROPOSED,
     COMPLETED,
-    BOOKED
+    BOOKED,
+    PENDING_PROVIDER_CONFIRMATION
 }

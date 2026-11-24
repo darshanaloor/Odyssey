@@ -27,14 +27,27 @@ public class LiveFlightStatusProvider implements StatusProvider {
 
     private final StatusProperties statusProperties;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient;
+    private HttpClient httpClient;
 
     public LiveFlightStatusProvider(StatusProperties statusProperties, ObjectMapper objectMapper) {
         this.statusProperties = statusProperties;
         this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .build();
+        try {
+            this.httpClient = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
+        } catch (Exception e) {
+            log.warn("LiveFlightStatusProvider: could not eagerly initialize HttpClient: {}", e.getMessage());
+        }
+    }
+
+    private synchronized HttpClient getHttpClient() {
+        if (this.httpClient == null) {
+            this.httpClient = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
+        }
+        return this.httpClient;
     }
 
     @Override
@@ -89,7 +102,7 @@ public class LiveFlightStatusProvider implements StatusProvider {
                     .GET()
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 429) {
                 log.warn("Rate limit exceeded (HTTP 429) from live flight status provider. Skipping cycle.");
