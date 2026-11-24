@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Odyssey - Intelligent Travel Resilience & Recovery Platform (Presentation)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-body: #334155;
+      --text-muted: #64748b;
+      --brand-indigo: #4f46e5;
+      --brand-purple: #7c3aed;
+      --brand-cyan: #06b6d4;
+      --status-green: #059669;
+      --status-green-bg: #ecfdf5;
+      --status-red: #dc2626;
+      --status-red-bg: #fef2f2;
+      --status-amber: #d97706;
+      --status-amber-bg: #fffbeb;
+      --brand-tint: #eef2ff;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: #0b0f19;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    /* Presentation Frame (16:9 Aspect Ratio) */
+    .deck-container {
+      position: relative;
+      width: 100%;
+      max-width: 1200px;
+      aspect-ratio: 16 / 9;
+      background: var(--bg);
+      border-radius: 16px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Accent Stripe */
+    .deck-accent-strip {
+      height: 5px;
+      width: 100%;
+      background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 50%, #06b6d4 100%);
+      flex-shrink: 0;
+    }
+
+    /* Deck Header */
+    .deck-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 32px 10px 32px;
+      border-bottom: 1px solid var(--card-border);
+      background: #ffffff;
+      flex-shrink: 0;
+    }
+
+    .brand-tag {
+      font-weight: 800;
+      font-size: 1.15rem;
+      color: var(--brand-indigo);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .slide-title-header {
+      font-weight: 700;
+      font-size: 1.15rem;
+      color: var(--text-main);
+    }
+
+    .slide-counter {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      background: #f1f5f9;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    /* Slides Content Stage */
+    .deck-stage {
+      flex: 1;
+      padding: 28px 36px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .slide {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      animation: fadeIn 0.25s ease-in-out;
+    }
+
+    .slide.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Bottom Control Bar */
+    .deck-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 24px;
+      background: #ffffff;
+      border-top: 1px solid var(--card-border);
+      flex-shrink: 0;
+    }
+
+    .btn-control {
+      background: #ffffff;
+      color: var(--brand-indigo);
+      border: 1px solid #c7d2fe;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-control:hover:not(:disabled) {
+      background: var(--brand-tint);
+      border-color: var(--brand-indigo);
+    }
+
+    .btn-control:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-primary-action {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: #ffffff;
+      border: none;
+    }
+
+    .btn-primary-action:hover:not(:disabled) {
+      background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+      color: #ffffff;
+    }
+
+    /* Card UI Elements */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      flex: 1;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      flex: 1;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      flex: 1;
+    }
+
+    /* Badges & Tags */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .badge-green { background: var(--status-green-bg); color: var(--status-green); border: 1px solid #a7f3d0; }
+    .badge-red { background: var(--status-red-bg); color: var(--status-red); border: 1px solid #fecaca; }
+    .badge-amber { background: var(--status-amber-bg); color: var(--status-amber); border: 1px solid #fde68a; }
+    .badge-purple { background: var(--brand-tint); color: var(--brand-indigo); border: 1px solid #c7d2fe; }
+
+    /* Code & Formulas */
+    .formula-box {
+      background: var(--brand-tint);
+      border: 1px solid #c7d2fe;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: #3730a3;
+      margin-bottom: 14px;
+    }
+
+    /* Print Setup for PDF Export */
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+      }
+      .deck-controls { display: none; }
+      .deck-container {
+        max-width: 100%;
+        box-shadow: none;
+        border-radius: 0;
+        aspect-ratio: auto;
+      }
+      .slide {
+        display: flex !important;
+        page-break-after: always;
+        height: 100vh;
+        padding: 40px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="deck-container">
+    <!-- Top Accent Stripe -->
+    <div class="deck-accent-strip"></div>
+
+    <!-- Header Bar -->
+    <div class="deck-header">
+      <div class="brand-tag">▲ ODYSSEY</div>
+      <div id="slide-title" class="slide-title-header">Intelligent Travel Resilience &amp; Recovery Platform</div>
+      <div id="slide-counter" class="slide-counter">1 / 12</div>
+    </div>
+
+    <!-- Slides Stage -->
+    <div class="deck-stage">
+
+      <!-- SLIDE 1: Title -->
+      <div class="slide active" data-title="Intelligent Travel Resilience & Recovery Platform">
+        <div style="text-align: center; margin-top: 15px; margin-bottom: 25px;">
+          <h1 style="font-size: 2.2rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px;">ODYSSEY</h1>
+          <p style="font-size: 1.15rem; font-weight: 600; color: var(--brand-indigo); margin-bottom: 4px;">Intelligent Travel Resilience &amp; Recovery Platform</p>
+          <p style="font-size: 0.9rem; color: var(--text-muted);">Autonomous Multi-Modal Travel &amp; Real-Time Disruption Recovery Platform</p>
+        </div>
+
+        <div class="grid-4">
+          <div class="card" style="border-top: 3px solid var(--brand-indigo);">
+            <div class="badge badge-purple" style="margin-bottom: 8px;">Multi-Modal</div>
+            <h4 style="font-size: 0.95rem; margin-bottom: 6px; color: var(--text-main);">Unified Journey Planning</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body); line-height: 1.4;">Atomic single checkout combining Intercity Bus, Flight, Destination Cab, and Hotel into one itinerary.</p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--brand-purple);">
+            <div class="badge badge-purple" style="margin-bottom: 8px;">Graph Engine</div>
+            <h4 style="font-size: 0.95rem; margin-bottom: 6px; color: var(--text-main);">Cascade Disruption Detection</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body); line-height: 1.4;">Directed Acyclic Graph (DAG) evaluating connection buffers to detect domino cascade failures proactively.</p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--status-green);">
+            <div class="badge badge-green" style="margin-bottom: 8px;">1-Click Rebook</div>
+            <h4 style="font-size: 0.95rem; margin-bottom: 6px; color: var(--text-main);">Autonomous Recovery</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body); line-height: 1.4;">Deterministic multi-factor algorithm rankings with 1-click rebooking, manifest sync, and automated tickets.</p>
+          </div>
+          <div class="card" style="border-top: 3px solid #0f172a;">
+            <div class="badge badge-purple" style="margin-bottom: 8px;">Enterprise Grade</div>
+            <h4 style="font-size: 0.95rem; margin-bottom: 6px; color: var(--text-main);">Production Architecture</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body); line-height: 1.4;">Java 21, Spring Boot 3.3.4, Hibernate 6, 20 Flyway migrations, multi-tab session isolation &amp; tiered refunds.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 2: Pain Point -->
+      <div class="slide" data-title="The Pain Point: Fragmented Travel & Cascade Failures">
+        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+          <div class="card" style="flex: 1; padding: 12px; border-left: 4px solid var(--status-amber);">
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--status-amber);">STEP 1</div>
+            <div style="font-weight: 700; font-size: 0.88rem; color: var(--text-main);">Bus Delayed 45m</div>
+            <div style="font-size: 0.76rem; color: var(--text-muted);">Highway traffic delays arrival.</div>
+          </div>
+          <div class="card" style="flex: 1; padding: 12px; border-left: 4px solid var(--status-red);">
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--status-red);">STEP 2</div>
+            <div style="font-weight: 700; font-size: 0.88rem; color: var(--text-main);">Connection Missed</div>
+            <div style="font-size: 0.76rem; color: var(--text-muted);">Connecting bus/train departs on time.</div>
+          </div>
+          <div class="card" style="flex: 1; padding: 12px; border-left: 4px solid var(--status-red);">
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--status-red);">STEP 3</div>
+            <div style="font-weight: 700; font-size: 0.88rem; color: var(--text-main);">Hotel Room Forfeited</div>
+            <div style="font-size: 0.76rem; color: var(--text-muted);">Late check-in past midnight cancels stay.</div>
+          </div>
+          <div class="card" style="flex: 1; padding: 12px; border-left: 4px solid #0f172a;">
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-main);">OUTCOME</div>
+            <div style="font-weight: 700; font-size: 0.88rem; color: var(--text-main);">Traveller Stranded</div>
+            <div style="font-size: 0.76rem; color: var(--text-muted);">Midnight panic with zero assistance.</div>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="card">
+            <h4 style="color: var(--brand-indigo); font-size: 0.95rem; margin-bottom: 8px;">Siloed Bookings</h4>
+            <p style="font-size: 0.82rem; color: var(--text-body); line-height: 1.5;">Travellers book across 4-5 disconnected apps (RedBus, MakeMyTrip, Uber, etc.). No platform knows about the traveller's complete multi-leg journey.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--brand-indigo); font-size: 0.95rem; margin-bottom: 8px;">The Domino Effect</h4>
+            <p style="font-size: 0.82rem; color: var(--text-body); line-height: 1.5;">A disruption in Leg 1 silently ruins Legs 2 and 3 with zero cross-operator awareness. Airlines and hotels treat it as an unexcused no-show.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--brand-indigo); font-size: 0.95rem; margin-bottom: 8px;">Refund Blindspots</h4>
+            <p style="font-size: 0.82rem; color: var(--text-body); line-height: 1.5;">Opaque cancellation deductions, delayed chargebacks (5-7 business days), manual disputes, and no single auditable refund ledger.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 3: The Odyssey Paradigm -->
+      <div class="slide" data-title="The Odyssey Paradigm: Autonomous Protection">
+        <div class="grid-2">
+          <div class="card" style="border-top: 3px solid var(--status-red);">
+            <h3 style="color: var(--status-red); font-size: 1.1rem; margin-bottom: 12px;">Traditional Travel Booking</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 0.85rem; color: var(--text-body);">
+              <li><strong>✖ Passive Ticket Vending:</strong> Apps sell independent tickets and abandon the traveller post-sale.</li>
+              <li><strong>✖ Fragmented Operator Silos:</strong> Bus company doesn't care if train leaves before arrival.</li>
+              <li><strong>✖ Midnight Scramble:</strong> Travellers call hotlines or re-purchase tickets out-of-pocket.</li>
+              <li><strong>✖ Opaque Deductions:</strong> Missed hotel check-ins are 100% forfeited with zero recourse.</li>
+            </ul>
+          </div>
+          <div class="card" style="background: var(--brand-tint); border: 1px solid #c7d2fe; border-top: 3px solid var(--brand-indigo);">
+            <h3 style="color: var(--brand-indigo); font-size: 1.1rem; margin-bottom: 12px;">The Odyssey Resilience Engine</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 0.85rem; color: var(--text-body);">
+              <li><strong>✔ Autonomous Guardianship:</strong> Itinerary continuously monitored from departure to arrival.</li>
+              <li><strong>✔ Graph Cascade Detection:</strong> Proactively identifies connection breaches before they occur.</li>
+              <li><strong>✔ 1-Click Rebooking:</strong> Rebalances net fare and reissues replacement tickets in 1 click.</li>
+              <li><strong>✔ Immutable Ledger:</strong> Transparent double-entry accounting offsetting replacement costs against refunds.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 4: Architecture -->
+      <div class="slide" data-title="Robust, Production-Grade Engineering">
+        <div class="grid-3" style="grid-template-rows: 1fr 1fr;">
+          <div class="card">
+            <h4 style="color: var(--brand-indigo); font-size: 0.95rem; margin-bottom: 4px;">Java 21 (LTS)</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body);">Modern Java runtime leveraging virtual-thread readiness, record patterns, and modern type patterns.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--status-green); font-size: 0.95rem; margin-bottom: 4px;">Spring Boot 3.3.4</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body);">Enterprise microservice foundation with Spring Data JPA, Hibernate 6, and secure REST APIs.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--brand-purple); font-size: 0.95rem; margin-bottom: 4px;">Flyway Migrations (V1-V20)</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body);">20 forward migrations ensuring safe, reproducible, zero-downtime database evolution.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: #0f172a; font-size: 0.95rem; margin-bottom: 4px;">Spring Security 6</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body);">BCrypt hashing, CSRF immunization, strict CSP headers, and parameterized SQL injection protection.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--brand-indigo); font-size: 0.95rem; margin-bottom: 4px;">Multi-Tab Session Isolation</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body);">Custom token auth (X-Auth-Token via sessionStorage) enabling simultaneous Traveller &amp; Provider tabs.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--status-amber); font-size: 0.95rem; margin-bottom: 4px;">Vanilla JS SPA Frontend</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body);">Sub-millisecond DOM reactivity, zero bloated NPM dependencies, pure high-performance web engineering.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 5: Marketplace -->
+      <div class="slide" data-title="Unified Multi-Modal Marketplace & Single Checkout">
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="color: var(--brand-indigo); font-size: 1.05rem; margin-bottom: 10px;">Search &amp; Interactive Seat Selection</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem; color: var(--text-body);">
+              <li><strong>• Multi-Modal Tabs:</strong> Search Bus, Flight, Cab, and Hotel inventory in 790+ Indian cities.</li>
+              <li><strong>• Graphical Seat Selection:</strong> Window, Aisle, Sleeper Upper/Lower with real-time seat locks.</li>
+              <li><strong>• 30-Second Verification:</strong> Validates real-time operator availability ping before checkout.</li>
+              <li><strong>• Zero Hidden Surcharges:</strong> Clean, transparent pricing across all transport operators.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3 style="color: var(--brand-indigo); font-size: 1.05rem; margin-bottom: 10px;">Single Checkout Itinerary Architecture</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem; color: var(--text-body);">
+              <li><strong>✔ Complete Trip in 1 Click:</strong> Bangalore → Solapur Bus (₹799) + Hotel Sunrise (₹1,200) + Local Cab (₹299) = ₹2,298 Total.</li>
+              <li><strong>✔ Automatic Destination Sync:</strong> Selecting a hotel sets the destination cab's dropoff address.</li>
+              <li><strong>✔ Expedition Container:</strong> Automatically binds bookings to an active travel workspace.</li>
+              <li><strong>✔ Multi-Payment Simulation:</strong> Credit/Debit Card, UPI / QR, and Net Banking verification.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 6: Disruption Engine -->
+      <div class="slide" data-title="Graph-Based Disruption & Cascade Impact Engine">
+        <div class="formula-box">
+          Buffer(Leg_i, Leg_{i+1}) = ScheduledDeparture(Leg_{i+1}) - EstimatedArrival(Leg_i)<br>
+          <strong>Condition:</strong> If Delay(Leg_i) &gt; Buffer(Leg_i, Leg_{i+1}) &rarr; <strong>TRIGGER CASCADE FAILURE</strong> on Leg_{i+1}
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <h4 style="color: var(--text-main); font-size: 0.95rem; margin-bottom: 6px;">Transit Status Monitoring</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body); line-height: 1.4;">Continuously probes bookings for DELAYED, CANCELLED, or CANNOT_HONOUR events across Simulated, Live Flight, and Provider-Reported feeds.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--text-main); font-size: 0.95rem; margin-bottom: 6px;">Domino Impact Analysis</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body); line-height: 1.4;">Calculates connection buffer margin breaches, flags downstream legs as MISSED or AT_RISK, and detects hotel check-in forfeitures.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--text-main); font-size: 0.95rem; margin-bottom: 6px;">Instant Disruption Alerting</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body); line-height: 1.4;">Renders non-intrusive alert banner on the portal and dispatches notifications via SMTP Email, Twilio SMS/WhatsApp, or simulation.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 7: Autonomous Recovery -->
+      <div class="slide" data-title="Autonomous Multi-Factor Recovery & 1-Click Rebooking">
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="color: var(--brand-indigo); font-size: 1.05rem; margin-bottom: 8px;">Deterministic Multi-Factor Scoring</h3>
+            <div class="formula-box" style="margin-bottom: 10px;">
+              Score = w_time·S_time + w_cost·S_cost + w_buf·S_buffer + w_com·S_commit
+            </div>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; color: var(--text-body);">
+              <li><strong>✔ Provider Fleet Priority:</strong> First checks for backup buses from the same operator.</li>
+              <li><strong>✔ Marketplace Search:</strong> Scans competitor departures for identical city pairs.</li>
+              <li><strong>✔ Commitment Preservation:</strong> Heavily penalizes options missing hard appointments.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3 style="color: var(--brand-indigo); font-size: 1.05rem; margin-bottom: 8px;">1-Click Atomic Recovery Workflow</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; color: var(--text-body);">
+              <li><strong>1-Click: Instant Approval</strong> &bull; Zero form-filling; 1 click rebooks replacement.</li>
+              <li><strong>1-Click: Atomic Booking</strong> &bull; Cancels old leg, confirms new departure atomically.</li>
+              <li><strong>1-Click: Ledger Rebalance</strong> &bull; Net fare difference (e.g. ₹50) balanced transparently.</li>
+              <li><strong>1-Click: Manifest Sync</strong> &bull; Passenger seated on replacement bus automatically.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 8: Financials & Tiered Refunds -->
+      <div class="slide" data-title="Financial Integrity, Tiered Refunds & Immutable Ledger">
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="color: var(--brand-indigo); font-size: 1.05rem; margin-bottom: 10px;">Deterministic Cancellation Tiers</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; text-align: left;">
+              <thead>
+                <tr style="background: #f1f5f9; color: var(--text-main);">
+                  <th style="padding: 6px 8px; border: 1px solid var(--card-border);">Cancellation Timing</th>
+                  <th style="padding: 6px 8px; border: 1px solid var(--card-border);">Deduction</th>
+                  <th style="padding: 6px 8px; border: 1px solid var(--card-border);">Refund</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border);">&gt; 48 Hours Before</td>
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border); color: var(--status-green);">0%</td>
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border); font-weight: 700;">100% Full</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border);">24 &ndash; 48 Hours</td>
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border); color: var(--status-amber);">25%</td>
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border); font-weight: 700;">75% Refund</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border);">&lt; 24 Hours</td>
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border); color: var(--status-red);">50%</td>
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border); font-weight: 700;">50% Refund</td>
+                </tr>
+                <tr style="background: var(--status-green-bg);">
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border); font-weight: 700;">Operator Cancelled</td>
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border); color: var(--status-green);">0%</td>
+                  <td style="padding: 6px 8px; border: 1px solid var(--card-border); font-weight: 700; color: var(--status-green);">100% Full</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card">
+            <h3 style="color: var(--brand-indigo); font-size: 1.05rem; margin-bottom: 10px;">Immutable Double-Entry Ledger</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; color: var(--text-body);">
+              <li><strong>✔ Transparent Audit Trail:</strong> Records Original Cost, Expected Refund, Provider Received Refund, and Replacement Outlays.</li>
+              <li><strong>✔ Net Outlay Equation:</strong> Net Cost = Replacement Fare &minus; Disrupted Leg Refund.</li>
+              <li><strong>✔ Self-Cancellation:</strong> Travellers cancel booked buses, hotels, or cabs with live refund preview.</li>
+              <li><strong>✔ UTR Reference Tracking:</strong> Provider refunds logged with bank UTR reconciliation.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 9: Provider Portal -->
+      <div class="slide" data-title="Empowering Transport & Hospitality Operators">
+        <div class="grid-3">
+          <div class="card">
+            <h4 style="color: var(--brand-indigo); font-size: 0.95rem; margin-bottom: 6px;">Fleet Management</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body); line-height: 1.4;">Register Buses, Cabs, Flights, and Trains with designated seat capacities. Providers undergo administrative review (PENDING, APPROVED, SUSPENDED).</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--brand-indigo); font-size: 0.95rem; margin-bottom: 6px;">14-Day Automated Departures</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body); line-height: 1.4;">Define master recurring schedules with stops and times. Odyssey automatically projects 14 forward days of live bookable inventory departures.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--brand-indigo); font-size: 0.95rem; margin-bottom: 6px;">On-Demand Cab Architecture</h4>
+            <p style="font-size: 0.8rem; color: var(--text-body); line-height: 1.4;">Buses operate on timetables; cabs are on-demand. Adding a CAB vehicle automatically integrates it into the destination city pool with zero daily paperwork.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 10: Communications & Readiness -->
+      <div class="slide" data-title="Communications Assistant & Trip Readiness Score">
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="color: var(--brand-indigo); font-size: 1.05rem; margin-bottom: 10px;">Expedition Communications Assistant</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem; color: var(--text-body);">
+              <li><strong>✔ Multi-Channel Gateway:</strong> Dispatches alerts via real SMTP Email, Twilio SMS/WhatsApp, or simulated channel.</li>
+              <li><strong>✔ LLM-Assisted Drafts:</strong> Composes context-aware late check-in notices for hotels and meeting advisories.</li>
+              <li><strong>✔ Strict Fact-Binding:</strong> Prompts are bound to verified booking timestamps, preventing hallucinations.</li>
+              <li><strong>✔ Privacy Masking:</strong> Customer phone numbers (+91*****4321) and emails masked on manifests.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3 style="color: var(--brand-indigo); font-size: 1.05rem; margin-bottom: 10px;">Deterministic Trip Readiness (0-100)</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem; color: var(--text-body);">
+              <li><strong>✔ Pre-Trip Audit:</strong> Audits connection buffers and commitment margins before departure.</li>
+              <li><strong>✔ Layover Buffer Factor:</strong> Rewards safe layovers (&ge; 60m) and penalizes razor-thin transfers (&lt; 20m).</li>
+              <li><strong>✔ Commitment Margin:</strong> Verifies hard deadlines have arrival buffers exceeding 90 minutes.</li>
+              <li><strong>✔ Advisory Guidance:</strong> Provides actionable guidance without unauthorized modifications.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 11: Demo Flow -->
+      <div class="slide" data-title="Live Demonstration Flow: 2-Minute Judge Walkthrough">
+        <div class="grid-4" style="margin-bottom: 14px;">
+          <div class="card" style="border-top: 3px solid var(--brand-indigo);">
+            <div style="font-weight: 700; color: var(--brand-indigo); font-size: 0.8rem;">STEP 1</div>
+            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main); margin: 4px 0;">Book Trip (Tab 1)</div>
+            <div style="font-size: 0.78rem; color: var(--text-body);">Traveller books Bangalore &rarr; Solapur Bus with Seat 12A + Hotel + Cab in single checkout.</div>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--status-red);">
+            <div style="font-weight: 700; color: var(--status-red); font-size: 0.8rem;">STEP 2</div>
+            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main); margin: 4px 0;">Report Disruption (Tab 2)</div>
+            <div style="font-size: 0.78rem; color: var(--text-body);">Bus provider logs into portal and marks Bangalore &rarr; Solapur departure as CANCELLED.</div>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--brand-purple);">
+            <div style="font-weight: 700; color: var(--brand-purple); font-size: 0.8rem;">STEP 3</div>
+            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main); margin: 4px 0;">Autonomous Detection</div>
+            <div style="font-size: 0.78rem; color: var(--text-body);">Graph engine detects connection loss, triggers alert banner, and ranks replacement options.</div>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--status-green);">
+            <div style="font-weight: 700; color: var(--status-green); font-size: 0.8rem;">STEP 4</div>
+            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main); margin: 4px 0;">1-Click Rebooking</div>
+            <div style="font-size: 0.78rem; color: var(--text-body);">Traveller clicks 'Accept &amp; Rebook (1-Click)'. Ticket reissued, ledger rebalanced, manifest updated.</div>
+          </div>
+        </div>
+        <div class="card" style="background: var(--status-green-bg); border: 1px solid #a7f3d0; padding: 12px 18px;">
+          <strong style="color: var(--status-green); font-size: 0.85rem;">Key Takeaway for Judges:</strong>
+          <span style="font-size: 0.82rem; color: var(--text-main); margin-left: 6px;">In under 2 minutes, Odyssey proves multi-modal booking, simulated operator disruption, graph cascade failure detection, 1-click recovery, and automated double-entry ledger balance.</span>
+        </div>
+      </div>
+
+      <!-- SLIDE 12: Summary & Q&A -->
+      <div class="slide" data-title="Summary, Impact & Strategic Roadmap">
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="color: var(--brand-indigo); font-size: 1.05rem; margin-bottom: 10px;">Transformative Value Proposition</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; color: var(--text-body);">
+              <li><strong>Multi-Modal Booking:</strong> Separate apps &rarr; <em>Single unified multi-modal checkout</em>.</li>
+              <li><strong>Disruption Handling:</strong> Manual, frantic scrambling &rarr; <em>Autonomous 1-click recovery</em>.</li>
+              <li><strong>Financial Transparency:</strong> Opaque, delayed disputes &rarr; <em>Deterministic tiered rules &amp; immutable ledger</em>.</li>
+              <li><strong>Operator Ecosystem:</strong> Fragmented silos &rarr; <em>Full portal (fleet, departures, backup buses)</em>.</li>
+            </ul>
+          </div>
+          <div class="card" style="background: var(--brand-tint); border: 1px solid #c7d2fe;">
+            <h3 style="color: var(--brand-indigo); font-size: 1.05rem; margin-bottom: 10px;">Strategic Roadmap &amp; Q&amp;A</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; color: var(--text-body);">
+              <li><strong>★ Q2 2025:</strong> AI Predictive Weather &amp; Road Radar Telemetry.</li>
+              <li><strong>★ Q3 2025:</strong> Automated Instant UPI / Razorpay Direct Bank Payouts.</li>
+              <li><strong>★ Q4 2025:</strong> Real-Time IoT GPS Vehicle Tracking &amp; Station Handoffs.</li>
+            </ul>
+            <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid #c7d2fe; text-align: center;">
+              <span style="font-weight: 800; font-size: 1.1rem; color: var(--text-main);">Thank you! &bull; Open for Q&amp;A</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Controls -->
+    <div class="deck-controls">
+      <div style="display: flex; gap: 8px;">
+        <button id="btn-prev" class="btn-control" onclick="prevSlide()">&larr; Previous</button>
+        <button id="btn-next" class="btn-control btn-primary-action" onclick="nextSlide()">Next &rarr;</button>
+      </div>
+      <div style="display: flex; gap: 12px; align-items: center;">
+        <select id="slide-select" onchange="goToSlide(parseInt(this.value))" style="padding: 6px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.85rem; font-family: inherit;">
+          <option value="0">1. Platform Overview</option>
+          <option value="1">2. The Pain Point &amp; Cascades</option>
+          <option value="2">3. The Odyssey Paradigm</option>
+          <option value="3">4. Production Engineering</option>
+          <option value="4">5. Unified Marketplace</option>
+          <option value="5">6. Graph-Based Disruption</option>
+          <option value="6">7. Autonomous 1-Click Recovery</option>
+          <option value="7">8. Financials &amp; Tiered Refunds</option>
+          <option value="8">9. Provider Operations Portal</option>
+          <option value="9">10. Communications &amp; Readiness</option>
+          <option value="10">11. Live Demonstration Flow</option>
+          <option value="11">12. Summary &amp; Impact</option>
+        </select>
+        <button class="btn-control" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+        <button class="btn-control" onclick="window.print()">🖨 Print / PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    const slideTitle = document.getElementById('slide-title');
+    const slideCounter = document.getElementById('slide-counter');
+    const slideSelect = document.getElementById('slide-select');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+
+    function updateSlide() {
+      slides.forEach((s, idx) => {
+        s.classList.toggle('active', idx === currentSlide);
+      });
+      slideTitle.textContent = slides[currentSlide].getAttribute('data-title') || 'Odyssey Platform';
+      slideCounter.textContent = `${currentSlide + 1} / ${totalSlides}`;
+      slideSelect.value = currentSlide;
+
+      btnPrev.disabled = (currentSlide === 0);
+      btnNext.disabled = (currentSlide === totalSlides - 1);
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides - 1) {
+        currentSlide++;
+        updateSlide();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+
+    function goToSlide(idx) {
+      if (idx >= 0 && idx < totalSlides) {
+        currentSlide = idx;
+        updateSlide();
+      }
+    }
+
+    function toggleFullscreen() {
+      const container = document.querySelector('.deck-container');
+      if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(err => alert(`Error: ${err.message}`));
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        prevSlide();
+      }
+    });
+
+    updateSlide();
+  </script>
+</body>
+</html>
