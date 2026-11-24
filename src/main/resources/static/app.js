@@ -402,6 +402,8 @@
     statusModeBadge: document.getElementById('status-mode-badge'),
     lastCheckedLabel: document.getElementById('last-checked-label'),
     btnCheckStatusNow: document.getElementById('btn-check-status-now'),
+    btnCheckStatusTop: document.getElementById('btn-check-status-top'),
+    liveStatusBookingsTbody: document.getElementById('live-status-bookings-tbody'),
     statusWindowNote: document.getElementById('status-window-note'),
     simulateControlContainer: document.getElementById('simulate-control-container'),
     selectSimulateBooking: document.getElementById('select-simulate-booking'),
@@ -1601,6 +1603,7 @@
   // ==========================================
 
   function renderTimeline(bookings) {
+    renderLiveStatusBookings(bookings);
     const container = elements.timelineContainer;
     const count = bookings.length;
     elements.bookingCountBadge.textContent = count === 1 ? '1 booking' : `${count} bookings`;
@@ -1702,6 +1705,7 @@
             </div>
             <div class="booking-header-actions">
               <span class="badge ${statusClass}">${escapeHtml(formatStatus(booking.status))}</span>
+              ${!isCancelled ? `<button type="button" class="btn-cancel-booking-action" data-booking-id="${escapeHtml(booking.id)}" style="color: #ef4444; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; cursor: pointer; margin-right: 4px;" title="Cancel this booking">Cancel Booking</button>` : ''}
               ${booking.departureId && state.statusMode !== 'LIVE' ? `
                 <button type="button" class="btn-icon-sm btn-simulate-departure" data-departure-id="${escapeHtml(booking.departureId)}" data-operator="${escapeHtml(booking.operator || booking.provider)}" data-vehicle="${escapeHtml(booking.vehicleNumber || '')}" data-status="${escapeHtml(booking.lastStatusState || 'SCHEDULED')}" data-delay="${booking.lastDelayMinutes || 0}" title="Simulate carrier status for this departure">
                   Simulate
@@ -1749,7 +1753,14 @@
       container.appendChild(item);
     });
 
-    // Attach edit / delete / report listeners
+    // Attach cancel / edit / delete / report listeners
+    container.querySelectorAll('.btn-cancel-booking-action').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const bkgId = e.currentTarget.getAttribute('data-booking-id');
+        promptCancelBooking(bkgId);
+      });
+    });
+
     container.querySelectorAll('.btn-report-problem').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         const bkgId = e.currentTarget.getAttribute('data-booking-id');
@@ -1770,6 +1781,136 @@
         handleDeleteBooking(bkgId);
       });
     });
+  }
+
+  // Render Monitored Bookings in Transit Status & Monitoring section
+  function renderLiveStatusBookings(bookings) {
+    const tbody = elements.liveStatusBookingsTbody;
+    if (!tbody) return;
+
+    if (!bookings || bookings.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No booked transit or lodging loaded yet.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = '';
+    bookings.forEach(b => {
+      const tr = document.createElement('tr');
+      const bType = (b.type || 'UNKNOWN').toUpperCase();
+      let typeBadgeClass = 'badge-neutral';
+      if (bType === 'BUS') typeBadgeClass = 'badge-amber';
+      else if (bType === 'TRAIN') typeBadgeClass = 'badge-blue';
+      else if (bType === 'HOTEL') typeBadgeClass = 'badge-gold';
+      else if (bType === 'CAB') typeBadgeClass = 'badge-cyan';
+      else if (bType === 'FLIGHT') typeBadgeClass = 'badge-purple';
+
+      const providerName = escapeHtml(b.provider || b.operator || '-');
+      const vehicleNum = b.vehicleNumber ? `<div style="font-size: 0.75rem; color: #bc8cff; font-family: monospace;">${escapeHtml(b.vehicleNumber)}</div>` : '';
+      const routeText = (b.from && b.to)
+        ? `${escapeHtml(toTitleCase(b.from))} &rarr; ${escapeHtml(toTitleCase(b.to))}`
+        : escapeHtml(b.from || b.to || '-');
+      const scheduleText = b.startTime ? `<div style="font-size: 0.75rem; color: var(--text-muted);">${formatDateTime(b.startTime)}</div>` : '';
+
+      // Transit Status Chip
+      let chipHtml = '';
+      const bState = b.lastStatusState || 'ON_TIME';
+      const bDelay = b.lastDelayMinutes || 0;
+      const bSource = b.lastStatusSource || 'SIMULATED';
+      const isProviderReported = bSource === 'PROVIDER_REPORTED';
+      const isLive = bSource === 'LIVE' && state.statusMode === 'LIVE';
+      const prefix = isProviderReported ? 'Provider: ' : (isLive ? 'Live: ' : 'Simulated: ');
+
+      if (b.status === 'CANCELLED' || bState === 'CANCELLED') {
+        chipHtml = `<span class="status-chip chip-cancelled"><span class="chip-dot"></span> ${prefix}Cancelled</span>`;
+      } else if (bState === 'DELAYED') {
+        chipHtml = `<span class="status-chip chip-delayed"><span class="chip-dot"></span> ${prefix}Delayed ${bDelay}m</span>`;
+      } else if (bState === 'ON_TIME') {
+        chipHtml = `<span class="status-chip chip-on-time"><span class="chip-dot"></span> ${prefix}On time</span>`;
+      } else {
+        chipHtml = `<span class="status-chip chip-unavailable"><span class="chip-dot"></span> ${prefix}Status unavail</span>`;
+      }
+
+      const isCancelled = b.status === 'CANCELLED';
+      const actionHtml = isCancelled
+        ? '<span class="badge badge-cancelled" style="font-size: 0.75rem; padding: 3px 8px;">Cancelled</span>'
+        : `<button type="button" class="btn btn-outline btn-sm btn-cancel-booking-action" data-booking-id="${escapeHtml(b.id)}" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); padding: 3px 8px; font-size: 0.75rem; cursor: pointer;">Cancel Booking</button>`;
+
+      tr.innerHTML = `
+        <td><span class="badge ${typeBadgeClass}">${escapeHtml(bType)}</span></td>
+        <td><strong>${providerName}</strong>${vehicleNum}</td>
+        <td><div>${routeText}</div>${scheduleText}</td>
+        <td>${chipHtml}</td>
+        <td>${actionHtml}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll('.btn-cancel-booking-action').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const bkgId = e.currentTarget.getAttribute('data-booking-id');
+        promptCancelBooking(bkgId);
+      });
+    });
+  }
+
+  // Unified Booking Cancellation (Bus, Hotel, Cab, etc.)
+  async function promptCancelBooking(bookingId) {
+    if (!state.trip || !state.trip.bookings) return;
+    const booking = state.trip.bookings.find(b => b.id === bookingId);
+    if (!booking) return;
+
+    const bType = (booking.type || '').toUpperCase();
+    const bTitle = `[${booking.type || 'Booking'}] ${booking.provider || ''}`;
+
+    const marketBooking = (state.myMarketBookings || (typeof marketState !== 'undefined' && marketState.myBookings) || []).find(mb =>
+      mb.id === booking.id ||
+      (mb.bookingReference && mb.bookingReference === booking.bookingReference) ||
+      (mb.departureId && mb.departureId === booking.departureId)
+    );
+
+    if (marketBooking && typeof openCancelBookingModal === 'function') {
+      openCancelBookingModal(marketBooking.id, marketBooking.bookingReference || booking.bookingReference || booking.id);
+      return;
+    }
+
+    let policyNote = '';
+    if (bType === 'HOTEL') {
+      policyNote = '\n\nNote: Hotel bookings are strictly non-refundable once confirmed.';
+    } else if (bType === 'CAB') {
+      policyNote = '\n\nNote: Cabs do not auto-refund upon cancellation.';
+    } else {
+      policyNote = '\n\nNote: Tiered refund policy applies.';
+    }
+
+    const confirmed = confirm(`Are you sure you want to cancel this ${booking.type || 'service'} booking?\n\n${bTitle}\n${booking.from || ''} -> ${booking.to || ''}${policyNote}`);
+    if (!confirmed) return;
+
+    try {
+      if (booking.bookingReference) {
+        try {
+          await fetch(`/api/market/bookings/${encodeURIComponent(booking.bookingReference)}/cancel`, { method: 'POST' });
+        } catch (_) {}
+      }
+
+      const res = await fetch(`/api/trips/${encodeURIComponent(state.currentTripId)}/bookings/${encodeURIComponent(booking.id)}/report-problem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'CANCELLED', delayMinutes: 0, note: `Cancelled by traveller (${booking.type})` })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to cancel booking');
+      }
+
+      showToast(`Successfully cancelled ${bType} booking (${bTitle})!`, 'success');
+      await loadTripById(state.currentTripId);
+      if (typeof loadMyMarketBookings === 'function') {
+        await loadMyMarketBookings();
+      }
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
   }
 
   function populateDisruptionBookingDropdown(bookings) {
@@ -1823,7 +1964,9 @@
   async function handleCheckStatusNow() {
     if (!state.currentTripId) return;
     const btn = elements.btnCheckStatusNow;
-    setButtonLoading(btn, true);
+    const btnTop = elements.btnCheckStatusTop;
+    if (btn) setButtonLoading(btn, true);
+    if (btnTop) setButtonLoading(btnTop, true);
     state.isStatusRequestInFlight = true;
 
     try {
@@ -1855,7 +1998,8 @@
     } catch (err) {
       showToast(err.message, 'danger');
     } finally {
-      setButtonLoading(btn, false);
+      if (btn) setButtonLoading(btn, false);
+      if (btnTop) setButtonLoading(btnTop, false);
       state.isStatusRequestInFlight = false;
     }
   }
@@ -2461,8 +2605,8 @@
     const repLeg = (planData.newLeg && (planData.newLeg.source === 'MARKETPLACE' || planData.newLeg.departureId))
       ? planData.newLeg
       : (state.trip && state.trip.bookings
-          ? state.trip.bookings.find(b => (b.status === 'PROPOSED' || b.status === 'REBOOKED') && (b.source === 'MARKETPLACE' || b.departureId))
-          : null);
+        ? state.trip.bookings.find(b => (b.status === 'PROPOSED' || b.status === 'REBOOKED') && (b.source === 'MARKETPLACE' || b.departureId))
+        : null);
 
     let replacementCard = document.getElementById('plan-marketplace-replacement-card');
     if (!replacementCard && elements.diffTableBody && elements.diffTableBody.parentElement) {
@@ -3274,7 +3418,7 @@
       const isSms = channel === 'SMS';
       const traveller = trip.travellerName || 'Traveller';
       const tripTitle = trip.title || 'Expedition';
-      
+
       let previewText = '';
       if (isSms) {
         previewText = `Odyssey Refund: ${tripTitle} - ${traveller}. Gross and Net calculated with deductions. Refunds take 5-7 days. User-reported, not verified.`;
@@ -3635,7 +3779,7 @@
           elements.msgDispatchResultBanner.classList.add('banner-info');
           bannerText = 'Message copied to clipboard (Not sent by Odyssey).';
           if (navigator.clipboard && msg.body) {
-            navigator.clipboard.writeText(msg.body).catch(() => {});
+            navigator.clipboard.writeText(msg.body).catch(() => { });
           }
         }
         elements.msgDispatchResultText.textContent = bannerText;
@@ -4145,8 +4289,11 @@
 
   function renderAuditLog(auditLog) {
     const tbody = elements.auditTableBody;
-    const count = auditLog.length;
-    elements.auditCountBadge.textContent = count === 1 ? '1 entry' : `${count} entries`;
+    if (!tbody) return;
+    const count = auditLog ? auditLog.length : 0;
+    if (elements.auditCountBadge) {
+      elements.auditCountBadge.textContent = count === 1 ? '1 entry' : `${count} entries`;
+    }
 
     if (count === 0) {
       tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No audit records logged yet.</td></tr>';
@@ -5520,17 +5667,17 @@
 
     // Close modals when clicking on background overlay
     ['modal-login', 'modal-register', 'modal-account', 'modal-provider-apply', 'modal-confirm-booking',
-     'modal-seat-selection', 'modal-checkout', 'modal-confirmation', 'modal-cancel-booking'].forEach((id) => {
-      const modal = document.getElementById(id);
-      if (modal) {
-        modal.addEventListener('click', (e) => {
-          if (e.target === modal) {
-            modal.classList.add('hidden');
-            modal.classList.remove('is-open');
-          }
-        });
-      }
-    });
+      'modal-seat-selection', 'modal-checkout', 'modal-confirmation', 'modal-cancel-booking'].forEach((id) => {
+        const modal = document.getElementById(id);
+        if (modal) {
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+              modal.classList.add('hidden');
+              modal.classList.remove('is-open');
+            }
+          });
+        }
+      });
 
     // Top Navigation Tabs
     if (elements.navBtnMarketSearch) elements.navBtnMarketSearch.addEventListener('click', () => switchView('market-search'));
@@ -5869,6 +6016,9 @@
     if (elements.btnCheckStatusNow) {
       elements.btnCheckStatusNow.addEventListener('click', handleCheckStatusNow);
     }
+    if (elements.btnCheckStatusTop) {
+      elements.btnCheckStatusTop.addEventListener('click', handleCheckStatusNow);
+    }
     if (elements.btnApplySimulation) {
       elements.btnApplySimulation.addEventListener('click', handleApplySimulation);
     }
@@ -6206,7 +6356,7 @@
       let data = null;
       try {
         data = await res.json();
-      } catch (_) {}
+      } catch (_) { }
 
       if (!res.ok || !data || !data.success) {
         throw new Error((data && (data.message || data.error)) || 'Invalid email or password');
@@ -6276,7 +6426,7 @@
       let data = null;
       try {
         data = await res.json();
-      } catch (_) {}
+      } catch (_) { }
 
       if (!res.ok || !data || !data.success) {
         throw new Error((data && (data.message || data.error)) || 'Invalid email or password');
@@ -6351,7 +6501,7 @@
       let data = null;
       try {
         data = await res.json();
-      } catch (_) {}
+      } catch (_) { }
 
       if (!res.ok) {
         if (res.status === 409) {
@@ -6447,7 +6597,7 @@
       let data = null;
       try {
         data = await res.json();
-      } catch (_) {}
+      } catch (_) { }
 
       if (!res.ok || !data || !data.success) {
         throw new Error((data && (data.message || data.error)) || 'Provider application failed');
@@ -6497,7 +6647,7 @@
       let data = null;
       try {
         data = await res.json();
-      } catch (_) {}
+      } catch (_) { }
 
       if (!res.ok) {
         if (res.status === 409) {
@@ -6579,138 +6729,138 @@
   }
 
   async function handleLogout() {
-      setButtonLoading(elements.btnLogout, true);
-      try {
-        await fetch('/api/auth/logout', { method: 'POST' });
-      } catch (e) {
-        // ignore
-      } finally {
-        sessionStorage.removeItem('odyssey_auth_token');
-        setButtonLoading(elements.btnLogout, false);
-        state.currentUser = null;
-        state.tripsList = [];
-        state.currentTrip = null;
-        state.currentTripId = null;
-        updateAuthHeader();
-        closeAccountModal();
-        setUnauthenticatedState(true);
-        showToast('Signed out successfully.', 'info');
-        switchView('directory');
+    setButtonLoading(elements.btnLogout, true);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {
+      // ignore
+    } finally {
+      sessionStorage.removeItem('odyssey_auth_token');
+      setButtonLoading(elements.btnLogout, false);
+      state.currentUser = null;
+      state.tripsList = [];
+      state.currentTrip = null;
+      state.currentTripId = null;
+      updateAuthHeader();
+      closeAccountModal();
+      setUnauthenticatedState(true);
+      showToast('Signed out successfully.', 'info');
+      switchView('directory');
+    }
+  }
+
+  async function handleSaveProfile(e) {
+    e.preventDefault();
+    const name = elements.accountName.value.trim();
+    const phone = elements.accountPhone.value.trim();
+    if (!name) return;
+
+    setButtonLoading(elements.btnSaveProfile, true);
+    try {
+      const res = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update profile');
+      }
+      state.currentUser = data.data;
+      updateAuthHeader();
+      showToast('Profile updated successfully', 'success');
+    } catch (err) {
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(elements.btnSaveProfile, false);
+    }
+  }
+
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    const currentPassword = elements.accountCurrPassword.value;
+    const newPassword = elements.accountNewPassword.value;
+    if (!currentPassword || !newPassword) return;
+
+    setButtonLoading(elements.btnSubmitChangePassword, true);
+    try {
+      const res = await fetch('/api/auth/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update password');
+      }
+      elements.formAccountPassword.reset();
+      showToast('Password changed successfully', 'success');
+    } catch (err) {
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(elements.btnSubmitChangePassword, false);
+    }
+  }
+
+  // Handoff & Booking Confirmation
+  async function renderHandoffCard(trip) {
+    if (!elements.sectionHandoffCard) return;
+    const isResolved = trip && trip.status === 'RESOLVED';
+    const isCompletedBookings = trip && trip.status === 'COMPLETED_BOOKINGS';
+
+    if (!isResolved && !isCompletedBookings) {
+      elements.sectionHandoffCard.classList.add('hidden');
+      return;
+    }
+
+    elements.sectionHandoffCard.classList.remove('hidden');
+
+    if (isCompletedBookings) {
+      if (elements.handoffCompletedBanner) elements.handoffCompletedBanner.classList.remove('hidden');
+      if (elements.handoffStatusBadge) {
+        elements.handoffStatusBadge.textContent = 'ALL BOOKINGS CONFIRMED';
+        elements.handoffStatusBadge.className = 'badge badge-green';
+      }
+    } else {
+      if (elements.handoffCompletedBanner) elements.handoffCompletedBanner.classList.add('hidden');
+      if (elements.handoffStatusBadge) {
+        elements.handoffStatusBadge.textContent = 'PENDING REBOOKING';
+        elements.handoffStatusBadge.className = 'badge badge-amber';
       }
     }
 
-    async function handleSaveProfile(e) {
-      e.preventDefault();
-      const name = elements.accountName.value.trim();
-      const phone = elements.accountPhone.value.trim();
-      if (!name) return;
-
-      setButtonLoading(elements.btnSaveProfile, true);
-      try {
-        const res = await fetch('/api/auth/profile', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, phone }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to update profile');
-        }
-        state.currentUser = data.data;
-        updateAuthHeader();
-        showToast('Profile updated successfully', 'success');
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(elements.btnSaveProfile, false);
+    try {
+      const res = await fetch(`/api/trips/${encodeURIComponent(trip.id)}/handoff`);
+      if (!res.ok) {
+        return;
       }
-    }
+      const data = await res.json();
+      const legs = (data && data.success && data.data) ? data.data : [];
 
-    async function handleChangePassword(e) {
-      e.preventDefault();
-      const currentPassword = elements.accountCurrPassword.value;
-      const newPassword = elements.accountNewPassword.value;
-      if (!currentPassword || !newPassword) return;
+      if (!elements.handoffLegsList) return;
 
-      setButtonLoading(elements.btnSubmitChangePassword, true);
-      try {
-        const res = await fetch('/api/auth/password', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ currentPassword, newPassword }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to update password');
-        }
-        elements.formAccountPassword.reset();
-        showToast('Password changed successfully', 'success');
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(elements.btnSubmitChangePassword, false);
-      }
-    }
-
-    // Handoff & Booking Confirmation
-    async function renderHandoffCard(trip) {
-      if (!elements.sectionHandoffCard) return;
-      const isResolved = trip && trip.status === 'RESOLVED';
-      const isCompletedBookings = trip && trip.status === 'COMPLETED_BOOKINGS';
-
-      if (!isResolved && !isCompletedBookings) {
-        elements.sectionHandoffCard.classList.add('hidden');
+      if (legs.length === 0) {
+        elements.handoffLegsList.innerHTML = '<p class="empty-state">No replacement transport legs to hand off.</p>';
         return;
       }
 
-      elements.sectionHandoffCard.classList.remove('hidden');
+      elements.handoffLegsList.innerHTML = '';
+      legs.forEach((leg) => {
+        const card = document.createElement('div');
+        card.className = `handoff-leg-card ${leg.booked ? 'leg-confirmed' : ''}`;
 
-      if (isCompletedBookings) {
-        if (elements.handoffCompletedBanner) elements.handoffCompletedBanner.classList.remove('hidden');
-        if (elements.handoffStatusBadge) {
-          elements.handoffStatusBadge.textContent = 'ALL BOOKINGS CONFIRMED';
-          elements.handoffStatusBadge.className = 'badge badge-green';
-        }
-      } else {
-        if (elements.handoffCompletedBanner) elements.handoffCompletedBanner.classList.add('hidden');
-        if (elements.handoffStatusBadge) {
-          elements.handoffStatusBadge.textContent = 'PENDING REBOOKING';
-          elements.handoffStatusBadge.className = 'badge badge-amber';
-        }
-      }
-
-      try {
-        const res = await fetch(`/api/trips/${encodeURIComponent(trip.id)}/handoff`);
-        if (!res.ok) {
-          return;
-        }
-        const data = await res.json();
-        const legs = (data && data.success && data.data) ? data.data : [];
-
-        if (!elements.handoffLegsList) return;
-
-        if (legs.length === 0) {
-          elements.handoffLegsList.innerHTML = '<p class="empty-state">No replacement transport legs to hand off.</p>';
-          return;
-        }
-
-        elements.handoffLegsList.innerHTML = '';
-        legs.forEach((leg) => {
-          const card = document.createElement('div');
-          card.className = `handoff-leg-card ${leg.booked ? 'leg-confirmed' : ''}`;
-
-          const linksHtml = (leg.links || []).map((l) => `
+        const linksHtml = (leg.links || []).map((l) => `
           <a href="${escapeHtml(l.url)}" target="_blank" rel="noopener noreferrer" class="handoff-link-btn" title="Open provider booking portal">
             <span>🔗</span>
             <span>${escapeHtml(l.label)}</span>
           </a>
         `).join('');
 
-          const refHtml = leg.bookingReference
-            ? `<span class="handoff-ref-tag" title="Confirmed reference">Ref: ${escapeHtml(leg.bookingReference)}</span>`
-            : '';
+        const refHtml = leg.bookingReference
+          ? `<span class="handoff-ref-tag" title="Confirmed reference">Ref: ${escapeHtml(leg.bookingReference)}</span>`
+          : '';
 
-          card.innerHTML = `
+        card.innerHTML = `
           <div class="handoff-leg-header">
             <div class="handoff-route">
               <span class="badge ${getStatusBadgeClass(leg.type)}">${escapeHtml(leg.type)}</span>
@@ -6737,234 +6887,234 @@
             </div>
             <div class="handoff-book-toggle">
               ${leg.booked
-              ? `<button type="button" class="btn btn-sm btn-outline-danger btn-unbook-leg" data-booking-id="${escapeHtml(leg.bookingId)}">Unmark / Unbook</button>`
-              : `<button type="button" class="btn btn-sm btn-success btn-book-leg" data-booking-id="${escapeHtml(leg.bookingId)}" data-from="${escapeHtml(leg.from)}" data-to="${escapeHtml(leg.to)}" data-type="${escapeHtml(leg.type)}" data-provider="${escapeHtml(leg.provider)}">&#10003; I have booked this</button>`
-            }
+            ? `<button type="button" class="btn btn-sm btn-outline-danger btn-unbook-leg" data-booking-id="${escapeHtml(leg.bookingId)}">Unmark / Unbook</button>`
+            : `<button type="button" class="btn btn-sm btn-success btn-book-leg" data-booking-id="${escapeHtml(leg.bookingId)}" data-from="${escapeHtml(leg.from)}" data-to="${escapeHtml(leg.to)}" data-type="${escapeHtml(leg.type)}" data-provider="${escapeHtml(leg.provider)}">&#10003; I have booked this</button>`
+          }
             </div>
           </div>
         `;
 
-          const btnBook = card.querySelector('.btn-book-leg');
-          if (btnBook) {
-            btnBook.addEventListener('click', () => {
-              openConfirmBookingModal(
-                btnBook.getAttribute('data-booking-id'),
-                `${btnBook.getAttribute('data-type')} ${btnBook.getAttribute('data-provider') || ''}: ${btnBook.getAttribute('data-from')} &rarr; ${btnBook.getAttribute('data-to')}`
-              );
-            });
-          }
-
-          const btnUnbook = card.querySelector('.btn-unbook-leg');
-          if (btnUnbook) {
-            btnUnbook.addEventListener('click', () => {
-              handleUnmarkBooking(trip.id, btnUnbook.getAttribute('data-booking-id'));
-            });
-          }
-
-          elements.handoffLegsList.appendChild(card);
-        });
-      } catch (e) {
-        console.warn('Could not load handoff legs:', e);
-      }
-    }
-
-    function openConfirmBookingModal(bookingId, summaryText) {
-      if (elements.confirmBookingId) elements.confirmBookingId.value = bookingId;
-      if (elements.confirmBookingSummary) elements.confirmBookingSummary.innerHTML = `<strong>Confirming:</strong> ${summaryText}`;
-      if (elements.confirmBookingRef) elements.confirmBookingRef.value = '';
-      if (elements.modalConfirmBooking) {
-        elements.modalConfirmBooking.classList.remove('hidden');
-        elements.modalConfirmBooking.classList.add('is-open');
-      }
-    }
-
-    function closeConfirmBookingModal() {
-      if (elements.modalConfirmBooking) {
-        elements.modalConfirmBooking.classList.add('hidden');
-        elements.modalConfirmBooking.classList.remove('is-open');
-      }
-    }
-
-    async function handleSubmitConfirmBooking(e) {
-      e.preventDefault();
-      const tripId = state.currentTripId;
-      const bookingId = elements.confirmBookingId.value;
-      const reference = elements.confirmBookingRef.value.trim();
-      if (!tripId || !bookingId) return;
-
-      setButtonLoading(elements.btnSubmitConfirmBooking, true);
-      try {
-        const res = await fetch(`/api/trips/${encodeURIComponent(tripId)}/bookings/${encodeURIComponent(bookingId)}/book`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookingReference: reference }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to mark booking as booked');
-        }
-
-        closeConfirmBookingModal();
-        showToast('Booking marked as booked!', 'success');
-        await loadTripById(tripId);
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(elements.btnSubmitConfirmBooking, false);
-      }
-    }
-
-    async function handleUnmarkBooking(tripId, bookingId) {
-      try {
-        const res = await fetch(`/api/trips/${encodeURIComponent(tripId)}/bookings/${encodeURIComponent(bookingId)}/unbook`, {
-          method: 'POST',
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to revert booking status');
-        }
-
-        showToast('Booking reverted to rebooked status. Trip moved back to RESOLVED.', 'info');
-        await loadTripById(tripId);
-      } catch (err) {
-        showToast(err.message, 'danger');
-      }
-    }
-
-    // ==========================================
-    // Phase 10A: Marketplace In-App Booking Logic
-    // ==========================================
-
-    const marketState = {
-      services: [],
-      hotels: [],
-      cabs: [],
-      currentService: null,
-      selectedSeats: new Set(),
-      flightPassengerCount: 1,
-      bookingToCancelId: null,
-      bookingToCancelRef: null,
-      checkoutType: 'TRANSPORT',
-      pendingHotel: null,
-      pendingCab: null,
-    };
-
-    function initMarketplaceDates() {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowStr = tomorrow.toISOString().substring(0, 10);
-
-      const dayAfter = new Date();
-      dayAfter.setDate(dayAfter.getDate() + 2);
-      const dayAfterStr = dayAfter.toISOString().substring(0, 10);
-
-      if (elements.marketSearchDate) elements.marketSearchDate.value = tomorrowStr;
-      if (elements.marketHotelCheckin) elements.marketHotelCheckin.value = tomorrowStr;
-      if (elements.marketHotelCheckout) elements.marketHotelCheckout.value = dayAfterStr;
-    }
-
-    // Subtab Switching (Transport / Hotels / Cabs)
-    function setupMarketSubtabs() {
-      const tabs = [
-        { btn: elements.tabMarketTransport, panel: elements.subpanelMarketTransport },
-        { btn: elements.tabMarketHotels, panel: elements.subpanelMarketHotels },
-        { btn: elements.tabMarketCabs, panel: elements.subpanelMarketCabs },
-      ];
-
-      tabs.forEach(({ btn, panel }) => {
-        if (!btn) return;
-        btn.addEventListener('click', () => {
-          tabs.forEach(t => {
-            if (t.btn) t.btn.classList.remove('active');
-            if (t.panel) t.panel.classList.add('hidden');
+        const btnBook = card.querySelector('.btn-book-leg');
+        if (btnBook) {
+          btnBook.addEventListener('click', () => {
+            openConfirmBookingModal(
+              btnBook.getAttribute('data-booking-id'),
+              `${btnBook.getAttribute('data-type')} ${btnBook.getAttribute('data-provider') || ''}: ${btnBook.getAttribute('data-from')} &rarr; ${btnBook.getAttribute('data-to')}`
+            );
           });
-          btn.classList.add('active');
-          if (panel) panel.classList.remove('hidden');
-        });
-      });
-    }
-
-    // Transport Search Handler
-    async function handleMarketSearch(e) {
-      if (e) e.preventDefault();
-
-      if (!state.currentUser) {
-        showToast('Please sign in to search and book travel services.', 'warning');
-        openLoginModal();
-        return;
-      }
-
-      const origin = elements.marketSearchOrigin.value.trim();
-      const destination = elements.marketSearchDest.value.trim();
-      const date = elements.marketSearchDate.value;
-      const mode = elements.marketSearchMode.value;
-
-      if (!origin || !destination) {
-        showToast('Please enter both origin and destination.', 'warning');
-        return;
-      }
-
-      setButtonLoading(elements.btnMarketSearch, true);
-      elements.marketServicesCount.textContent = 'Searching departures...';
-      elements.marketServicesList.innerHTML = '<div class="market-empty-state"><p>Querying verified departure catalogue...</p></div>';
-
-      try {
-        const queryParams = new URLSearchParams({
-          origin,
-          destination,
-          date: date || '',
-          mode: mode || 'ALL',
-        });
-
-        const res = await fetch(`/api/market/services?${queryParams.toString()}`);
-        const data = await res.json();
-
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to search departures');
         }
 
-        const services = data.data || [];
-        marketState.services = services;
-        renderMarketServices(services);
-      } catch (err) {
-        elements.marketServicesCount.textContent = 'Search failed';
-        elements.marketServicesList.innerHTML = `<div class="market-empty-state"><p style="color: #f87171;">${escapeHtml(err.message)}</p></div>`;
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(elements.btnMarketSearch, false);
+        const btnUnbook = card.querySelector('.btn-unbook-leg');
+        if (btnUnbook) {
+          btnUnbook.addEventListener('click', () => {
+            handleUnmarkBooking(trip.id, btnUnbook.getAttribute('data-booking-id'));
+          });
+        }
+
+        elements.handoffLegsList.appendChild(card);
+      });
+    } catch (e) {
+      console.warn('Could not load handoff legs:', e);
+    }
+  }
+
+  function openConfirmBookingModal(bookingId, summaryText) {
+    if (elements.confirmBookingId) elements.confirmBookingId.value = bookingId;
+    if (elements.confirmBookingSummary) elements.confirmBookingSummary.innerHTML = `<strong>Confirming:</strong> ${summaryText}`;
+    if (elements.confirmBookingRef) elements.confirmBookingRef.value = '';
+    if (elements.modalConfirmBooking) {
+      elements.modalConfirmBooking.classList.remove('hidden');
+      elements.modalConfirmBooking.classList.add('is-open');
+    }
+  }
+
+  function closeConfirmBookingModal() {
+    if (elements.modalConfirmBooking) {
+      elements.modalConfirmBooking.classList.add('hidden');
+      elements.modalConfirmBooking.classList.remove('is-open');
+    }
+  }
+
+  async function handleSubmitConfirmBooking(e) {
+    e.preventDefault();
+    const tripId = state.currentTripId;
+    const bookingId = elements.confirmBookingId.value;
+    const reference = elements.confirmBookingRef.value.trim();
+    if (!tripId || !bookingId) return;
+
+    setButtonLoading(elements.btnSubmitConfirmBooking, true);
+    try {
+      const res = await fetch(`/api/trips/${encodeURIComponent(tripId)}/bookings/${encodeURIComponent(bookingId)}/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingReference: reference }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to mark booking as booked');
       }
+
+      closeConfirmBookingModal();
+      showToast('Booking marked as booked!', 'success');
+      await loadTripById(tripId);
+    } catch (err) {
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(elements.btnSubmitConfirmBooking, false);
+    }
+  }
+
+  async function handleUnmarkBooking(tripId, bookingId) {
+    try {
+      const res = await fetch(`/api/trips/${encodeURIComponent(tripId)}/bookings/${encodeURIComponent(bookingId)}/unbook`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to revert booking status');
+      }
+
+      showToast('Booking reverted to rebooked status. Trip moved back to RESOLVED.', 'info');
+      await loadTripById(tripId);
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  }
+
+  // ==========================================
+  // Phase 10A: Marketplace In-App Booking Logic
+  // ==========================================
+
+  const marketState = {
+    services: [],
+    hotels: [],
+    cabs: [],
+    currentService: null,
+    selectedSeats: new Set(),
+    flightPassengerCount: 1,
+    bookingToCancelId: null,
+    bookingToCancelRef: null,
+    checkoutType: 'TRANSPORT',
+    pendingHotel: null,
+    pendingCab: null,
+  };
+
+  function initMarketplaceDates() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().substring(0, 10);
+
+    const dayAfter = new Date();
+    dayAfter.setDate(dayAfter.getDate() + 2);
+    const dayAfterStr = dayAfter.toISOString().substring(0, 10);
+
+    if (elements.marketSearchDate) elements.marketSearchDate.value = tomorrowStr;
+    if (elements.marketHotelCheckin) elements.marketHotelCheckin.value = tomorrowStr;
+    if (elements.marketHotelCheckout) elements.marketHotelCheckout.value = dayAfterStr;
+  }
+
+  // Subtab Switching (Transport / Hotels / Cabs)
+  function setupMarketSubtabs() {
+    const tabs = [
+      { btn: elements.tabMarketTransport, panel: elements.subpanelMarketTransport },
+      { btn: elements.tabMarketHotels, panel: elements.subpanelMarketHotels },
+      { btn: elements.tabMarketCabs, panel: elements.subpanelMarketCabs },
+    ];
+
+    tabs.forEach(({ btn, panel }) => {
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        tabs.forEach(t => {
+          if (t.btn) t.btn.classList.remove('active');
+          if (t.panel) t.panel.classList.add('hidden');
+        });
+        btn.classList.add('active');
+        if (panel) panel.classList.remove('hidden');
+      });
+    });
+  }
+
+  // Transport Search Handler
+  async function handleMarketSearch(e) {
+    if (e) e.preventDefault();
+
+    if (!state.currentUser) {
+      showToast('Please sign in to search and book travel services.', 'warning');
+      openLoginModal();
+      return;
     }
 
-    function renderMarketServices(services) {
-      if (!elements.marketServicesList) return;
+    const origin = elements.marketSearchOrigin.value.trim();
+    const destination = elements.marketSearchDest.value.trim();
+    const date = elements.marketSearchDate.value;
+    const mode = elements.marketSearchMode.value;
 
-      elements.marketServicesCount.textContent = `${services.length} departure${services.length === 1 ? '' : 's'} available`;
+    if (!origin || !destination) {
+      showToast('Please enter both origin and destination.', 'warning');
+      return;
+    }
 
-      if (services.length === 0) {
-        elements.marketServicesList.innerHTML = `
+    setButtonLoading(elements.btnMarketSearch, true);
+    elements.marketServicesCount.textContent = 'Searching departures...';
+    elements.marketServicesList.innerHTML = '<div class="market-empty-state"><p>Querying verified departure catalogue...</p></div>';
+
+    try {
+      const queryParams = new URLSearchParams({
+        origin,
+        destination,
+        date: date || '',
+        mode: mode || 'ALL',
+      });
+
+      const res = await fetch(`/api/market/services?${queryParams.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to search departures');
+      }
+
+      const services = data.data || [];
+      marketState.services = services;
+      renderMarketServices(services);
+    } catch (err) {
+      elements.marketServicesCount.textContent = 'Search failed';
+      elements.marketServicesList.innerHTML = `<div class="market-empty-state"><p style="color: #f87171;">${escapeHtml(err.message)}</p></div>`;
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(elements.btnMarketSearch, false);
+    }
+  }
+
+  function renderMarketServices(services) {
+    if (!elements.marketServicesList) return;
+
+    elements.marketServicesCount.textContent = `${services.length} departure${services.length === 1 ? '' : 's'} available`;
+
+    if (services.length === 0) {
+      elements.marketServicesList.innerHTML = `
           <div class="market-empty-state">
             <p>No scheduled departures found for this route and date.</p>
           </div>
         `;
-        return;
-      }
+      return;
+    }
 
-      elements.marketServicesList.innerHTML = '';
-      services.forEach((s) => {
-        const card = document.createElement('div');
-        card.className = 'market-service-card';
+    elements.marketServicesList.innerHTML = '';
+    services.forEach((s) => {
+      const card = document.createElement('div');
+      card.className = 'market-service-card';
 
-        const modeBadgeClass = s.mode === 'BUS' ? 'badge-amber' : (s.mode === 'TRAIN' ? 'badge-blue' : 'badge-purple');
-        const priceFormatted = Number(s.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const modeBadgeClass = s.mode === 'BUS' ? 'badge-amber' : (s.mode === 'TRAIN' ? 'badge-blue' : 'badge-purple');
+      const priceFormatted = Number(s.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-        const isProvider = s.source === 'PROVIDER';
-        const sourceBadgeClass = isProvider ? 'badge-provider' : (s.source === 'GENERATED' ? 'badge-generated' : 'badge-seeded');
-        const sourceBadgeText = isProvider ? `Provider-listed • ${s.operator}` : (s.sourceLabel || (s.source === 'GENERATED' ? 'Generated schedule' : 'Seeded schedule'));
-        const scheduleNotice = isProvider
-          ? `<div class="schedule-disclaimer-notice">⚠️ Provider-listed • Odyssey does not verify schedules or availability.</div>`
-          : (s.scheduleLabel ? `<div class="schedule-disclaimer-notice">⚠️ ${escapeHtml(s.scheduleLabel)}</div>` : '');
+      const isProvider = s.source === 'PROVIDER';
+      const sourceBadgeClass = isProvider ? 'badge-provider' : (s.source === 'GENERATED' ? 'badge-generated' : 'badge-seeded');
+      const sourceBadgeText = isProvider ? `Provider-listed • ${s.operator}` : (s.sourceLabel || (s.source === 'GENERATED' ? 'Generated schedule' : 'Seeded schedule'));
+      const scheduleNotice = isProvider
+        ? `<div class="schedule-disclaimer-notice">⚠️ Provider-listed • Odyssey does not verify schedules or availability.</div>`
+        : (s.scheduleLabel ? `<div class="schedule-disclaimer-notice">⚠️ ${escapeHtml(s.scheduleLabel)}</div>` : '');
 
-        card.innerHTML = `
+      card.innerHTML = `
           <div class="service-card-top">
             <div class="service-op-group">
               <span class="badge ${modeBadgeClass}">${escapeHtml(s.mode)}</span>
@@ -7015,25 +7165,25 @@
           </div>
         `;
 
-        elements.marketServicesList.appendChild(card);
-      });
+      elements.marketServicesList.appendChild(card);
+    });
+  }
+
+  // Seat Selection Modal
+  function openSeatSelectionModal(service) {
+    if (!state.currentUser) {
+      showToast('Please sign in to book.', 'warning');
+      openLoginModal();
+      return;
     }
 
-    // Seat Selection Modal
-    function openSeatSelectionModal(service) {
-      if (!state.currentUser) {
-        showToast('Please sign in to book.', 'warning');
-        openLoginModal();
-        return;
-      }
+    marketState.currentService = service;
+    marketState.selectedSeats.clear();
+    marketState.flightPassengerCount = 1;
 
-      marketState.currentService = service;
-      marketState.selectedSeats.clear();
-      marketState.flightPassengerCount = 1;
-
-      // Summary Header
-      const priceFormatted = Number(service.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      elements.seatModalServiceSummary.innerHTML = `
+    // Summary Header
+    const priceFormatted = Number(service.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    elements.seatModalServiceSummary.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
           <div>
             <strong style="color: #f8fafc; font-size: 1.1rem;">${escapeHtml(service.operator)} (${escapeHtml(service.vehicleNumber)})</strong>
@@ -7047,90 +7197,90 @@
         </div>
       `;
 
-      if (service.mode === 'FLIGHT') {
-        elements.seatGrid.classList.add('hidden');
-        elements.flightSeatSelector.classList.remove('hidden');
-        elements.flightPassengerCount.value = '1';
-        renderPassengerInputs(['Seat 1 (Auto)']);
-      } else {
-        elements.seatGrid.classList.remove('hidden');
-        elements.flightSeatSelector.classList.add('hidden');
-        renderSeatGrid(service);
-        renderPassengerInputs([]);
-      }
-
-      elements.modalSeatSelection.classList.remove('hidden');
-      elements.modalSeatSelection.classList.add('is-open');
+    if (service.mode === 'FLIGHT') {
+      elements.seatGrid.classList.add('hidden');
+      elements.flightSeatSelector.classList.remove('hidden');
+      elements.flightPassengerCount.value = '1';
+      renderPassengerInputs(['Seat 1 (Auto)']);
+    } else {
+      elements.seatGrid.classList.remove('hidden');
+      elements.flightSeatSelector.classList.add('hidden');
+      renderSeatGrid(service);
+      renderPassengerInputs([]);
     }
 
-    function closeSeatSelectionModal() {
-      if (elements.modalSeatSelection) {
-        elements.modalSeatSelection.classList.add('hidden');
-        elements.modalSeatSelection.classList.remove('is-open');
-      }
+    elements.modalSeatSelection.classList.remove('hidden');
+    elements.modalSeatSelection.classList.add('is-open');
+  }
+
+  function closeSeatSelectionModal() {
+    if (elements.modalSeatSelection) {
+      elements.modalSeatSelection.classList.add('hidden');
+      elements.modalSeatSelection.classList.remove('is-open');
     }
+  }
 
-    function renderSeatGrid(service) {
-      if (!elements.seatGrid) return;
-      elements.seatGrid.innerHTML = '';
+  function renderSeatGrid(service) {
+    if (!elements.seatGrid) return;
+    elements.seatGrid.innerHTML = '';
 
-      const totalSeats = service.seatsTotal || 40;
-      const seatsAvailable = service.seatsLeft;
-      const takenCount = Math.max(0, totalSeats - seatsAvailable);
+    const totalSeats = service.seatsTotal || 40;
+    const seatsAvailable = service.seatsLeft;
+    const takenCount = Math.max(0, totalSeats - seatsAvailable);
 
-      // Deterministically mark the first N taken seats as occupied
-      for (let i = 1; i <= Math.min(totalSeats, 40); i++) {
-        const row = Math.ceil(i / 4);
-        const colLetter = ['A', 'B', 'C', 'D'][(i - 1) % 4];
-        const seatNum = `${row}${colLetter}`;
+    // Deterministically mark the first N taken seats as occupied
+    for (let i = 1; i <= Math.min(totalSeats, 40); i++) {
+      const row = Math.ceil(i / 4);
+      const colLetter = ['A', 'B', 'C', 'D'][(i - 1) % 4];
+      const seatNum = `${row}${colLetter}`;
 
-        const isTaken = i <= takenCount;
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = `seat-btn ${isTaken ? 'seat-taken' : ''}`;
-        btn.textContent = seatNum;
-        btn.disabled = isTaken;
-        btn.setAttribute('data-seat', seatNum);
+      const isTaken = i <= takenCount;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `seat-btn ${isTaken ? 'seat-taken' : ''}`;
+      btn.textContent = seatNum;
+      btn.disabled = isTaken;
+      btn.setAttribute('data-seat', seatNum);
 
-        if (!isTaken) {
-          btn.addEventListener('click', () => toggleSeatSelection(seatNum, btn));
-        }
-
-        elements.seatGrid.appendChild(btn);
+      if (!isTaken) {
+        btn.addEventListener('click', () => toggleSeatSelection(seatNum, btn));
       }
+
+      elements.seatGrid.appendChild(btn);
     }
+  }
 
-    function toggleSeatSelection(seatNum, btn) {
-      if (marketState.selectedSeats.has(seatNum)) {
-        marketState.selectedSeats.delete(seatNum);
-        btn.classList.remove('seat-selected');
-      } else {
-        if (marketState.selectedSeats.size >= 6) {
-          showToast('Maximum 6 passengers allowed per booking.', 'warning');
-          return;
-        }
-        marketState.selectedSeats.add(seatNum);
-        btn.classList.add('seat-selected');
-      }
-      renderPassengerInputs(Array.from(marketState.selectedSeats));
-    }
-
-    function renderPassengerInputs(seatList) {
-      if (!elements.passengerInputsContainer) return;
-      elements.passengerInputsContainer.innerHTML = '';
-
-      if (seatList.length === 0) {
-        elements.passengerInputsContainer.innerHTML = '<p style="color: #94a3b8; font-size: 0.85rem; font-style: italic;">Click seats above to add passenger details.</p>';
+  function toggleSeatSelection(seatNum, btn) {
+    if (marketState.selectedSeats.has(seatNum)) {
+      marketState.selectedSeats.delete(seatNum);
+      btn.classList.remove('seat-selected');
+    } else {
+      if (marketState.selectedSeats.size >= 6) {
+        showToast('Maximum 6 passengers allowed per booking.', 'warning');
         return;
       }
+      marketState.selectedSeats.add(seatNum);
+      btn.classList.add('seat-selected');
+    }
+    renderPassengerInputs(Array.from(marketState.selectedSeats));
+  }
 
-      seatList.forEach((seat, idx) => {
-        const row = document.createElement('div');
-        row.className = 'passenger-input-row';
+  function renderPassengerInputs(seatList) {
+    if (!elements.passengerInputsContainer) return;
+    elements.passengerInputsContainer.innerHTML = '';
 
-        const defaultName = (idx === 0 && state.currentUser && state.currentUser.name) ? state.currentUser.name : '';
+    if (seatList.length === 0) {
+      elements.passengerInputsContainer.innerHTML = '<p style="color: #94a3b8; font-size: 0.85rem; font-style: italic;">Click seats above to add passenger details.</p>';
+      return;
+    }
 
-        row.innerHTML = `
+    seatList.forEach((seat, idx) => {
+      const row = document.createElement('div');
+      row.className = 'passenger-input-row';
+
+      const defaultName = (idx === 0 && state.currentUser && state.currentUser.name) ? state.currentUser.name : '';
+
+      row.innerHTML = `
           <div>
             <span class="seat-badge">${escapeHtml(seat)}</span>
           </div>
@@ -7142,103 +7292,103 @@
           </div>
         `;
 
-        elements.passengerInputsContainer.appendChild(row);
-      });
+      elements.passengerInputsContainer.appendChild(row);
+    });
+  }
+
+  function getDestinationBusStopOrLandmark(service) {
+    if (!service) return 'City Bus Stand';
+    const destCity = (service.destinationCity || '').trim();
+    const origCity = (service.originCity || '').trim();
+
+    // If destinationStop exists and doesn't mistakenly reference the origin city
+    if (service.destinationStop &&
+      (!origCity || !service.destinationStop.toLowerCase().includes(origCity.toLowerCase())) &&
+      (!service.destinationStop.toLowerCase().includes('origin'))) {
+      return service.destinationStop;
     }
 
-    function getDestinationBusStopOrLandmark(service) {
-      if (!service) return 'City Bus Stand';
-      const destCity = (service.destinationCity || '').trim();
-      const origCity = (service.originCity || '').trim();
+    const cityUpper = destCity.toUpperCase();
+    const famousStops = {
+      'MYSURU': 'Suburban Bus Stand, Mysuru',
+      'MYSORE': 'Suburban Bus Stand, Mysuru',
+      'BENGALURU': 'Kempegowda Bus Station (Majestic), Bengaluru',
+      'BANGALORE': 'Kempegowda Bus Station (Majestic), Bengaluru',
+      'HUBBALLI': 'New Bus Stand, Gokul Road, Hubballi',
+      'HUBLI': 'New Bus Stand, Gokul Road, Hubballi',
+      'GOA': 'Kadamba Bus Stand, Panaji',
+      'MANGALURU': 'KSRTC Bus Stand (Bejai), Mangaluru',
+      'MANGALORE': 'KSRTC Bus Stand (Bejai), Mangaluru',
+      'UDUPI': 'Service Bus Stand, Udupi',
+      'MUMBAI': 'Dadar Central Bus Stand, Mumbai',
+      'PUNE': 'Swargate Bus Stand, Pune',
+      'CHENNAI': 'Koyambedu Bus Stand (CMBT), Chennai',
+      'HYDERABAD': 'MGBS Central Bus Station, Hyderabad',
+      'SIRSI': 'Old Bus Stand, Sirsi'
+    };
 
-      // If destinationStop exists and doesn't mistakenly reference the origin city
-      if (service.destinationStop && 
-          (!origCity || !service.destinationStop.toLowerCase().includes(origCity.toLowerCase())) &&
-          (!service.destinationStop.toLowerCase().includes('origin'))) {
-        return service.destinationStop;
-      }
-
-      const cityUpper = destCity.toUpperCase();
-      const famousStops = {
-        'MYSURU': 'Suburban Bus Stand, Mysuru',
-        'MYSORE': 'Suburban Bus Stand, Mysuru',
-        'BENGALURU': 'Kempegowda Bus Station (Majestic), Bengaluru',
-        'BANGALORE': 'Kempegowda Bus Station (Majestic), Bengaluru',
-        'HUBBALLI': 'New Bus Stand, Gokul Road, Hubballi',
-        'HUBLI': 'New Bus Stand, Gokul Road, Hubballi',
-        'GOA': 'Kadamba Bus Stand, Panaji',
-        'MANGALURU': 'KSRTC Bus Stand (Bejai), Mangaluru',
-        'MANGALORE': 'KSRTC Bus Stand (Bejai), Mangaluru',
-        'UDUPI': 'Service Bus Stand, Udupi',
-        'MUMBAI': 'Dadar Central Bus Stand, Mumbai',
-        'PUNE': 'Swargate Bus Stand, Pune',
-        'CHENNAI': 'Koyambedu Bus Stand (CMBT), Chennai',
-        'HYDERABAD': 'MGBS Central Bus Station, Hyderabad',
-        'SIRSI': 'Old Bus Stand, Sirsi'
-      };
-
-      if (famousStops[cityUpper]) {
-        return famousStops[cityUpper];
-      }
-
-      if (service.mode === 'TRAIN') return `${destCity} Railway Station`;
-      if (service.mode === 'FLIGHT') return `${destCity} Airport`;
-      return `${destCity} Central Bus Stand`;
+    if (famousStops[cityUpper]) {
+      return famousStops[cityUpper];
     }
 
-    // Checkout Modal
-    function openCheckoutModal() {
-      const service = marketState.currentService;
-      if (!service) return;
+    if (service.mode === 'TRAIN') return `${destCity} Railway Station`;
+    if (service.mode === 'FLIGHT') return `${destCity} Airport`;
+    return `${destCity} Central Bus Stand`;
+  }
 
-      const isFlight = service.mode === 'FLIGHT';
-      let passengers = [];
+  // Checkout Modal
+  function openCheckoutModal() {
+    const service = marketState.currentService;
+    if (!service) return;
 
-      const nameInputs = elements.passengerInputsContainer.querySelectorAll('.passenger-name-input');
-      const ageInputs = elements.passengerInputsContainer.querySelectorAll('.passenger-age-input');
+    const isFlight = service.mode === 'FLIGHT';
+    let passengers = [];
 
-      if (isFlight) {
-        const count = parseInt(elements.flightPassengerCount.value, 10) || 1;
-        if (count < 1 || count > 6) {
-          showToast('Please select between 1 and 6 passengers', 'warning');
-          return;
-        }
-        for (let i = 0; i < count; i++) {
-          const nameInput = nameInputs[i];
-          const ageInput = ageInputs[i];
-          const name = nameInput ? nameInput.value.trim() : (i === 0 && state.currentUser ? state.currentUser.name : `Passenger ${i + 1}`);
-          const age = ageInput ? parseInt(ageInput.value, 10) || 28 : 28;
-          if (!name) {
-            showToast(`Please enter name for Passenger ${i + 1}`, 'warning');
-            return;
-          }
-          passengers.push({ name, age, seatNumber: String(i + 1) });
-        }
-      } else {
-        const seats = Array.from(marketState.selectedSeats);
-        if (seats.length === 0) {
-          showToast('Please select at least one seat', 'warning');
-          return;
-        }
-        for (let i = 0; i < seats.length; i++) {
-          const nameInput = nameInputs[i];
-          const ageInput = ageInputs[i];
-          const name = nameInput ? nameInput.value.trim() : '';
-          const age = ageInput ? parseInt(ageInput.value, 10) || 28 : 28;
-          if (!name) {
-            showToast(`Please enter passenger name for seat ${seats[i]}`, 'warning');
-            return;
-          }
-          passengers.push({ name, age, seatNumber: seats[i] });
-        }
+    const nameInputs = elements.passengerInputsContainer.querySelectorAll('.passenger-name-input');
+    const ageInputs = elements.passengerInputsContainer.querySelectorAll('.passenger-age-input');
+
+    if (isFlight) {
+      const count = parseInt(elements.flightPassengerCount.value, 10) || 1;
+      if (count < 1 || count > 6) {
+        showToast('Please select between 1 and 6 passengers', 'warning');
+        return;
       }
+      for (let i = 0; i < count; i++) {
+        const nameInput = nameInputs[i];
+        const ageInput = ageInputs[i];
+        const name = nameInput ? nameInput.value.trim() : (i === 0 && state.currentUser ? state.currentUser.name : `Passenger ${i + 1}`);
+        const age = ageInput ? parseInt(ageInput.value, 10) || 28 : 28;
+        if (!name) {
+          showToast(`Please enter name for Passenger ${i + 1}`, 'warning');
+          return;
+        }
+        passengers.push({ name, age, seatNumber: String(i + 1) });
+      }
+    } else {
+      const seats = Array.from(marketState.selectedSeats);
+      if (seats.length === 0) {
+        showToast('Please select at least one seat', 'warning');
+        return;
+      }
+      for (let i = 0; i < seats.length; i++) {
+        const nameInput = nameInputs[i];
+        const ageInput = ageInputs[i];
+        const name = nameInput ? nameInput.value.trim() : '';
+        const age = ageInput ? parseInt(ageInput.value, 10) || 28 : 28;
+        if (!name) {
+          showToast(`Please enter passenger name for seat ${seats[i]}`, 'warning');
+          return;
+        }
+        passengers.push({ name, age, seatNumber: seats[i] });
+      }
+    }
 
-      marketState.checkoutType = 'TRANSPORT';
-      marketState.passengers = passengers;
-      const totalAmount = Number(service.price) * passengers.length;
-      const formattedTotal = totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    marketState.checkoutType = 'TRANSPORT';
+    marketState.passengers = passengers;
+    const totalAmount = Number(service.price) * passengers.length;
+    const formattedTotal = totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-      elements.checkoutOrderSummary.innerHTML = `
+    elements.checkoutOrderSummary.innerHTML = `
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
           <span style="color: #94a3b8;">Service / Route:</span>
           <strong>${escapeHtml(service.operator)} (${escapeHtml(service.vehicleNumber)})</strong>
@@ -7261,74 +7411,74 @@
         </div>
       `;
 
-      populateCheckoutTripOptions();
+    populateCheckoutTripOptions();
 
-      elements.btnPayNowText.textContent = `Pay \u20B9${formattedTotal}`;
-      elements.cardHolderName.value = (state.currentUser && state.currentUser.name) ? state.currentUser.name : '';
-      elements.cardNumber.value = '4111 2222 3333 4444';
-      elements.cardExpiry.value = '12/28';
-      elements.cardCvv.value = '123';
-      elements.checkoutErrorMsg.classList.add('hidden');
-      elements.checkoutErrorMsg.textContent = '';
+    elements.btnPayNowText.textContent = `Pay \u20B9${formattedTotal}`;
+    elements.cardHolderName.value = (state.currentUser && state.currentUser.name) ? state.currentUser.name : '';
+    elements.cardNumber.value = '4111 2222 3333 4444';
+    elements.cardExpiry.value = '12/28';
+    elements.cardCvv.value = '123';
+    elements.checkoutErrorMsg.classList.add('hidden');
+    elements.checkoutErrorMsg.textContent = '';
 
-      closeSeatSelectionModal();
-      // Show and configure Add-ons section for transport checkout
-      const addonsSec = document.getElementById('checkout-addons-section');
-      if (addonsSec) addonsSec.classList.remove('hidden');
-      if (elements.checkoutAddonCabToggle) elements.checkoutAddonCabToggle.checked = false;
-      if (elements.checkoutAddonCabContainer) elements.checkoutAddonCabContainer.classList.add('hidden');
-      const destStop = getDestinationBusStopOrLandmark(service);
-      if (elements.checkoutCabPickup) elements.checkoutCabPickup.value = destStop;
-      if (elements.checkoutCabDropoff) elements.checkoutCabDropoff.value = `${service.destinationCity} Center`;
-      if (elements.checkoutSelectedCabId) elements.checkoutSelectedCabId.value = '';
-      if (elements.checkoutCabOptionsList) elements.checkoutCabOptionsList.innerHTML = '<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available cabs...</div>';
+    closeSeatSelectionModal();
+    // Show and configure Add-ons section for transport checkout
+    const addonsSec = document.getElementById('checkout-addons-section');
+    if (addonsSec) addonsSec.classList.remove('hidden');
+    if (elements.checkoutAddonCabToggle) elements.checkoutAddonCabToggle.checked = false;
+    if (elements.checkoutAddonCabContainer) elements.checkoutAddonCabContainer.classList.add('hidden');
+    const destStop = getDestinationBusStopOrLandmark(service);
+    if (elements.checkoutCabPickup) elements.checkoutCabPickup.value = destStop;
+    if (elements.checkoutCabDropoff) elements.checkoutCabDropoff.value = `${service.destinationCity} Center`;
+    if (elements.checkoutSelectedCabId) elements.checkoutSelectedCabId.value = '';
+    if (elements.checkoutCabOptionsList) elements.checkoutCabOptionsList.innerHTML = '<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available cabs...</div>';
 
-      if (elements.checkoutAddonHotelToggle) elements.checkoutAddonHotelToggle.checked = false;
-      if (elements.checkoutAddonHotelContainer) elements.checkoutAddonHotelContainer.classList.add('hidden');
-      if (elements.checkoutHotelName) elements.checkoutHotelName.value = '';
-      if (elements.checkoutHotelNights) elements.checkoutHotelNights.value = '1';
-      if (elements.checkoutHotelRooms) elements.checkoutHotelRooms.value = '1';
-      if (elements.checkoutSelectedHotelId) elements.checkoutSelectedHotelId.value = '';
-      if (elements.checkoutSelectedRoomTypeId) elements.checkoutSelectedRoomTypeId.value = '';
-      if (elements.checkoutHotelOptionsList) elements.checkoutHotelOptionsList.innerHTML = '<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available hotels...</div>';
+    if (elements.checkoutAddonHotelToggle) elements.checkoutAddonHotelToggle.checked = false;
+    if (elements.checkoutAddonHotelContainer) elements.checkoutAddonHotelContainer.classList.add('hidden');
+    if (elements.checkoutHotelName) elements.checkoutHotelName.value = '';
+    if (elements.checkoutHotelNights) elements.checkoutHotelNights.value = '1';
+    if (elements.checkoutHotelRooms) elements.checkoutHotelRooms.value = '1';
+    if (elements.checkoutSelectedHotelId) elements.checkoutSelectedHotelId.value = '';
+    if (elements.checkoutSelectedRoomTypeId) elements.checkoutSelectedRoomTypeId.value = '';
+    if (elements.checkoutHotelOptionsList) elements.checkoutHotelOptionsList.innerHTML = '<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available hotels...</div>';
 
-      // Reset payment method to CARD
-      if (elements.paymentMethodCard) elements.paymentMethodCard.checked = true;
-      if (elements.checkoutCardFields) elements.checkoutCardFields.classList.remove('hidden');
-      if (elements.checkoutUpiFields) elements.checkoutUpiFields.classList.add('hidden');
-      if (elements.checkoutNetbankingFields) elements.checkoutNetbankingFields.classList.add('hidden');
-      if (elements.checkoutUpiId) elements.checkoutUpiId.value = '';
-      if (elements.checkoutBankSelect) elements.checkoutBankSelect.selectedIndex = 0;
+    // Reset payment method to CARD
+    if (elements.paymentMethodCard) elements.paymentMethodCard.checked = true;
+    if (elements.checkoutCardFields) elements.checkoutCardFields.classList.remove('hidden');
+    if (elements.checkoutUpiFields) elements.checkoutUpiFields.classList.add('hidden');
+    if (elements.checkoutNetbankingFields) elements.checkoutNetbankingFields.classList.add('hidden');
+    if (elements.checkoutUpiId) elements.checkoutUpiId.value = '';
+    if (elements.checkoutBankSelect) elements.checkoutBankSelect.selectedIndex = 0;
 
-      elements.modalCheckout.classList.remove('hidden');
-      elements.modalCheckout.classList.add('is-open');
-    }
+    elements.modalCheckout.classList.remove('hidden');
+    elements.modalCheckout.classList.add('is-open');
+  }
 
-    function openHotelCheckoutModal(hotel) {
-      const addonsSec = document.getElementById('checkout-addons-section');
-      if (addonsSec) addonsSec.classList.add('hidden');
-      if (!hotel) return;
-      marketState.checkoutType = 'HOTEL';
-      const checkIn = elements.marketHotelCheckin ? elements.marketHotelCheckin.value : '';
-      const checkOut = elements.marketHotelCheckout ? elements.marketHotelCheckout.value : '';
-      const rooms = elements.marketHotelRooms ? (parseInt(elements.marketHotelRooms.value, 10) || 1) : 1;
-      const guestName = (state.currentUser && state.currentUser.name) ? state.currentUser.name : 'Guest';
+  function openHotelCheckoutModal(hotel) {
+    const addonsSec = document.getElementById('checkout-addons-section');
+    if (addonsSec) addonsSec.classList.add('hidden');
+    if (!hotel) return;
+    marketState.checkoutType = 'HOTEL';
+    const checkIn = elements.marketHotelCheckin ? elements.marketHotelCheckin.value : '';
+    const checkOut = elements.marketHotelCheckout ? elements.marketHotelCheckout.value : '';
+    const rooms = elements.marketHotelRooms ? (parseInt(elements.marketHotelRooms.value, 10) || 1) : 1;
+    const guestName = (state.currentUser && state.currentUser.name) ? state.currentUser.name : 'Guest';
 
-      marketState.pendingHotel = {
-        hotelId: hotel.id,
-        roomTypeId: hotel.roomTypeId,
-        hotelName: hotel.name,
-        hotelCity: hotel.city,
-        checkIn,
-        checkOut,
-        rooms,
-        guestName,
-        totalFare: hotel.estimatedTotal
-      };
+    marketState.pendingHotel = {
+      hotelId: hotel.id,
+      roomTypeId: hotel.roomTypeId,
+      hotelName: hotel.name,
+      hotelCity: hotel.city,
+      checkIn,
+      checkOut,
+      rooms,
+      guestName,
+      totalFare: hotel.estimatedTotal
+    };
 
-      const formattedTotal = Number(hotel.estimatedTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formattedTotal = Number(hotel.estimatedTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-      elements.checkoutOrderSummary.innerHTML = `
+    elements.checkoutOrderSummary.innerHTML = `
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
           <span style="color: #94a3b8;">Hotel / Location:</span>
           <strong>${escapeHtml(hotel.name)} (${escapeHtml(hotel.city)})</strong>
@@ -7347,39 +7497,39 @@
         </div>
       `;
 
-      populateCheckoutTripOptions();
+    populateCheckoutTripOptions();
 
-      elements.btnPayNowText.textContent = `Pay \u20B9${formattedTotal}`;
-      elements.cardHolderName.value = (state.currentUser && state.currentUser.name) ? state.currentUser.name : '';
-      elements.cardNumber.value = '4111 2222 3333 4444';
-      elements.cardExpiry.value = '12/28';
-      elements.cardCvv.value = '123';
-      elements.checkoutErrorMsg.classList.add('hidden');
-      elements.checkoutErrorMsg.textContent = '';
+    elements.btnPayNowText.textContent = `Pay \u20B9${formattedTotal}`;
+    elements.cardHolderName.value = (state.currentUser && state.currentUser.name) ? state.currentUser.name : '';
+    elements.cardNumber.value = '4111 2222 3333 4444';
+    elements.cardExpiry.value = '12/28';
+    elements.cardCvv.value = '123';
+    elements.checkoutErrorMsg.classList.add('hidden');
+    elements.checkoutErrorMsg.textContent = '';
 
-      elements.modalCheckout.classList.remove('hidden');
-      elements.modalCheckout.classList.add('is-open');
-    }
+    elements.modalCheckout.classList.remove('hidden');
+    elements.modalCheckout.classList.add('is-open');
+  }
 
-    function openCabCheckoutModal(cab) {
-      if (!cab) return;
-      marketState.checkoutType = 'CAB';
-      const pickup = elements.marketCabPickup ? elements.marketCabPickup.value.trim() : '';
-      const dropoff = elements.marketCabDropoff ? elements.marketCabDropoff.value.trim() : '';
-      const nowTime = new Date().toISOString().substring(0, 19);
+  function openCabCheckoutModal(cab) {
+    if (!cab) return;
+    marketState.checkoutType = 'CAB';
+    const pickup = elements.marketCabPickup ? elements.marketCabPickup.value.trim() : '';
+    const dropoff = elements.marketCabDropoff ? elements.marketCabDropoff.value.trim() : '';
+    const nowTime = new Date().toISOString().substring(0, 19);
 
-      marketState.pendingCab = {
-        cabServiceId: cab.id,
-        provider: cab.provider,
-        pickup,
-        dropoff,
-        pickupTime: nowTime,
-        fare: cab.estimatedFare
-      };
+    marketState.pendingCab = {
+      cabServiceId: cab.id,
+      provider: cab.provider,
+      pickup,
+      dropoff,
+      pickupTime: nowTime,
+      fare: cab.estimatedFare
+    };
 
-      const formattedTotal = Number(cab.estimatedFare).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formattedTotal = Number(cab.estimatedFare).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-      elements.checkoutOrderSummary.innerHTML = `
+    elements.checkoutOrderSummary.innerHTML = `
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
           <span style="color: #94a3b8;">Cab Provider:</span>
           <strong>${escapeHtml(cab.provider)} (${escapeHtml(cab.city)})</strong>
@@ -7398,95 +7548,129 @@
         </div>
       `;
 
-      populateCheckoutTripOptions();
+    populateCheckoutTripOptions();
 
-      elements.btnPayNowText.textContent = `Pay \u20B9${formattedTotal}`;
-      elements.cardHolderName.value = (state.currentUser && state.currentUser.name) ? state.currentUser.name : '';
-      elements.cardNumber.value = '4111 2222 3333 4444';
-      elements.cardExpiry.value = '12/28';
-      elements.cardCvv.value = '123';
-      elements.checkoutErrorMsg.classList.add('hidden');
-      elements.checkoutErrorMsg.textContent = '';
+    elements.btnPayNowText.textContent = `Pay \u20B9${formattedTotal}`;
+    elements.cardHolderName.value = (state.currentUser && state.currentUser.name) ? state.currentUser.name : '';
+    elements.cardNumber.value = '4111 2222 3333 4444';
+    elements.cardExpiry.value = '12/28';
+    elements.cardCvv.value = '123';
+    elements.checkoutErrorMsg.classList.add('hidden');
+    elements.checkoutErrorMsg.textContent = '';
 
-      elements.modalCheckout.classList.remove('hidden');
-      elements.modalCheckout.classList.add('is-open');
+    elements.modalCheckout.classList.remove('hidden');
+    elements.modalCheckout.classList.add('is-open');
+  }
+
+  function populateCheckoutTripOptions() {
+    const userTrips = (state.tripsList || []).filter(t => t.id !== 'TRIP-DEMO-001' && (state.currentUser && t.userId === state.currentUser.id));
+    if (elements.checkoutTripSelect) {
+      elements.checkoutTripSelect.innerHTML = '<option value="" disabled selected>Select an existing trip...</option>';
+      userTrips.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        const legCount = t.bookings ? t.bookings.length : 0;
+        opt.textContent = `${t.title} (${legCount} leg${legCount === 1 ? '' : 's'})`;
+        elements.checkoutTripSelect.appendChild(opt);
+      });
     }
 
-    function populateCheckoutTripOptions() {
-      const userTrips = (state.tripsList || []).filter(t => t.id !== 'TRIP-DEMO-001' && (state.currentUser && t.userId === state.currentUser.id));
-      if (elements.checkoutTripSelect) {
-        elements.checkoutTripSelect.innerHTML = '<option value="" disabled selected>Select an existing trip...</option>';
-        userTrips.forEach(t => {
-          const opt = document.createElement('option');
-          opt.value = t.id;
-          const legCount = t.bookings ? t.bookings.length : 0;
-          opt.textContent = `${t.title} (${legCount} leg${legCount === 1 ? '' : 's'})`;
-          elements.checkoutTripSelect.appendChild(opt);
-        });
+    if (userTrips.length === 0) {
+      if (elements.choiceCreateTrip) elements.choiceCreateTrip.checked = true;
+      if (elements.choiceExistingTrip) {
+        elements.choiceExistingTrip.disabled = true;
+        if (elements.choiceExistingTrip.parentElement) {
+          elements.choiceExistingTrip.parentElement.style.opacity = '0.5';
+          elements.choiceExistingTrip.parentElement.title = 'No existing trips found for your account';
+        }
       }
-
-      if (userTrips.length === 0) {
-        if (elements.choiceCreateTrip) elements.choiceCreateTrip.checked = true;
-        if (elements.choiceExistingTrip) {
-          elements.choiceExistingTrip.disabled = true;
-          if (elements.choiceExistingTrip.parentElement) {
-            elements.choiceExistingTrip.parentElement.style.opacity = '0.5';
-            elements.choiceExistingTrip.parentElement.title = 'No existing trips found for your account';
-          }
+      if (elements.checkoutExistingTripContainer) elements.checkoutExistingTripContainer.classList.add('hidden');
+    } else {
+      if (elements.choiceExistingTrip) {
+        elements.choiceExistingTrip.disabled = false;
+        if (elements.choiceExistingTrip.parentElement) {
+          elements.choiceExistingTrip.parentElement.style.opacity = '1';
+          elements.choiceExistingTrip.parentElement.removeAttribute('title');
         }
-        if (elements.checkoutExistingTripContainer) elements.checkoutExistingTripContainer.classList.add('hidden');
-      } else {
-        if (elements.choiceExistingTrip) {
-          elements.choiceExistingTrip.disabled = false;
-          if (elements.choiceExistingTrip.parentElement) {
-            elements.choiceExistingTrip.parentElement.style.opacity = '1';
-            elements.choiceExistingTrip.parentElement.removeAttribute('title');
-          }
-        }
-        if (elements.choiceCreateTrip && elements.choiceCreateTrip.checked && elements.checkoutExistingTripContainer) {
-          elements.checkoutExistingTripContainer.classList.add('hidden');
-        } else if (elements.choiceExistingTrip && elements.choiceExistingTrip.checked && elements.checkoutExistingTripContainer) {
-          elements.checkoutExistingTripContainer.classList.remove('hidden');
-        }
+      }
+      if (elements.choiceCreateTrip && elements.choiceCreateTrip.checked && elements.checkoutExistingTripContainer) {
+        elements.checkoutExistingTripContainer.classList.add('hidden');
+      } else if (elements.choiceExistingTrip && elements.choiceExistingTrip.checked && elements.checkoutExistingTripContainer) {
+        elements.checkoutExistingTripContainer.classList.remove('hidden');
       }
     }
+  }
 
-    function closeCheckoutModal() {
-      if (elements.modalCheckout) {
-        elements.modalCheckout.classList.add('hidden');
-        elements.modalCheckout.classList.remove('is-open');
-      }
+  function closeCheckoutModal() {
+    if (elements.modalCheckout) {
+      elements.modalCheckout.classList.add('hidden');
+      elements.modalCheckout.classList.remove('is-open');
+    }
+  }
+
+  const activeVerificationTimers = new Map();
+
+  function startInCardVerificationTimer(card, statusBox, bookingId, timeoutSec, targetName, type) {
+    if (!statusBox) return;
+    const key = `${type}_${card.dataset.hotelId || card.dataset.cabId}`;
+    if (activeVerificationTimers.has(key)) {
+      clearInterval(activeVerificationTimers.get(key).timerId);
+      clearInterval(activeVerificationTimers.get(key).pollId);
     }
 
-    const activeVerificationTimers = new Map();
+    statusBox.classList.remove('hidden');
+    statusBox.style.background = 'rgba(56, 189, 248, 0.1)';
+    statusBox.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+    statusBox.style.color = '#38bdf8';
 
-    function startInCardVerificationTimer(card, statusBox, bookingId, timeoutSec, targetName, type) {
-      if (!statusBox) return;
-      const key = `${type}_${card.dataset.hotelId || card.dataset.cabId}`;
-      if (activeVerificationTimers.has(key)) {
-        clearInterval(activeVerificationTimers.get(key).timerId);
-        clearInterval(activeVerificationTimers.get(key).pollId);
+    let remaining = timeoutSec || 30;
+    statusBox.innerHTML = `<span>✉️ Verification email sent! Waiting for ${escapeHtml(targetName || 'provider')} acceptance...</span><strong class="timer-countdown" style="font-family: monospace; font-size: 0.85rem; color: #f59e0b;">${remaining}s</strong>`;
+
+    const timerId = setInterval(() => {
+      remaining -= 1;
+      const countdownEl = statusBox.querySelector('.timer-countdown');
+      if (countdownEl) countdownEl.textContent = `${remaining}s`;
+      if (remaining <= 0) {
+        clearInterval(timerId);
+        clearInterval(pollId);
+        statusBox.style.background = 'rgba(239, 68, 68, 0.15)';
+        statusBox.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+        statusBox.style.color = '#ef4444';
+        statusBox.innerHTML = `<span>⚠️ <strong>Timeout (30s expired):</strong> Provider did not respond in time. Choose another option or retry.</span>`;
+        const btn = card.querySelector('.btn-select-hotel, .btn-select-cab');
+        if (btn) {
+          btn.textContent = 'Select';
+          btn.className = 'btn btn-sm btn-outline-gold ' + (type === 'HOTEL' ? 'btn-select-hotel' : 'btn-select-cab');
+          btn.style.background = 'transparent';
+          btn.style.color = 'var(--gold-color)';
+        }
       }
+    }, 1000);
 
-      statusBox.classList.remove('hidden');
-      statusBox.style.background = 'rgba(56, 189, 248, 0.1)';
-      statusBox.style.borderColor = 'rgba(56, 189, 248, 0.3)';
-      statusBox.style.color = '#38bdf8';
+    const pollId = setInterval(async () => {
+      if (!bookingId) return;
+      try {
+        const res = await fetch(`/api/market/bookings/${encodeURIComponent(bookingId)}/status`);
+        if (!res.ok) return;
+        const json = await res.json();
+        const b = json.data;
+        if (!b) return;
 
-      let remaining = timeoutSec || 30;
-      statusBox.innerHTML = `<span>✉️ Verification email sent! Waiting for ${escapeHtml(targetName || 'provider')} acceptance...</span><strong class="timer-countdown" style="font-family: monospace; font-size: 0.85rem; color: #f59e0b;">${remaining}s</strong>`;
-
-      const timerId = setInterval(() => {
-        remaining -= 1;
-        const countdownEl = statusBox.querySelector('.timer-countdown');
-        if (countdownEl) countdownEl.textContent = `${remaining}s`;
-        if (remaining <= 0) {
+        if (b.status === 'CONFIRMED' || b.providerConfirmationStatus === 'ACCEPTED') {
+          clearInterval(timerId);
+          clearInterval(pollId);
+          statusBox.style.background = 'rgba(74, 222, 128, 0.15)';
+          statusBox.style.borderColor = 'rgba(74, 222, 128, 0.4)';
+          statusBox.style.color = '#4ade80';
+          statusBox.innerHTML = `<span>✅ <strong>Provider Accepted!</strong> Booking verified and confirmed.</span>`;
+          showToast(`Provider confirmed your ${type.toLowerCase()} booking!`, 'success');
+        } else if (b.status === 'CANCELLED' || b.providerConfirmationStatus === 'REJECTED' || b.providerConfirmationStatus === 'EXPIRED') {
           clearInterval(timerId);
           clearInterval(pollId);
           statusBox.style.background = 'rgba(239, 68, 68, 0.15)';
           statusBox.style.borderColor = 'rgba(239, 68, 68, 0.4)';
           statusBox.style.color = '#ef4444';
-          statusBox.innerHTML = `<span>⚠️ <strong>Timeout (30s expired):</strong> Provider did not respond in time. Choose another option or retry.</span>`;
+          statusBox.innerHTML = `<span>❌ <strong>Provider Declined:</strong> ${escapeHtml(b.cannotHonourReason || 'Request not accepted')}. Please select another option.</span>`;
           const btn = card.querySelector('.btn-select-hotel, .btn-select-cab');
           if (btn) {
             btn.textContent = 'Select';
@@ -7495,73 +7679,39 @@
             btn.style.color = 'var(--gold-color)';
           }
         }
-      }, 1000);
+      } catch (e) {
+        // ignore transient poll error
+      }
+    }, 2000);
 
-      const pollId = setInterval(async () => {
-        if (!bookingId) return;
-        try {
-          const res = await fetch(`/api/market/bookings/${encodeURIComponent(bookingId)}/status`);
-          if (!res.ok) return;
-          const json = await res.json();
-          const b = json.data;
-          if (!b) return;
+    activeVerificationTimers.set(key, { timerId, pollId });
+  }
 
-          if (b.status === 'CONFIRMED' || b.providerConfirmationStatus === 'ACCEPTED') {
-            clearInterval(timerId);
-            clearInterval(pollId);
-            statusBox.style.background = 'rgba(74, 222, 128, 0.15)';
-            statusBox.style.borderColor = 'rgba(74, 222, 128, 0.4)';
-            statusBox.style.color = '#4ade80';
-            statusBox.innerHTML = `<span>✅ <strong>Provider Accepted!</strong> Booking verified and confirmed.</span>`;
-            showToast(`Provider confirmed your ${type.toLowerCase()} booking!`, 'success');
-          } else if (b.status === 'CANCELLED' || b.providerConfirmationStatus === 'REJECTED' || b.providerConfirmationStatus === 'EXPIRED') {
-            clearInterval(timerId);
-            clearInterval(pollId);
-            statusBox.style.background = 'rgba(239, 68, 68, 0.15)';
-            statusBox.style.borderColor = 'rgba(239, 68, 68, 0.4)';
-            statusBox.style.color = '#ef4444';
-            statusBox.innerHTML = `<span>❌ <strong>Provider Declined:</strong> ${escapeHtml(b.cannotHonourReason || 'Request not accepted')}. Please select another option.</span>`;
-            const btn = card.querySelector('.btn-select-hotel, .btn-select-cab');
-            if (btn) {
-              btn.textContent = 'Select';
-              btn.className = 'btn btn-sm btn-outline-gold ' + (type === 'HOTEL' ? 'btn-select-hotel' : 'btn-select-cab');
-              btn.style.background = 'transparent';
-              btn.style.color = 'var(--gold-color)';
-            }
-          }
-        } catch (e) {
-          // ignore transient poll error
-        }
-      }, 2000);
+  async function loadCheckoutCabOptions(city, pickup, dropoff) {
+    if (!elements.checkoutCabOptionsList) return;
+    elements.checkoutCabOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available cabs in ${escapeHtml(city || 'destination')}...</div>`;
+    try {
+      const query = new URLSearchParams({
+        city: city || 'Bengaluru',
+        pickup: pickup || 'Terminal',
+        dropoff: dropoff || 'City Center'
+      });
+      const res = await fetch(`/api/market/cabs/quote?${query.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const quotes = (data && data.success && Array.isArray(data.data)) ? data.data : [];
+      if (quotes.length === 0) {
+        elements.checkoutCabOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">No cabs available for this route.</div>`;
+        if (elements.checkoutSelectedCabId) elements.checkoutSelectedCabId.value = '';
+        return;
+      }
 
-      activeVerificationTimers.set(key, { timerId, pollId });
-    }
+      elements.checkoutCabOptionsList.innerHTML = quotes.map(cab => {
+        const isAvailable = (cab.seats != null && cab.seats > 0);
+        const fare = Number(cab.estimatedFare || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        const isSelected = (elements.checkoutSelectedCabId && elements.checkoutSelectedCabId.value === cab.id);
 
-    async function loadCheckoutCabOptions(city, pickup, dropoff) {
-      if (!elements.checkoutCabOptionsList) return;
-      elements.checkoutCabOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available cabs in ${escapeHtml(city || 'destination')}...</div>`;
-      try {
-        const query = new URLSearchParams({
-          city: city || 'Bengaluru',
-          pickup: pickup || 'Terminal',
-          dropoff: dropoff || 'City Center'
-        });
-        const res = await fetch(`/api/market/cabs/quote?${query.toString()}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const quotes = (data && data.success && Array.isArray(data.data)) ? data.data : [];
-        if (quotes.length === 0) {
-          elements.checkoutCabOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">No cabs available for this route.</div>`;
-          if (elements.checkoutSelectedCabId) elements.checkoutSelectedCabId.value = '';
-          return;
-        }
-
-        elements.checkoutCabOptionsList.innerHTML = quotes.map(cab => {
-          const isAvailable = (cab.seats != null && cab.seats > 0);
-          const fare = Number(cab.estimatedFare || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
-          const isSelected = (elements.checkoutSelectedCabId && elements.checkoutSelectedCabId.value === cab.id);
-
-          return `
+        return `
             <div class="addon-option-card ${isAvailable ? '' : 'disabled'}" data-cab-id="${escapeHtml(cab.id)}" data-cab-provider="${escapeHtml(cab.provider)}" style="padding: 0.6rem; border: 1px solid ${isSelected ? '#38bdf8' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; background: rgba(30, 41, 59, 0.4); opacity: ${isAvailable ? '1' : '0.5'}; margin-bottom: 0.4rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="flex: 1;">
@@ -7581,113 +7731,113 @@
               <div class="cab-verification-status hidden" style="margin-top: 0.4rem; padding: 0.35rem 0.5rem; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 4px; font-size: 0.78rem; color: #38bdf8; display: flex; justify-content: space-between; align-items: center;"></div>
             </div>
           `;
-        }).join('');
+      }).join('');
 
-        const cards = elements.checkoutCabOptionsList.querySelectorAll('.addon-option-card:not(.disabled)');
-        cards.forEach((card) => {
-          const btn = card.querySelector('.btn-select-cab');
-          const doSelect = async () => {
-            cards.forEach(c => {
-              c.style.borderColor = 'rgba(255,255,255,0.1)';
-              const b = c.querySelector('.btn-select-cab');
-              if (b) {
-                b.textContent = 'Select';
-                b.className = 'btn btn-sm btn-outline-gold btn-select-cab';
-                b.style.background = 'transparent';
-                b.style.color = 'var(--gold-color)';
-              }
-            });
-            card.style.borderColor = '#38bdf8';
-            if (btn) {
-              btn.innerHTML = 'Selected &check;';
-              btn.className = 'btn btn-sm btn-gold btn-select-cab';
-              btn.style.background = 'var(--gold-color)';
-              btn.style.color = '#0f172a';
-              btn.style.fontWeight = '700';
+      const cards = elements.checkoutCabOptionsList.querySelectorAll('.addon-option-card:not(.disabled)');
+      cards.forEach((card) => {
+        const btn = card.querySelector('.btn-select-cab');
+        const doSelect = async () => {
+          cards.forEach(c => {
+            c.style.borderColor = 'rgba(255,255,255,0.1)';
+            const b = c.querySelector('.btn-select-cab');
+            if (b) {
+              b.textContent = 'Select';
+              b.className = 'btn btn-sm btn-outline-gold btn-select-cab';
+              b.style.background = 'transparent';
+              b.style.color = 'var(--gold-color)';
             }
-            if (elements.checkoutSelectedCabId) elements.checkoutSelectedCabId.value = card.dataset.cabId;
-
-            // User requirement: verification email send to provider within 30 sec upon select
-            const statusBox = card.querySelector('.cab-verification-status');
-            if (statusBox) {
-              statusBox.classList.remove('hidden');
-              statusBox.innerHTML = `<span>⏳ Dispatching verification email to cab provider...</span>`;
-            }
-            try {
-              const vRes = await fetch('/api/market/verification/request', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  type: 'CAB',
-                  targetId: card.dataset.cabId,
-                  targetName: card.dataset.cabProvider,
-                  city: city || (marketState.currentService && marketState.currentService.destinationCity),
-                  pickup: pickup || (elements.checkoutCabPickup ? elements.checkoutCabPickup.value : ''),
-                  dropoff: dropoff || (elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value : ''),
-                  guestName: (state.currentUser && state.currentUser.name) ? state.currentUser.name : 'Traveller'
-                })
-              });
-              const vData = await vRes.json();
-              if (vRes.ok && vData.success && vData.data) {
-                showToast(`Verification email sent to ${card.dataset.cabProvider}!`, 'info');
-                startInCardVerificationTimer(card, statusBox, vData.data.bookingId, vData.data.timeoutSeconds || 30, card.dataset.cabProvider, 'CAB');
-              }
-            } catch (err) {
-              console.error('Failed to request cab verification:', err);
-            }
-          };
-
-          if (btn) btn.addEventListener('click', (ev) => { ev.stopPropagation(); doSelect(); });
-          card.addEventListener('click', (ev) => {
-            if (ev.target.closest('.btn-select-cab')) return;
-            doSelect();
           });
+          card.style.borderColor = '#38bdf8';
+          if (btn) {
+            btn.innerHTML = 'Selected &check;';
+            btn.className = 'btn btn-sm btn-gold btn-select-cab';
+            btn.style.background = 'var(--gold-color)';
+            btn.style.color = '#0f172a';
+            btn.style.fontWeight = '700';
+          }
+          if (elements.checkoutSelectedCabId) elements.checkoutSelectedCabId.value = card.dataset.cabId;
+
+          // User requirement: verification email send to provider within 30 sec upon select
+          const statusBox = card.querySelector('.cab-verification-status');
+          if (statusBox) {
+            statusBox.classList.remove('hidden');
+            statusBox.innerHTML = `<span>⏳ Dispatching verification email to cab provider...</span>`;
+          }
+          try {
+            const vRes = await fetch('/api/market/verification/request', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'CAB',
+                targetId: card.dataset.cabId,
+                targetName: card.dataset.cabProvider,
+                city: city || (marketState.currentService && marketState.currentService.destinationCity),
+                pickup: pickup || (elements.checkoutCabPickup ? elements.checkoutCabPickup.value : ''),
+                dropoff: dropoff || (elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value : ''),
+                guestName: (state.currentUser && state.currentUser.name) ? state.currentUser.name : 'Traveller'
+              })
+            });
+            const vData = await vRes.json();
+            if (vRes.ok && vData.success && vData.data) {
+              showToast(`Verification email sent to ${card.dataset.cabProvider}!`, 'info');
+              startInCardVerificationTimer(card, statusBox, vData.data.bookingId, vData.data.timeoutSeconds || 30, card.dataset.cabProvider, 'CAB');
+            }
+          } catch (err) {
+            console.error('Failed to request cab verification:', err);
+          }
+        };
+
+        if (btn) btn.addEventListener('click', (ev) => { ev.stopPropagation(); doSelect(); });
+        card.addEventListener('click', (ev) => {
+          if (ev.target.closest('.btn-select-cab')) return;
+          doSelect();
         });
-      } catch (err) {
-        elements.checkoutCabOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #ef4444; text-align: center; padding: 0.5rem;">Failed to load cabs: ${escapeHtml(err.message)}</div>`;
-      }
+      });
+    } catch (err) {
+      elements.checkoutCabOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #ef4444; text-align: center; padding: 0.5rem;">Failed to load cabs: ${escapeHtml(err.message)}</div>`;
     }
+  }
 
-    async function loadCheckoutHotelOptions(city, checkIn, nights, rooms) {
-      if (!elements.checkoutHotelOptionsList) return;
-      elements.checkoutHotelOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available hotels in ${escapeHtml(city || 'destination')}...</div>`;
-      try {
-        const query = new URLSearchParams({
-          city: city || 'Bengaluru',
-          rooms: rooms || 1
-        });
-        if (checkIn) query.append('checkIn', checkIn);
-        const res = await fetch(`/api/market/hotels?${query.toString()}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const hotels = (data && data.success && Array.isArray(data.data)) ? data.data : [];
-        if (hotels.length === 0) {
-          elements.checkoutHotelOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">No hotels found for this city.</div>`;
-          if (elements.checkoutSelectedHotelId) elements.checkoutSelectedHotelId.value = '';
-          if (elements.checkoutSelectedRoomTypeId) elements.checkoutSelectedRoomTypeId.value = '';
-          return;
-        }
+  async function loadCheckoutHotelOptions(city, checkIn, nights, rooms) {
+    if (!elements.checkoutHotelOptionsList) return;
+    elements.checkoutHotelOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available hotels in ${escapeHtml(city || 'destination')}...</div>`;
+    try {
+      const query = new URLSearchParams({
+        city: city || 'Bengaluru',
+        rooms: rooms || 1
+      });
+      if (checkIn) query.append('checkIn', checkIn);
+      const res = await fetch(`/api/market/hotels?${query.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const hotels = (data && data.success && Array.isArray(data.data)) ? data.data : [];
+      if (hotels.length === 0) {
+        elements.checkoutHotelOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">No hotels found for this city.</div>`;
+        if (elements.checkoutSelectedHotelId) elements.checkoutSelectedHotelId.value = '';
+        if (elements.checkoutSelectedRoomTypeId) elements.checkoutSelectedRoomTypeId.value = '';
+        return;
+      }
 
-        // Sort: available first, then cheap to high by price
-        hotels.sort((a, b) => {
-          const aAvail = (a.roomsAvailable != null && a.roomsAvailable >= (rooms || 1)) ? 0 : 1;
-          const bAvail = (b.roomsAvailable != null && b.roomsAvailable >= (rooms || 1)) ? 0 : 1;
-          if (aAvail !== bAvail) return aAvail - bAvail;
-          const aPrice = Number(a.pricePerNight || a.estimatedTotal || 0);
-          const bPrice = Number(b.pricePerNight || b.estimatedTotal || 0);
-          return aPrice - bPrice;
-        });
+      // Sort: available first, then cheap to high by price
+      hotels.sort((a, b) => {
+        const aAvail = (a.roomsAvailable != null && a.roomsAvailable >= (rooms || 1)) ? 0 : 1;
+        const bAvail = (b.roomsAvailable != null && b.roomsAvailable >= (rooms || 1)) ? 0 : 1;
+        if (aAvail !== bAvail) return aAvail - bAvail;
+        const aPrice = Number(a.pricePerNight || a.estimatedTotal || 0);
+        const bPrice = Number(b.pricePerNight || b.estimatedTotal || 0);
+        return aPrice - bPrice;
+      });
 
-        elements.checkoutHotelOptionsList.innerHTML = hotels.map(h => {
-          const isAvailable = (h.roomsAvailable != null && h.roomsAvailable >= (rooms || 1));
-          const total = Number(h.estimatedTotal || (h.pricePerNight * (nights || 1) * (rooms || 1))).toLocaleString('en-IN', { minimumFractionDigits: 2 });
-          const ratingHtml = (h.rating != null && Number(h.rating) > 0)
-            ? `<span style="color: #f59e0b; font-weight: 700; font-size: 0.82rem; margin-left: 0.35rem;" title="${Number(h.rating).toFixed(1)} Stars">★ ${Number(h.rating).toFixed(1)}</span>`
-            : '<span style="color: #94a3b8; font-size: 0.72rem; margin-left: 0.35rem;">(Provider Listed)</span>';
+      elements.checkoutHotelOptionsList.innerHTML = hotels.map(h => {
+        const isAvailable = (h.roomsAvailable != null && h.roomsAvailable >= (rooms || 1));
+        const total = Number(h.estimatedTotal || (h.pricePerNight * (nights || 1) * (rooms || 1))).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        const ratingHtml = (h.rating != null && Number(h.rating) > 0)
+          ? `<span style="color: #f59e0b; font-weight: 700; font-size: 0.82rem; margin-left: 0.35rem;" title="${Number(h.rating).toFixed(1)} Stars">★ ${Number(h.rating).toFixed(1)}</span>`
+          : '<span style="color: #94a3b8; font-size: 0.72rem; margin-left: 0.35rem;">(Provider Listed)</span>';
 
-          const isSelected = (elements.checkoutSelectedHotelId && elements.checkoutSelectedHotelId.value === h.id);
+        const isSelected = (elements.checkoutSelectedHotelId && elements.checkoutSelectedHotelId.value === h.id);
 
-          return `
+        return `
             <div class="addon-option-card ${isAvailable ? '' : 'disabled'}" data-hotel-id="${escapeHtml(h.id)}" data-room-type-id="${escapeHtml(h.roomTypeId || '')}" data-hotel-name="${escapeHtml(h.name)}" style="padding: 0.6rem; border: 1px solid ${isSelected ? '#38bdf8' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; background: rgba(30, 41, 59, 0.4); opacity: ${isAvailable ? '1' : '0.5'}; margin-bottom: 0.4rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="flex: 1;">
@@ -7710,388 +7860,388 @@
               <div class="hotel-verification-status hidden" style="margin-top: 0.4rem; padding: 0.35rem 0.5rem; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 4px; font-size: 0.78rem; color: #38bdf8; display: flex; justify-content: space-between; align-items: center;"></div>
             </div>
           `;
-        }).join('');
+      }).join('');
 
-        const cards = elements.checkoutHotelOptionsList.querySelectorAll('.addon-option-card:not(.disabled)');
-        cards.forEach((card) => {
-          const btn = card.querySelector('.btn-select-hotel');
-          const doSelect = async () => {
-            cards.forEach(c => {
-              c.style.borderColor = 'rgba(255,255,255,0.1)';
-              const b = c.querySelector('.btn-select-hotel');
-              if (b) {
-                b.textContent = 'Select';
-                b.className = 'btn btn-sm btn-outline-gold btn-select-hotel';
-                b.style.background = 'transparent';
-                b.style.color = 'var(--gold-color)';
-              }
-            });
-            card.style.borderColor = '#38bdf8';
-            if (btn) {
-              btn.innerHTML = 'Selected &check;';
-              btn.className = 'btn btn-sm btn-gold btn-select-hotel';
-              btn.style.background = 'var(--gold-color)';
-              btn.style.color = '#0f172a';
-              btn.style.fontWeight = '700';
+      const cards = elements.checkoutHotelOptionsList.querySelectorAll('.addon-option-card:not(.disabled)');
+      cards.forEach((card) => {
+        const btn = card.querySelector('.btn-select-hotel');
+        const doSelect = async () => {
+          cards.forEach(c => {
+            c.style.borderColor = 'rgba(255,255,255,0.1)';
+            const b = c.querySelector('.btn-select-hotel');
+            if (b) {
+              b.textContent = 'Select';
+              b.className = 'btn btn-sm btn-outline-gold btn-select-hotel';
+              b.style.background = 'transparent';
+              b.style.color = 'var(--gold-color)';
             }
-            if (elements.checkoutSelectedHotelId) elements.checkoutSelectedHotelId.value = card.dataset.hotelId;
-            if (elements.checkoutSelectedRoomTypeId) elements.checkoutSelectedRoomTypeId.value = card.dataset.roomTypeId;
-            if (elements.checkoutHotelName) elements.checkoutHotelName.value = card.dataset.hotelName || '';
-
-            // User requirement: Destination cab dropoff should be hotel name
-            if (elements.checkoutCabDropoff) {
-              elements.checkoutCabDropoff.value = card.dataset.hotelName || '';
-            }
-
-            // If cab transfer is enabled, refresh cab quotes for the selected hotel destination
-            if (elements.checkoutAddonCabToggle && elements.checkoutAddonCabToggle.checked && marketState.currentService) {
-              const destCity = marketState.currentService.destinationCity || '';
-              const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value : '';
-              loadCheckoutCabOptions(destCity, pickup, card.dataset.hotelName);
-            }
-
-            // User requirement: verification email send to provider within 30 sec upon select
-            const statusBox = card.querySelector('.hotel-verification-status');
-            if (statusBox) {
-              statusBox.classList.remove('hidden');
-              statusBox.innerHTML = `<span>⏳ Dispatching verification email to provider...</span>`;
-            }
-            try {
-              const vRes = await fetch('/api/market/verification/request', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  type: 'HOTEL',
-                  targetId: card.dataset.hotelId,
-                  roomTypeId: card.dataset.roomTypeId,
-                  targetName: card.dataset.hotelName,
-                  city: city || (marketState.currentService && marketState.currentService.destinationCity),
-                  rooms: rooms || 1,
-                  nights: nights || 1,
-                  guestName: (state.currentUser && state.currentUser.name) ? state.currentUser.name : 'Traveller'
-                })
-              });
-              const vData = await vRes.json();
-              if (vRes.ok && vData.success && vData.data) {
-                showToast(`Verification email sent to provider for ${card.dataset.hotelName}!`, 'info');
-                startInCardVerificationTimer(card, statusBox, vData.data.bookingId, vData.data.timeoutSeconds || 30, card.dataset.hotelName, 'HOTEL');
-              }
-            } catch (err) {
-              console.error('Failed to request verification:', err);
-            }
-          };
-
-          if (btn) btn.addEventListener('click', (ev) => { ev.stopPropagation(); doSelect(); });
-          card.addEventListener('click', (ev) => {
-            if (ev.target.closest('.btn-select-hotel')) return;
-            doSelect();
           });
+          card.style.borderColor = '#38bdf8';
+          if (btn) {
+            btn.innerHTML = 'Selected &check;';
+            btn.className = 'btn btn-sm btn-gold btn-select-hotel';
+            btn.style.background = 'var(--gold-color)';
+            btn.style.color = '#0f172a';
+            btn.style.fontWeight = '700';
+          }
+          if (elements.checkoutSelectedHotelId) elements.checkoutSelectedHotelId.value = card.dataset.hotelId;
+          if (elements.checkoutSelectedRoomTypeId) elements.checkoutSelectedRoomTypeId.value = card.dataset.roomTypeId;
+          if (elements.checkoutHotelName) elements.checkoutHotelName.value = card.dataset.hotelName || '';
+
+          // User requirement: Destination cab dropoff should be hotel name
+          if (elements.checkoutCabDropoff) {
+            elements.checkoutCabDropoff.value = card.dataset.hotelName || '';
+          }
+
+          // If cab transfer is enabled, refresh cab quotes for the selected hotel destination
+          if (elements.checkoutAddonCabToggle && elements.checkoutAddonCabToggle.checked && marketState.currentService) {
+            const destCity = marketState.currentService.destinationCity || '';
+            const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value : '';
+            loadCheckoutCabOptions(destCity, pickup, card.dataset.hotelName);
+          }
+
+          // User requirement: verification email send to provider within 30 sec upon select
+          const statusBox = card.querySelector('.hotel-verification-status');
+          if (statusBox) {
+            statusBox.classList.remove('hidden');
+            statusBox.innerHTML = `<span>⏳ Dispatching verification email to provider...</span>`;
+          }
+          try {
+            const vRes = await fetch('/api/market/verification/request', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'HOTEL',
+                targetId: card.dataset.hotelId,
+                roomTypeId: card.dataset.roomTypeId,
+                targetName: card.dataset.hotelName,
+                city: city || (marketState.currentService && marketState.currentService.destinationCity),
+                rooms: rooms || 1,
+                nights: nights || 1,
+                guestName: (state.currentUser && state.currentUser.name) ? state.currentUser.name : 'Traveller'
+              })
+            });
+            const vData = await vRes.json();
+            if (vRes.ok && vData.success && vData.data) {
+              showToast(`Verification email sent to provider for ${card.dataset.hotelName}!`, 'info');
+              startInCardVerificationTimer(card, statusBox, vData.data.bookingId, vData.data.timeoutSeconds || 30, card.dataset.hotelName, 'HOTEL');
+            }
+          } catch (err) {
+            console.error('Failed to request verification:', err);
+          }
+        };
+
+        if (btn) btn.addEventListener('click', (ev) => { ev.stopPropagation(); doSelect(); });
+        card.addEventListener('click', (ev) => {
+          if (ev.target.closest('.btn-select-hotel')) return;
+          doSelect();
         });
-      } catch (err) {
-        elements.checkoutHotelOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #ef4444; text-align: center; padding: 0.5rem;">Failed to load hotels: ${escapeHtml(err.message)}</div>`;
-      }
+      });
+    } catch (err) {
+      elements.checkoutHotelOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #ef4444; text-align: center; padding: 0.5rem;">Failed to load hotels: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  let pendingConfirmationTimerId = null;
+  let pendingConfirmationPollId = null;
+
+  function openPendingConfirmationModal(booking) {
+    if (!elements.modalProviderPending) return;
+    clearInterval(pendingConfirmationTimerId);
+    clearInterval(pendingConfirmationPollId);
+
+    elements.modalProviderPending.classList.remove('hidden');
+    elements.modalProviderPending.classList.add('is-open');
+
+    if (elements.pendingActionFeedback) {
+      elements.pendingActionFeedback.className = 'hidden';
+      elements.pendingActionFeedback.textContent = '';
+    }
+    if (elements.pendingProviderMessage) {
+      elements.pendingProviderMessage.textContent = 'Waiting for provider to confirm your request...';
+    }
+    if (elements.btnCancelPendingRequest) {
+      elements.btnCancelPendingRequest.textContent = 'Choose Another Option';
     }
 
-    let pendingConfirmationTimerId = null;
-    let pendingConfirmationPollId = null;
+    let totalSeconds = 60;
+    if (booking.confirmationExpiresAt) {
+      const diff = Math.round((new Date(booking.confirmationExpiresAt).getTime() - Date.now()) / 1000);
+      if (diff > 0) totalSeconds = diff;
+    }
+    let remainingSeconds = totalSeconds;
 
-    function openPendingConfirmationModal(booking) {
-      if (!elements.modalProviderPending) return;
-      clearInterval(pendingConfirmationTimerId);
-      clearInterval(pendingConfirmationPollId);
-
-      elements.modalProviderPending.classList.remove('hidden');
-      elements.modalProviderPending.classList.add('is-open');
-
-      if (elements.pendingActionFeedback) {
-        elements.pendingActionFeedback.className = 'hidden';
-        elements.pendingActionFeedback.textContent = '';
+    const updateTimerDisplay = () => {
+      if (elements.pendingCountdownTimer) {
+        elements.pendingCountdownTimer.textContent = `${remainingSeconds}s`;
       }
-      if (elements.pendingProviderMessage) {
-        elements.pendingProviderMessage.textContent = 'Waiting for provider to confirm your request...';
+      if (elements.pendingProgressBar) {
+        const pct = Math.max(0, Math.min(100, (remainingSeconds / totalSeconds) * 100));
+        elements.pendingProgressBar.style.width = `${pct}%`;
       }
-      if (elements.btnCancelPendingRequest) {
-        elements.btnCancelPendingRequest.textContent = 'Choose Another Option';
-      }
+    };
 
-      let totalSeconds = 60;
-      if (booking.confirmationExpiresAt) {
-        const diff = Math.round((new Date(booking.confirmationExpiresAt).getTime() - Date.now()) / 1000);
-        if (diff > 0) totalSeconds = diff;
-      }
-      let remainingSeconds = totalSeconds;
+    updateTimerDisplay();
 
-      const updateTimerDisplay = () => {
-        if (elements.pendingCountdownTimer) {
-          elements.pendingCountdownTimer.textContent = `${remainingSeconds}s`;
+    pendingConfirmationTimerId = setInterval(() => {
+      remainingSeconds--;
+      if (remainingSeconds <= 0) {
+        clearInterval(pendingConfirmationTimerId);
+        clearInterval(pendingConfirmationPollId);
+        if (elements.pendingCountdownTimer) elements.pendingCountdownTimer.textContent = '0s';
+        if (elements.pendingProgressBar) elements.pendingProgressBar.style.width = '0%';
+        if (elements.pendingProviderMessage) {
+          elements.pendingProviderMessage.textContent = 'Request timed out. The provider did not respond in time.';
         }
-        if (elements.pendingProgressBar) {
-          const pct = Math.max(0, Math.min(100, (remainingSeconds / totalSeconds) * 100));
-          elements.pendingProgressBar.style.width = `${pct}%`;
+        if (elements.pendingActionFeedback) {
+          elements.pendingActionFeedback.className = 'badge-danger';
+          elements.pendingActionFeedback.style.display = 'block';
+          elements.pendingActionFeedback.textContent = 'Not available — please choose another option.';
         }
-      };
+      } else {
+        updateTimerDisplay();
+      }
+    }, 1000);
 
-      updateTimerDisplay();
+    pendingConfirmationPollId = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/market/bookings/${encodeURIComponent(booking.id)}/status`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success || !data.data) return;
 
-      pendingConfirmationTimerId = setInterval(() => {
-        remainingSeconds--;
-        if (remainingSeconds <= 0) {
+        const current = data.data;
+        if (current.status === 'CONFIRMED') {
           clearInterval(pendingConfirmationTimerId);
           clearInterval(pendingConfirmationPollId);
-          if (elements.pendingCountdownTimer) elements.pendingCountdownTimer.textContent = '0s';
-          if (elements.pendingProgressBar) elements.pendingProgressBar.style.width = '0%';
           if (elements.pendingProviderMessage) {
-            elements.pendingProviderMessage.textContent = 'Request timed out. The provider did not respond in time.';
+            elements.pendingProviderMessage.textContent = 'Provider Confirmed! Payment processed.';
+          }
+          if (elements.pendingActionFeedback) {
+            elements.pendingActionFeedback.className = 'badge-success';
+            elements.pendingActionFeedback.style.display = 'block';
+            elements.pendingActionFeedback.textContent = 'Booking confirmed! Redirecting to confirmation...';
+          }
+          setTimeout(() => {
+            closePendingConfirmationModal();
+            openConfirmationModal(current);
+            showToast('Provider confirmed! Booking complete.', 'success');
+          }, 1200);
+        } else if (current.status === 'CANCELLED' || current.providerConfirmationStatus === 'REJECTED' || current.providerConfirmationStatus === 'EXPIRED') {
+          clearInterval(pendingConfirmationTimerId);
+          clearInterval(pendingConfirmationPollId);
+          if (elements.pendingProviderMessage) {
+            elements.pendingProviderMessage.textContent = current.providerConfirmationStatus === 'REJECTED'
+              ? 'Provider cannot honour this request at this time.'
+              : 'Booking request timed out with no response from the provider.';
           }
           if (elements.pendingActionFeedback) {
             elements.pendingActionFeedback.className = 'badge-danger';
             elements.pendingActionFeedback.style.display = 'block';
-            elements.pendingActionFeedback.textContent = 'Not available — please choose another option.';
+            elements.pendingActionFeedback.textContent = 'Not available — no payment charged. Please choose another option.';
           }
-        } else {
-          updateTimerDisplay();
         }
-      }, 1000);
+      } catch (e) {
+        console.warn('Status poll failed', e);
+      }
+    }, 2000);
+  }
 
-      pendingConfirmationPollId = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/market/bookings/${encodeURIComponent(booking.id)}/status`);
-          if (!res.ok) return;
-          const data = await res.json();
-          if (!data.success || !data.data) return;
+  function closePendingConfirmationModal() {
+    clearInterval(pendingConfirmationTimerId);
+    clearInterval(pendingConfirmationPollId);
+    if (elements.modalProviderPending) {
+      elements.modalProviderPending.classList.add('hidden');
+      elements.modalProviderPending.classList.remove('is-open');
+    }
+  }
 
-          const current = data.data;
-          if (current.status === 'CONFIRMED') {
-            clearInterval(pendingConfirmationTimerId);
-            clearInterval(pendingConfirmationPollId);
-            if (elements.pendingProviderMessage) {
-              elements.pendingProviderMessage.textContent = 'Provider Confirmed! Payment processed.';
-            }
-            if (elements.pendingActionFeedback) {
-              elements.pendingActionFeedback.className = 'badge-success';
-              elements.pendingActionFeedback.style.display = 'block';
-              elements.pendingActionFeedback.textContent = 'Booking confirmed! Redirecting to confirmation...';
-            }
-            setTimeout(() => {
-              closePendingConfirmationModal();
-              openConfirmationModal(current);
-              showToast('Provider confirmed! Booking complete.', 'success');
-            }, 1200);
-          } else if (current.status === 'CANCELLED' || current.providerConfirmationStatus === 'REJECTED' || current.providerConfirmationStatus === 'EXPIRED') {
-            clearInterval(pendingConfirmationTimerId);
-            clearInterval(pendingConfirmationPollId);
-            if (elements.pendingProviderMessage) {
-              elements.pendingProviderMessage.textContent = current.providerConfirmationStatus === 'REJECTED'
-                ? 'Provider cannot honour this request at this time.'
-                : 'Booking request timed out with no response from the provider.';
-            }
-            if (elements.pendingActionFeedback) {
-              elements.pendingActionFeedback.className = 'badge-danger';
-              elements.pendingActionFeedback.style.display = 'block';
-              elements.pendingActionFeedback.textContent = 'Not available — no payment charged. Please choose another option.';
-            }
-          }
-        } catch (e) {
-          console.warn('Status poll failed', e);
-        }
-      }, 2000);
+  // Mock Payment Submit
+  async function handleMockPaymentSubmit(e) {
+    e.preventDefault();
+
+    const selectedMethodEl = document.querySelector('input[name="paymentMethod"]:checked');
+    const paymentMethod = selectedMethodEl ? selectedMethodEl.value : 'CARD';
+
+    let cardHolder = '';
+    let cardNumber = '';
+    let expiry = '';
+    let cvv = '';
+    let upiId = '';
+    let bankName = '';
+
+    if (paymentMethod === 'CARD') {
+      cardHolder = elements.cardHolderName ? elements.cardHolderName.value.trim() : '';
+      cardNumber = elements.cardNumber ? elements.cardNumber.value.trim() : '';
+      expiry = elements.cardExpiry ? elements.cardExpiry.value.trim() : '';
+      cvv = elements.cardCvv ? elements.cardCvv.value.trim() : '';
+
+      if (!cardHolder || !cardNumber || !expiry || !cvv) {
+        showToast('Please fill in all card details.', 'warning');
+        return;
+      }
+    } else if (paymentMethod === 'UPI') {
+      upiId = elements.checkoutUpiId ? elements.checkoutUpiId.value.trim() : '';
+      if (!upiId) {
+        showToast('Please enter your UPI ID.', 'warning');
+        return;
+      }
+      if (!upiId.includes('@')) {
+        showToast('Invalid UPI ID format. Expected: username@bank', 'warning');
+        return;
+      }
+    } else if (paymentMethod === 'NETBANKING') {
+      bankName = elements.checkoutBankSelect ? elements.checkoutBankSelect.value : '';
+      if (!bankName) {
+        showToast('Please select your bank for Netbanking.', 'warning');
+        return;
+      }
     }
 
-    function closePendingConfirmationModal() {
-      clearInterval(pendingConfirmationTimerId);
-      clearInterval(pendingConfirmationPollId);
-      if (elements.modalProviderPending) {
-        elements.modalProviderPending.classList.add('hidden');
-        elements.modalProviderPending.classList.remove('is-open');
+    let bookingDraft = {};
+    const isExisting = elements.choiceExistingTrip && elements.choiceExistingTrip.checked;
+    if (isExisting) {
+      const selectedTripId = elements.checkoutTripSelect ? elements.checkoutTripSelect.value : '';
+      if (!selectedTripId) {
+        showToast('Please select an existing trip from the dropdown.', 'warning');
+        return;
       }
+      bookingDraft.tripId = selectedTripId;
+      bookingDraft.createTrip = false;
+    } else {
+      bookingDraft.createTrip = true;
+      bookingDraft.tripId = null;
     }
 
-    // Mock Payment Submit
-    async function handleMockPaymentSubmit(e) {
-      e.preventDefault();
+    if (marketState.checkoutType === 'HOTEL') {
+      const hotel = marketState.pendingHotel;
+      if (!hotel) return;
+      bookingDraft.hotelId = hotel.hotelId;
+      bookingDraft.roomTypeId = hotel.roomTypeId;
+      bookingDraft.checkIn = hotel.checkIn;
+      bookingDraft.checkOut = hotel.checkOut;
+      bookingDraft.rooms = hotel.rooms;
+      bookingDraft.guestName = hotel.guestName;
+    } else if (marketState.checkoutType === 'CAB') {
+      const cab = marketState.pendingCab;
+      if (!cab) return;
+      bookingDraft.cabServiceId = cab.cabServiceId;
+      bookingDraft.pickup = cab.pickup;
+      bookingDraft.dropoff = cab.dropoff;
+      bookingDraft.pickupTime = cab.pickupTime;
+    } else {
+      const service = marketState.currentService;
+      const passengers = marketState.passengers;
+      if (!service || !passengers || passengers.length === 0) return;
+      bookingDraft.serviceDepartureId = service.departureId;
+      bookingDraft.passengers = passengers;
 
-      const selectedMethodEl = document.querySelector('input[name="paymentMethod"]:checked');
-      const paymentMethod = selectedMethodEl ? selectedMethodEl.value : 'CARD';
-
-      let cardHolder = '';
-      let cardNumber = '';
-      let expiry = '';
-      let cvv = '';
-      let upiId = '';
-      let bankName = '';
-
-      if (paymentMethod === 'CARD') {
-        cardHolder = elements.cardHolderName ? elements.cardHolderName.value.trim() : '';
-        cardNumber = elements.cardNumber ? elements.cardNumber.value.trim() : '';
-        expiry = elements.cardExpiry ? elements.cardExpiry.value.trim() : '';
-        cvv = elements.cardCvv ? elements.cardCvv.value.trim() : '';
-
-        if (!cardHolder || !cardNumber || !expiry || !cvv) {
-          showToast('Please fill in all card details.', 'warning');
-          return;
-        }
-      } else if (paymentMethod === 'UPI') {
-        upiId = elements.checkoutUpiId ? elements.checkoutUpiId.value.trim() : '';
-        if (!upiId) {
-          showToast('Please enter your UPI ID.', 'warning');
-          return;
-        }
-        if (!upiId.includes('@')) {
-          showToast('Invalid UPI ID format. Expected: username@bank', 'warning');
-          return;
-        }
-      } else if (paymentMethod === 'NETBANKING') {
-        bankName = elements.checkoutBankSelect ? elements.checkoutBankSelect.value : '';
-        if (!bankName) {
-          showToast('Please select your bank for Netbanking.', 'warning');
-          return;
-        }
-      }
-
-      let bookingDraft = {};
-      const isExisting = elements.choiceExistingTrip && elements.choiceExistingTrip.checked;
-      if (isExisting) {
-        const selectedTripId = elements.checkoutTripSelect ? elements.checkoutTripSelect.value : '';
-        if (!selectedTripId) {
-          showToast('Please select an existing trip from the dropdown.', 'warning');
-          return;
-        }
-        bookingDraft.tripId = selectedTripId;
-        bookingDraft.createTrip = false;
-      } else {
-        bookingDraft.createTrip = true;
-        bookingDraft.tripId = null;
-      }
-
-      if (marketState.checkoutType === 'HOTEL') {
-        const hotel = marketState.pendingHotel;
-        if (!hotel) return;
-        bookingDraft.hotelId = hotel.hotelId;
-        bookingDraft.roomTypeId = hotel.roomTypeId;
-        bookingDraft.checkIn = hotel.checkIn;
-        bookingDraft.checkOut = hotel.checkOut;
-        bookingDraft.rooms = hotel.rooms;
-        bookingDraft.guestName = hotel.guestName;
-      } else if (marketState.checkoutType === 'CAB') {
-        const cab = marketState.pendingCab;
-        if (!cab) return;
-        bookingDraft.cabServiceId = cab.cabServiceId;
-        bookingDraft.pickup = cab.pickup;
-        bookingDraft.dropoff = cab.dropoff;
-        bookingDraft.pickupTime = cab.pickupTime;
-      } else {
-        const service = marketState.currentService;
-        const passengers = marketState.passengers;
-        if (!service || !passengers || passengers.length === 0) return;
-        bookingDraft.serviceDepartureId = service.departureId;
-        bookingDraft.passengers = passengers;
-
-        // Check if Cab add-on is ticked
-        if (elements.checkoutAddonCabToggle && elements.checkoutAddonCabToggle.checked) {
-          const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value.trim() : (service.destinationStop || service.destinationCity);
-          const dropoff = elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value.trim() : `${service.destinationCity} Center`;
-          const cabId = elements.checkoutSelectedCabId ? elements.checkoutSelectedCabId.value : null;
-          bookingDraft.cabAddon = {
-            cabServiceId: cabId || null,
-            pickup: pickup,
-            dropoff: dropoff,
-            city: service.destinationCity
-          };
-        }
-
-        // Check if Hotel add-on is ticked
-        if (elements.checkoutAddonHotelToggle && elements.checkoutAddonHotelToggle.checked) {
-          const hotelName = elements.checkoutHotelName ? elements.checkoutHotelName.value.trim() : `${service.destinationCity} Grand Residency`;
-          const nights = elements.checkoutHotelNights ? parseInt(elements.checkoutHotelNights.value, 10) || 1 : 1;
-          const rooms = elements.checkoutHotelRooms ? parseInt(elements.checkoutHotelRooms.value, 10) || 1 : 1;
-          const hotelId = elements.checkoutSelectedHotelId ? elements.checkoutSelectedHotelId.value : null;
-          const roomTypeId = elements.checkoutSelectedRoomTypeId ? elements.checkoutSelectedRoomTypeId.value : null;
-          bookingDraft.hotelAddon = {
-            hotelId: hotelId || null,
-            roomTypeId: roomTypeId || null,
-            hotelName: hotelName,
-            city: service.destinationCity,
-            rooms: rooms,
-            nights: nights
-          };
-        }
-      }
-
-      setButtonLoading(elements.btnPayNow, true);
-      elements.checkoutErrorMsg.classList.add('hidden');
-      elements.checkoutErrorMsg.textContent = '';
-
-      try {
-        const payload = {
-          bookingDraft,
-          paymentMethod,
-          cardHolder: cardHolder || (state.currentUser ? state.currentUser.name : 'Traveller'),
-          cardNumber: paymentMethod === 'CARD' ? cardNumber : undefined,
-          expiry: paymentMethod === 'CARD' ? expiry : undefined,
-          cvv: paymentMethod === 'CARD' ? cvv : undefined,
-          upiId: paymentMethod === 'UPI' ? upiId : undefined,
-          bankName: paymentMethod === 'NETBANKING' ? bankName : undefined,
+      // Check if Cab add-on is ticked
+      if (elements.checkoutAddonCabToggle && elements.checkoutAddonCabToggle.checked) {
+        const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value.trim() : (service.destinationStop || service.destinationCity);
+        const dropoff = elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value.trim() : `${service.destinationCity} Center`;
+        const cabId = elements.checkoutSelectedCabId ? elements.checkoutSelectedCabId.value : null;
+        bookingDraft.cabAddon = {
+          cabServiceId: cabId || null,
+          pickup: pickup,
+          dropoff: dropoff,
+          city: service.destinationCity
         };
+      }
 
-        const res = await fetch('/api/market/payments/mock', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Payment processing failed');
-        }
-
-        const confirmed = data.data && data.data.confirmedBooking;
-        const pendingAddon = data.data && (data.data.pendingAddonBooking || (confirmed && confirmed.pendingAddon));
-        if (!confirmed) {
-          throw new Error('Booking could not be confirmed');
-        }
-
-        closeCheckoutModal();
-        if (confirmed.status === 'PENDING_PROVIDER_CONFIRMATION') {
-          openPendingConfirmationModal(confirmed);
-        } else if (pendingAddon && pendingAddon.status === 'PENDING_PROVIDER_CONFIRMATION') {
-          openPendingConfirmationModal(pendingAddon);
-        } else {
-          openConfirmationModal(confirmed);
-          showToast('Demo payment succeeded and booking confirmed!', 'success');
-        }
-        await fetchTripsDirectory();
-        loadMyMarketBookings();
-      } catch (err) {
-        elements.checkoutErrorMsg.textContent = err.message;
-        elements.checkoutErrorMsg.classList.remove('hidden');
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(elements.btnPayNow, false);
+      // Check if Hotel add-on is ticked
+      if (elements.checkoutAddonHotelToggle && elements.checkoutAddonHotelToggle.checked) {
+        const hotelName = elements.checkoutHotelName ? elements.checkoutHotelName.value.trim() : `${service.destinationCity} Grand Residency`;
+        const nights = elements.checkoutHotelNights ? parseInt(elements.checkoutHotelNights.value, 10) || 1 : 1;
+        const rooms = elements.checkoutHotelRooms ? parseInt(elements.checkoutHotelRooms.value, 10) || 1 : 1;
+        const hotelId = elements.checkoutSelectedHotelId ? elements.checkoutSelectedHotelId.value : null;
+        const roomTypeId = elements.checkoutSelectedRoomTypeId ? elements.checkoutSelectedRoomTypeId.value : null;
+        bookingDraft.hotelAddon = {
+          hotelId: hotelId || null,
+          roomTypeId: roomTypeId || null,
+          hotelName: hotelName,
+          city: service.destinationCity,
+          rooms: rooms,
+          nights: nights
+        };
       }
     }
 
-    // Confirmation Modal
-    function openConfirmationModal(booking) {
-      if (!elements.modalConfirmation) return;
+    setButtonLoading(elements.btnPayNow, true);
+    elements.checkoutErrorMsg.classList.add('hidden');
+    elements.checkoutErrorMsg.textContent = '';
 
-      elements.confirmedBookingRef.textContent = booking.bookingReference;
-      elements.btnDownloadConfirmedSummary.href = `/api/market/bookings/${encodeURIComponent(booking.id)}/summary`;
+    try {
+      const payload = {
+        bookingDraft,
+        paymentMethod,
+        cardHolder: cardHolder || (state.currentUser ? state.currentUser.name : 'Traveller'),
+        cardNumber: paymentMethod === 'CARD' ? cardNumber : undefined,
+        expiry: paymentMethod === 'CARD' ? expiry : undefined,
+        cvv: paymentMethod === 'CARD' ? cvv : undefined,
+        upiId: paymentMethod === 'UPI' ? upiId : undefined,
+        bankName: paymentMethod === 'NETBANKING' ? bankName : undefined,
+      };
 
-      if (booking.tripId && elements.confirmedTripInfo) {
-        elements.confirmedTripInfo.classList.remove('hidden');
-        if (elements.confirmedTripTitle) {
-          elements.confirmedTripTitle.textContent = booking.tripTitle || 'Trip';
-        }
-        if (elements.btnOpenConfirmedTrip) {
-          elements.btnOpenConfirmedTrip.setAttribute('data-trip-id', booking.tripId);
-        }
-      } else if (elements.confirmedTripInfo) {
-        elements.confirmedTripInfo.classList.add('hidden');
+      const res = await fetch('/api/market/payments/mock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Payment processing failed');
       }
 
-      const priceFormatted = Number(booking.cost).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      elements.confirmedBookingDetails.innerHTML = `
+      const confirmed = data.data && data.data.confirmedBooking;
+      const pendingAddon = data.data && (data.data.pendingAddonBooking || (confirmed && confirmed.pendingAddon));
+      if (!confirmed) {
+        throw new Error('Booking could not be confirmed');
+      }
+
+      closeCheckoutModal();
+      if (confirmed.status === 'PENDING_PROVIDER_CONFIRMATION') {
+        openPendingConfirmationModal(confirmed);
+      } else if (pendingAddon && pendingAddon.status === 'PENDING_PROVIDER_CONFIRMATION') {
+        openPendingConfirmationModal(pendingAddon);
+      } else {
+        openConfirmationModal(confirmed);
+        showToast('Demo payment succeeded and booking confirmed!', 'success');
+      }
+      await fetchTripsDirectory();
+      loadMyMarketBookings();
+    } catch (err) {
+      elements.checkoutErrorMsg.textContent = err.message;
+      elements.checkoutErrorMsg.classList.remove('hidden');
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(elements.btnPayNow, false);
+    }
+  }
+
+  // Confirmation Modal
+  function openConfirmationModal(booking) {
+    if (!elements.modalConfirmation) return;
+
+    elements.confirmedBookingRef.textContent = booking.bookingReference;
+    elements.btnDownloadConfirmedSummary.href = `/api/market/bookings/${encodeURIComponent(booking.id)}/summary`;
+
+    if (booking.tripId && elements.confirmedTripInfo) {
+      elements.confirmedTripInfo.classList.remove('hidden');
+      if (elements.confirmedTripTitle) {
+        elements.confirmedTripTitle.textContent = booking.tripTitle || 'Trip';
+      }
+      if (elements.btnOpenConfirmedTrip) {
+        elements.btnOpenConfirmedTrip.setAttribute('data-trip-id', booking.tripId);
+      }
+    } else if (elements.confirmedTripInfo) {
+      elements.confirmedTripInfo.classList.add('hidden');
+    }
+
+    const priceFormatted = Number(booking.cost).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    elements.confirmedBookingDetails.innerHTML = `
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.875rem;">
           <div><span style="color: #94a3b8;">Route:</span> <strong>${escapeHtml(booking.from)} &rarr; ${escapeHtml(booking.to)}</strong></div>
           <div><span style="color: #94a3b8;">Operator:</span> <strong>${escapeHtml(booking.operator || booking.provider)} (${escapeHtml(booking.vehicleNumber || 'N/A')})</strong></div>
@@ -8102,57 +8252,57 @@
         </div>
       `;
 
-      elements.modalConfirmation.classList.remove('hidden');
-      elements.modalConfirmation.classList.add('is-open');
+    elements.modalConfirmation.classList.remove('hidden');
+    elements.modalConfirmation.classList.add('is-open');
+  }
+
+  function closeConfirmationModal() {
+    if (elements.modalConfirmation) {
+      elements.modalConfirmation.classList.add('hidden');
+      elements.modalConfirmation.classList.remove('is-open');
     }
+  }
 
-    function closeConfirmationModal() {
-      if (elements.modalConfirmation) {
-        elements.modalConfirmation.classList.add('hidden');
-        elements.modalConfirmation.classList.remove('is-open');
-      }
-    }
+  // My Marketplace Bookings API & Rendering
+  async function loadMyMarketBookings() {
+    if (!state.currentUser) return;
 
-    // My Marketplace Bookings API & Rendering
-    async function loadMyMarketBookings() {
-      if (!state.currentUser) return;
-
-      try {
-        const res = await fetch('/api/market/bookings');
-        if (!res.ok) {
-          if (elements.marketBookingsContainer) {
-            elements.marketBookingsContainer.innerHTML = `<div class="market-empty-state"><p style="color: #f87171;">Unable to load marketplace bookings (HTTP ${res.status}).</p></div>`;
-          }
-          return;
+    try {
+      const res = await fetch('/api/market/bookings');
+      if (!res.ok) {
+        if (elements.marketBookingsContainer) {
+          elements.marketBookingsContainer.innerHTML = `<div class="market-empty-state"><p style="color: #f87171;">Unable to load marketplace bookings (HTTP ${res.status}).</p></div>`;
         }
+        return;
+      }
 
-        const data = await res.json();
-        const bookings = (data && data.success && data.data) ? data.data : [];
+      const data = await res.json();
+      const bookings = (data && data.success && data.data) ? data.data : [];
 
-        if (elements.navMarketBookingsCount) elements.navMarketBookingsCount.textContent = String(bookings.length);
-        if (elements.marketMyBookingsCount) elements.marketMyBookingsCount.textContent = `${bookings.length} booking${bookings.length === 1 ? '' : 's'}`;
+      if (elements.navMarketBookingsCount) elements.navMarketBookingsCount.textContent = String(bookings.length);
+      if (elements.marketMyBookingsCount) elements.marketMyBookingsCount.textContent = `${bookings.length} booking${bookings.length === 1 ? '' : 's'}`;
 
-        if (!elements.marketBookingsContainer) return;
+      if (!elements.marketBookingsContainer) return;
 
-        if (bookings.length === 0) {
-          elements.marketBookingsContainer.innerHTML = `
+      if (bookings.length === 0) {
+        elements.marketBookingsContainer.innerHTML = `
             <div class="market-empty-state">
               <p>You have no marketplace bookings yet. Search for a route to create your first demo booking.</p>
             </div>
           `;
-          return;
-        }
+        return;
+      }
 
-        elements.marketBookingsContainer.innerHTML = '';
-        bookings.forEach((b) => {
-          const item = document.createElement('div');
-          item.className = 'market-booking-item';
+      elements.marketBookingsContainer.innerHTML = '';
+      bookings.forEach((b) => {
+        const item = document.createElement('div');
+        item.className = 'market-booking-item';
 
-          const isCancelled = b.status === 'CANCELLED';
-          const priceFormatted = Number(b.cost).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          const depTime = b.startTime ? String(b.startTime).replace('T', ' ') : 'N/A';
+        const isCancelled = b.status === 'CANCELLED';
+        const priceFormatted = Number(b.cost).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const depTime = b.startTime ? String(b.startTime).replace('T', ' ') : 'N/A';
 
-          item.innerHTML = `
+        item.innerHTML = `
             <div class="booking-item-header">
               <div>
                 <span class="booking-item-ref">${escapeHtml(b.bookingReference || b.id)}</span>
@@ -8203,78 +8353,90 @@
             </div>
           `;
 
-          elements.marketBookingsContainer.appendChild(item);
-        });
-      } catch (err) {
-        console.error('Failed to load my bookings', err);
-        if (elements.marketBookingsContainer) {
-          elements.marketBookingsContainer.innerHTML = `<div class="market-empty-state"><p style="color: #f87171;">Unable to load marketplace bookings: ${escapeHtml(err.message)}</p></div>`;
-        }
+        elements.marketBookingsContainer.appendChild(item);
+      });
+    } catch (err) {
+      console.error('Failed to load my bookings', err);
+      if (elements.marketBookingsContainer) {
+        elements.marketBookingsContainer.innerHTML = `<div class="market-empty-state"><p style="color: #f87171;">Unable to load marketplace bookings: ${escapeHtml(err.message)}</p></div>`;
       }
     }
+  }
 
-    // Cancel Booking Modal
-    function openCancelBookingModal(id, ref) {
-      marketState.bookingToCancelId = id;
-      marketState.bookingToCancelRef = ref;
-      if (elements.cancelModalRef) elements.cancelModalRef.textContent = ref;
+  // Cancel Booking Modal
+  function openCancelBookingModal(id, ref) {
+    marketState.bookingToCancelId = id;
+    marketState.bookingToCancelRef = ref;
+    if (elements.cancelModalRef) elements.cancelModalRef.textContent = ref;
 
-      const b = (marketState.myBookings || []).find(x => x.id === id)
-        || (state.trip && state.trip.bookings && state.trip.bookings.find(x => x.id === id));
-      const bType = (b && b.type) ? String(b.type).toUpperCase() : '';
+    const b = (marketState.myBookings || []).find(x => x.id === id)
+      || (state.trip && state.trip.bookings && state.trip.bookings.find(x => x.id === id));
+    const bType = (b && b.type) ? String(b.type).toUpperCase() : '';
 
-      if (elements.cancelModalPolicyNotice) {
-        if (bType === 'HOTEL') {
-          elements.cancelModalPolicyNotice.innerHTML = `
+    if (elements.cancelModalPolicyNotice) {
+      if (bType === 'HOTEL') {
+        elements.cancelModalPolicyNotice.innerHTML = `
             <div class="banner banner-danger" style="font-size: 0.85rem; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.12); color: #f87171; border-radius: 4px; padding: 8px 12px;">
               ⚠️ <strong>Hotel bookings are strictly non-refundable once confirmed. You will receive 0% refund.</strong>
             </div>
           `;
-        } else if (bType === 'CAB' || bType === 'CAB_OFFERING') {
-          elements.cancelModalPolicyNotice.innerHTML = `
+      } else if (bType === 'CAB' || bType === 'CAB_OFFERING') {
+        elements.cancelModalPolicyNotice.innerHTML = `
             <div class="banner banner-info" style="font-size: 0.85rem; border: 1px solid rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.12); color: #93c5fd; border-radius: 4px; padding: 8px 12px;">
               ℹ️ <strong>Cabs do not auto-refund upon cancellation. To request a refund, go to the Cost &amp; Refund Ledger and submit a refund request for provider review.</strong>
             </div>
           `;
-        } else {
-          elements.cancelModalPolicyNotice.innerHTML = `
+      } else {
+        elements.cancelModalPolicyNotice.innerHTML = `
             <div class="banner banner-info" style="font-size: 0.85rem; border: 1px solid rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.12); color: #93c5fd; border-radius: 4px; padding: 8px 12px;">
               ℹ️ <strong>Tiered refund policy applies:</strong> 10+ days before departure (100%), 3–9 days (75%), 1–2 days (25%), &lt;24 hours (0%). Any non-refundable deduction will be recorded in the Cost &amp; Refund Ledger.
             </div>
           `;
-        }
       }
-
-      elements.modalCancelBooking.classList.remove('hidden');
-      elements.modalCancelBooking.classList.add('is-open');
     }
 
-    function closeCancelBookingModal() {
-      if (elements.modalCancelBooking) {
-        elements.modalCancelBooking.classList.add('hidden');
-        elements.modalCancelBooking.classList.remove('is-open');
-      }
-      marketState.bookingToCancelId = null;
-      marketState.bookingToCancelRef = null;
+    elements.modalCancelBooking.classList.remove('hidden');
+    elements.modalCancelBooking.classList.add('is-open');
+  }
+
+  function closeCancelBookingModal() {
+    if (elements.modalCancelBooking) {
+      elements.modalCancelBooking.classList.add('hidden');
+      elements.modalCancelBooking.classList.remove('is-open');
     }
+    marketState.bookingToCancelId = null;
+    marketState.bookingToCancelRef = null;
+  }
 
-    async function executeCancelBooking() {
-      const id = marketState.bookingToCancelId;
-      if (!id) return;
+  async function executeCancelBooking() {
+    const id = marketState.bookingToCancelId;
+    if (!id) return;
 
-      setButtonLoading(elements.btnExecuteCancelBooking, true);
-      try {
-        const res = await fetch(`/api/market/bookings/${encodeURIComponent(id)}/cancel`, {
-          method: 'POST',
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to cancel booking');
-        }
+    setButtonLoading(elements.btnExecuteCancelBooking, true);
+    try {
+      const res = await fetch(`/api/market/bookings/${encodeURIComponent(id)}/cancel`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to cancel booking');
+      }
 
         closeCancelBookingModal();
         const tierMsg = (data.data && data.data.refundTierApplied) ? data.data.refundTierApplied : 'Booking cancelled.';
         showToast('Booking cancelled! ' + tierMsg, 'success');
+        if (state.currentTripId && state.trip && state.trip.bookings) {
+          const tripB = state.trip.bookings.find(b => b.id === id || (b.bookingReference && b.bookingReference === marketState.bookingToCancelRef));
+          if (tripB && tripB.status !== 'CANCELLED') {
+            try {
+              await fetch(`/api/trips/${encodeURIComponent(state.currentTripId)}/bookings/${encodeURIComponent(tripB.id)}/report-problem`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'CANCELLED', delayMinutes: 0, note: `Cancelled by traveller (${tripB.type})` })
+              });
+            } catch (_) {}
+          }
+        }
         await loadMyMarketBookings();
         if (state.currentTripId) {
           await loadTripById(state.currentTripId);
@@ -8286,50 +8448,50 @@
       }
     }
 
-    // Hotel & Cab Search Handlers
-    async function handleMarketHotelsSearch(e) {
-      if (e) e.preventDefault();
-      const city = elements.marketHotelCity.value.trim();
-      const checkIn = elements.marketHotelCheckin.value;
-      const checkOut = elements.marketHotelCheckout.value;
-      const rooms = elements.marketHotelRooms.value;
+  // Hotel & Cab Search Handlers
+  async function handleMarketHotelsSearch(e) {
+    if (e) e.preventDefault();
+    const city = elements.marketHotelCity.value.trim();
+    const checkIn = elements.marketHotelCheckin.value;
+    const checkOut = elements.marketHotelCheckout.value;
+    const rooms = elements.marketHotelRooms.value;
 
-      setButtonLoading(elements.btnMarketHotelsSearch, true);
-      try {
-        const q = new URLSearchParams({ city, checkIn: checkIn || '', checkOut: checkOut || '', rooms: rooms || '1' });
-        const res = await fetch(`/api/market/hotels?${q.toString()}`);
-        const data = await res.json();
-        const hotels = (data && data.success && data.data) ? data.data : [];
-        marketState.hotels = hotels;
+    setButtonLoading(elements.btnMarketHotelsSearch, true);
+    try {
+      const q = new URLSearchParams({ city, checkIn: checkIn || '', checkOut: checkOut || '', rooms: rooms || '1' });
+      const res = await fetch(`/api/market/hotels?${q.toString()}`);
+      const data = await res.json();
+      const hotels = (data && data.success && data.data) ? data.data : [];
+      marketState.hotels = hotels;
 
-        if (!elements.marketHotelsList) return;
-        if (hotels.length === 0) {
-          elements.marketHotelsList.innerHTML = '<div class="market-empty-state"><p>No hotels found for this city.</p></div>';
-          return;
-        }
+      if (!elements.marketHotelsList) return;
+      if (hotels.length === 0) {
+        elements.marketHotelsList.innerHTML = '<div class="market-empty-state"><p>No hotels found for this city.</p></div>';
+        return;
+      }
 
-        elements.marketHotelsList.innerHTML = '';
-        hotels.forEach(h => {
-          const item = document.createElement('div');
-          item.className = 'market-service-card';
-          const isProvider = (h.source === 'PROVIDER');
-          const ratingBadge = h.rating != null
-            ? `<span class="badge badge-gold">★ ${h.rating}</span>`
-            : `<span class="badge" style="background: rgba(255,255,255,0.1); color: #cbd5e1;">Not rated</span>`;
-          const providerBadge = isProvider
-            ? `<span class="badge badge-info" style="margin-left: 0.35rem;">${escapeHtml(h.listingLabel || 'Provider-listed')}</span>`
-            : '';
-          const roomInfo = h.roomTypeName
-            ? `<div style="font-size: 0.82rem; color: var(--gold-color); margin-top: 0.2rem;">Room: <strong>${escapeHtml(h.roomTypeName)}</strong> (Max ${h.maxGuests || 2} guests) &bull; <span style="color: #38bdf8;">${h.roomsAvailable} room(s) left</span></div>`
-            : '';
-          const amenitiesInfo = h.amenities
-            ? `<div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.15rem;">Amenities: ${escapeHtml(h.amenities)}</div>`
-            : '';
-          const disclaimerText = h.disclaimer
-            ? `<div class="disclaimer-text" style="font-size: 0.72rem; color: #94a3b8; font-style: italic; margin-top: 0.35rem;">${escapeHtml(h.disclaimer)}</div>`
-            : '';
+      elements.marketHotelsList.innerHTML = '';
+      hotels.forEach(h => {
+        const item = document.createElement('div');
+        item.className = 'market-service-card';
+        const isProvider = (h.source === 'PROVIDER');
+        const ratingBadge = h.rating != null
+          ? `<span class="badge badge-gold">★ ${h.rating}</span>`
+          : `<span class="badge" style="background: rgba(255,255,255,0.1); color: #cbd5e1;">Not rated</span>`;
+        const providerBadge = isProvider
+          ? `<span class="badge badge-info" style="margin-left: 0.35rem;">${escapeHtml(h.listingLabel || 'Provider-listed')}</span>`
+          : '';
+        const roomInfo = h.roomTypeName
+          ? `<div style="font-size: 0.82rem; color: var(--gold-color); margin-top: 0.2rem;">Room: <strong>${escapeHtml(h.roomTypeName)}</strong> (Max ${h.maxGuests || 2} guests) &bull; <span style="color: #38bdf8;">${h.roomsAvailable} room(s) left</span></div>`
+          : '';
+        const amenitiesInfo = h.amenities
+          ? `<div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.15rem;">Amenities: ${escapeHtml(h.amenities)}</div>`
+          : '';
+        const disclaimerText = h.disclaimer
+          ? `<div class="disclaimer-text" style="font-size: 0.72rem; color: #94a3b8; font-style: italic; margin-top: 0.35rem;">${escapeHtml(h.disclaimer)}</div>`
+          : '';
 
-          item.innerHTML = `
+        item.innerHTML = `
             <div class="service-card-top">
               <div>
                 <strong style="font-size: 1.1rem; color: #fff;">${escapeHtml(h.name)}</strong>
@@ -8353,52 +8515,52 @@
               </button>
             </div>
           `;
-          elements.marketHotelsList.appendChild(item);
-        });
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(elements.btnMarketHotelsSearch, false);
-      }
+        elements.marketHotelsList.appendChild(item);
+      });
+    } catch (err) {
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(elements.btnMarketHotelsSearch, false);
     }
+  }
 
-    async function handleMarketCabsQuote(e) {
-      if (e) e.preventDefault();
-      const city = elements.marketCabCity.value.trim();
-      const pickup = elements.marketCabPickup.value.trim();
-      const dropoff = elements.marketCabDropoff.value.trim();
+  async function handleMarketCabsQuote(e) {
+    if (e) e.preventDefault();
+    const city = elements.marketCabCity.value.trim();
+    const pickup = elements.marketCabPickup.value.trim();
+    const dropoff = elements.marketCabDropoff.value.trim();
 
-      setButtonLoading(elements.btnMarketCabsQuote, true);
-      try {
-        const q = new URLSearchParams({ city, pickup, dropoff });
-        const res = await fetch(`/api/market/cabs/quote?${q.toString()}`);
-        const data = await res.json();
-        const cabs = (data && data.success && data.data) ? data.data : [];
-        marketState.cabs = cabs;
+    setButtonLoading(elements.btnMarketCabsQuote, true);
+    try {
+      const q = new URLSearchParams({ city, pickup, dropoff });
+      const res = await fetch(`/api/market/cabs/quote?${q.toString()}`);
+      const data = await res.json();
+      const cabs = (data && data.success && data.data) ? data.data : [];
+      marketState.cabs = cabs;
 
-        if (!elements.marketCabsList) return;
-        if (cabs.length === 0) {
-          elements.marketCabsList.innerHTML = '<div class="market-empty-state"><p>No cab services found.</p></div>';
-          return;
-        }
+      if (!elements.marketCabsList) return;
+      if (cabs.length === 0) {
+        elements.marketCabsList.innerHTML = '<div class="market-empty-state"><p>No cab services found.</p></div>';
+        return;
+      }
 
-        elements.marketCabsList.innerHTML = '';
-        cabs.forEach(c => {
-          const item = document.createElement('div');
-          item.className = 'market-service-card';
-          const isProvider = (c.source === 'PROVIDER');
-          const sourceBadge = isProvider
-            ? `<span class="badge badge-info">${escapeHtml(c.listingLabel || 'Provider-listed')}</span>`
-            : `<span class="badge badge-green">${escapeHtml(c.listingLabel || 'Verified Partner')}</span>`;
-          const categoryBadge = `<span class="badge badge-gold" style="margin-left: 0.35rem;">${escapeHtml(c.vehicleCategory || 'SEDAN')} (${c.seats || 4} seats)</span>`;
-          const operatingHours = c.operatingHours
-            ? `<div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.2rem;">Hours: ${escapeHtml(c.operatingHours)}</div>`
-            : '';
-          const disclaimerText = c.disclaimer
-            ? `<div class="disclaimer-text" style="font-size: 0.72rem; color: #94a3b8; font-style: italic; margin-top: 0.35rem;">${escapeHtml(c.disclaimer)}</div>`
-            : '';
+      elements.marketCabsList.innerHTML = '';
+      cabs.forEach(c => {
+        const item = document.createElement('div');
+        item.className = 'market-service-card';
+        const isProvider = (c.source === 'PROVIDER');
+        const sourceBadge = isProvider
+          ? `<span class="badge badge-info">${escapeHtml(c.listingLabel || 'Provider-listed')}</span>`
+          : `<span class="badge badge-green">${escapeHtml(c.listingLabel || 'Verified Partner')}</span>`;
+        const categoryBadge = `<span class="badge badge-gold" style="margin-left: 0.35rem;">${escapeHtml(c.vehicleCategory || 'SEDAN')} (${c.seats || 4} seats)</span>`;
+        const operatingHours = c.operatingHours
+          ? `<div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.2rem;">Hours: ${escapeHtml(c.operatingHours)}</div>`
+          : '';
+        const disclaimerText = c.disclaimer
+          ? `<div class="disclaimer-text" style="font-size: 0.72rem; color: #94a3b8; font-style: italic; margin-top: 0.35rem;">${escapeHtml(c.disclaimer)}</div>`
+          : '';
 
-          item.innerHTML = `
+        item.innerHTML = `
             <div class="service-card-top">
               <div>
                 <strong style="font-size: 1.1rem; color: #fff;">${escapeHtml(c.provider)}</strong>
@@ -8421,595 +8583,595 @@
               </button>
             </div>
           `;
-          elements.marketCabsList.appendChild(item);
-        });
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(elements.btnMarketCabsQuote, false);
-      }
-    }
-
-    // Phase 10B: City Autocomplete & Popular Routes
-    function setupPopularRoutes() {
-      if (!elements.marketPopularRoutes) return;
-      elements.marketPopularRoutes.querySelectorAll('.route-chip').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const origin = btn.getAttribute('data-origin');
-          const dest = btn.getAttribute('data-dest');
-          if (elements.marketSearchOrigin) elements.marketSearchOrigin.value = origin;
-          if (elements.marketSearchDest) elements.marketSearchDest.value = dest;
-          handleMarketSearch();
-        });
+        elements.marketCabsList.appendChild(item);
       });
+    } catch (err) {
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(elements.btnMarketCabsQuote, false);
     }
+  }
 
-    function setupCityAutocomplete(inputEl, dropdownEl, fuzzyBoxEl) {
-      if (!inputEl || !dropdownEl) return;
-      let debounceTimer = null;
+  // Phase 10B: City Autocomplete & Popular Routes
+  function setupPopularRoutes() {
+    if (!elements.marketPopularRoutes) return;
+    elements.marketPopularRoutes.querySelectorAll('.route-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const origin = btn.getAttribute('data-origin');
+        const dest = btn.getAttribute('data-dest');
+        if (elements.marketSearchOrigin) elements.marketSearchOrigin.value = origin;
+        if (elements.marketSearchDest) elements.marketSearchDest.value = dest;
+        handleMarketSearch();
+      });
+    });
+  }
 
-      inputEl.addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        const query = inputEl.value.trim();
-        if (query.length < 1) {
-          dropdownEl.classList.add('hidden');
-          dropdownEl.innerHTML = '';
+  function setupCityAutocomplete(inputEl, dropdownEl, fuzzyBoxEl) {
+    if (!inputEl || !dropdownEl) return;
+    let debounceTimer = null;
+
+    inputEl.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      const query = inputEl.value.trim();
+      if (query.length < 1) {
+        dropdownEl.classList.add('hidden');
+        dropdownEl.innerHTML = '';
+        if (fuzzyBoxEl) {
+          fuzzyBoxEl.classList.add('hidden');
+          fuzzyBoxEl.innerHTML = '';
+        }
+        return;
+      }
+
+      debounceTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/market/cities?q=${encodeURIComponent(query)}`);
+          if (!res.ok) return;
+          const data = await res.json();
+          const cities = data.data || [];
+
+          if (data.message === 'City not found') {
+            dropdownEl.classList.add('hidden');
+            dropdownEl.innerHTML = '';
+            if (fuzzyBoxEl && cities.length > 0) {
+              fuzzyBoxEl.innerHTML = `<span>City not found. Did you mean: </span>` +
+                cities.map(c => `<button type="button" class="fuzzy-chip" data-name="${escapeHtml(c.name)}">${escapeHtml(c.name)}</button>`).join('');
+              fuzzyBoxEl.classList.remove('hidden');
+              fuzzyBoxEl.querySelectorAll('.fuzzy-chip').forEach(btn => {
+                btn.addEventListener('click', () => {
+                  inputEl.value = btn.getAttribute('data-name');
+                  fuzzyBoxEl.classList.add('hidden');
+                });
+              });
+            }
+            return;
+          }
+
           if (fuzzyBoxEl) {
             fuzzyBoxEl.classList.add('hidden');
             fuzzyBoxEl.innerHTML = '';
           }
-          return;
-        }
 
-        debounceTimer = setTimeout(async () => {
-          try {
-            const res = await fetch(`/api/market/cities?q=${encodeURIComponent(query)}`);
-            if (!res.ok) return;
-            const data = await res.json();
-            const cities = data.data || [];
+          if (cities.length === 0) {
+            dropdownEl.classList.add('hidden');
+            return;
+          }
 
-            if (data.message === 'City not found') {
-              dropdownEl.classList.add('hidden');
-              dropdownEl.innerHTML = '';
-              if (fuzzyBoxEl && cities.length > 0) {
-                fuzzyBoxEl.innerHTML = `<span>City not found. Did you mean: </span>` +
-                  cities.map(c => `<button type="button" class="fuzzy-chip" data-name="${escapeHtml(c.name)}">${escapeHtml(c.name)}</button>`).join('');
-                fuzzyBoxEl.classList.remove('hidden');
-                fuzzyBoxEl.querySelectorAll('.fuzzy-chip').forEach(btn => {
-                  btn.addEventListener('click', () => {
-                    inputEl.value = btn.getAttribute('data-name');
-                    fuzzyBoxEl.classList.add('hidden');
-                  });
-                });
-              }
-              return;
-            }
-
-            if (fuzzyBoxEl) {
-              fuzzyBoxEl.classList.add('hidden');
-              fuzzyBoxEl.innerHTML = '';
-            }
-
-            if (cities.length === 0) {
-              dropdownEl.classList.add('hidden');
-              return;
-            }
-
-            dropdownEl.innerHTML = '';
-            cities.forEach(c => {
-              const item = document.createElement('div');
-              item.className = 'autocomplete-item';
-              const badges = [];
-              if (c.hasAirport) badges.push('✈️');
-              if (c.hasRailwayStation) badges.push('🚆');
-              item.innerHTML = `
+          dropdownEl.innerHTML = '';
+          cities.forEach(c => {
+            const item = document.createElement('div');
+            item.className = 'autocomplete-item';
+            const badges = [];
+            if (c.hasAirport) badges.push('✈️');
+            if (c.hasRailwayStation) badges.push('🚆');
+            item.innerHTML = `
                 <div>
                   <span class="city-name">${escapeHtml(c.name)}</span>
                   <span class="city-state"> (${escapeHtml(c.state)})</span>
                 </div>
                 <div style="font-size: 0.8rem;">${badges.join(' ')}</div>
               `;
-              item.addEventListener('click', () => {
-                inputEl.value = c.name;
-                dropdownEl.classList.add('hidden');
-              });
-              dropdownEl.appendChild(item);
+            item.addEventListener('click', () => {
+              inputEl.value = c.name;
+              dropdownEl.classList.add('hidden');
             });
-            dropdownEl.classList.remove('hidden');
-          } catch (err) {
-            console.error('Autocomplete fetch error', err);
-          }
-        }, 200);
-      });
+            dropdownEl.appendChild(item);
+          });
+          dropdownEl.classList.remove('hidden');
+        } catch (err) {
+          console.error('Autocomplete fetch error', err);
+        }
+      }, 200);
+    });
 
-      document.addEventListener('click', (e) => {
-        if (!inputEl.contains(e.target) && !dropdownEl.contains(e.target)) {
-          dropdownEl.classList.add('hidden');
+    document.addEventListener('click', (e) => {
+      if (!inputEl.contains(e.target) && !dropdownEl.contains(e.target)) {
+        dropdownEl.classList.add('hidden');
+      }
+    });
+  }
+
+  // Phase 14: Trip Wallet Event Listeners
+  if (elements.btnViewWallet) {
+    elements.btnViewWallet.addEventListener('click', () => {
+      if (elements.sectionWallet) {
+        elements.sectionWallet.scrollIntoView({ behavior: 'smooth' });
+      }
+      if (state.currentTripId) {
+        loadTripWallet(state.currentTripId);
+      }
+    });
+  }
+
+  if (elements.btnWalletPrint) {
+    elements.btnWalletPrint.addEventListener('click', () => {
+      if (!state.currentTripId) {
+        showToast('No trip currently loaded', 'warning');
+        return;
+      }
+      const includeEmerg = elements.walletIncludeEmergency && elements.walletIncludeEmergency.checked;
+      const url = `/api/trips/${encodeURIComponent(state.currentTripId)}/wallet/print` + (includeEmerg ? '?includeEmergency=true' : '');
+      window.open(url, '_blank');
+    });
+  }
+
+  if (elements.btnWalletCalendar) {
+    elements.btnWalletCalendar.addEventListener('click', () => {
+      if (!state.currentTripId) {
+        showToast('No trip currently loaded', 'warning');
+        return;
+      }
+      window.location.href = `/api/trips/${encodeURIComponent(state.currentTripId)}/wallet/calendar`;
+    });
+  }
+
+  if (elements.btnWalletPack) {
+    elements.btnWalletPack.addEventListener('click', () => {
+      if (!state.currentTripId) {
+        showToast('No trip currently loaded', 'warning');
+        return;
+      }
+      const includeEmerg = elements.walletIncludeEmergency && elements.walletIncludeEmergency.checked;
+      const url = `/api/trips/${encodeURIComponent(state.currentTripId)}/wallet/pack` + (includeEmerg ? '?includeEmergency=true' : '');
+      window.location.href = url;
+    });
+  }
+
+  // Phase 15: Trip Readiness Event Listeners
+  if (elements.btnViewReadiness) {
+    elements.btnViewReadiness.addEventListener('click', () => {
+      if (elements.sectionReadiness) {
+        elements.sectionReadiness.scrollIntoView({ behavior: 'smooth' });
+      }
+      if (state.currentTripId) {
+        loadTripReadiness(state.currentTripId);
+      }
+    });
+  }
+
+  if (elements.btnRefreshReadiness) {
+    elements.btnRefreshReadiness.addEventListener('click', () => {
+      if (state.currentTripId) {
+        loadTripReadiness(state.currentTripId);
+        showToast('Refreshing trip readiness...', 'info');
+      }
+    });
+  }
+
+  // Connect Marketplace Event Listeners
+  function setupMarketplaceEventListeners() {
+    setupMarketSubtabs();
+    setupCityAutocomplete(elements.marketSearchOrigin, elements.originSuggestions, elements.originFuzzyBox);
+    setupCityAutocomplete(elements.marketSearchDest, elements.destSuggestions, elements.destFuzzyBox);
+    setupPopularRoutes();
+
+    if (elements.formMarketSearch) elements.formMarketSearch.addEventListener('submit', handleMarketSearch);
+    if (elements.formMarketHotels) elements.formMarketHotels.addEventListener('submit', handleMarketHotelsSearch);
+    if (elements.formMarketCabs) elements.formMarketCabs.addEventListener('submit', handleMarketCabsQuote);
+
+    // Dynamic automatic recalculation whenever pickup, dropoff, or city changes
+    let cabQuoteDebounceTimer = null;
+    function autoUpdateCabQuotes() {
+      clearTimeout(cabQuoteDebounceTimer);
+      cabQuoteDebounceTimer = setTimeout(() => {
+        const city = elements.marketCabCity ? elements.marketCabCity.value.trim() : '';
+        const pickup = elements.marketCabPickup ? elements.marketCabPickup.value.trim() : '';
+        const dropoff = elements.marketCabDropoff ? elements.marketCabDropoff.value.trim() : '';
+        if (city || pickup || dropoff) {
+          handleMarketCabsQuote();
+        }
+      }, 350);
+    }
+
+    if (elements.marketCabCity) {
+      elements.marketCabCity.addEventListener('input', autoUpdateCabQuotes);
+      elements.marketCabCity.addEventListener('change', autoUpdateCabQuotes);
+    }
+    if (elements.marketCabPickup) {
+      elements.marketCabPickup.addEventListener('input', autoUpdateCabQuotes);
+      elements.marketCabPickup.addEventListener('change', autoUpdateCabQuotes);
+    }
+    if (elements.marketCabDropoff) {
+      elements.marketCabDropoff.addEventListener('input', autoUpdateCabQuotes);
+      elements.marketCabDropoff.addEventListener('change', autoUpdateCabQuotes);
+    }
+
+    if (elements.btnRefreshMarketBookings) elements.btnRefreshMarketBookings.addEventListener('click', loadMyMarketBookings);
+
+    // Book service button click delegation
+    if (elements.marketServicesList) {
+      elements.marketServicesList.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-book-service');
+        if (!btn) return;
+        const depId = btn.getAttribute('data-departure-id');
+        const service = marketState.services.find(s => s.departureId === depId);
+        if (service) {
+          openSeatSelectionModal(service);
         }
       });
     }
 
-    // Phase 14: Trip Wallet Event Listeners
-    if (elements.btnViewWallet) {
-      elements.btnViewWallet.addEventListener('click', () => {
-        if (elements.sectionWallet) {
-          elements.sectionWallet.scrollIntoView({ behavior: 'smooth' });
-        }
-        if (state.currentTripId) {
-          loadTripWallet(state.currentTripId);
-        }
-      });
-    }
-
-    if (elements.btnWalletPrint) {
-      elements.btnWalletPrint.addEventListener('click', () => {
-        if (!state.currentTripId) {
-          showToast('No trip currently loaded', 'warning');
-          return;
-        }
-        const includeEmerg = elements.walletIncludeEmergency && elements.walletIncludeEmergency.checked;
-        const url = `/api/trips/${encodeURIComponent(state.currentTripId)}/wallet/print` + (includeEmerg ? '?includeEmergency=true' : '');
-        window.open(url, '_blank');
-      });
-    }
-
-    if (elements.btnWalletCalendar) {
-      elements.btnWalletCalendar.addEventListener('click', () => {
-        if (!state.currentTripId) {
-          showToast('No trip currently loaded', 'warning');
-          return;
-        }
-        window.location.href = `/api/trips/${encodeURIComponent(state.currentTripId)}/wallet/calendar`;
-      });
-    }
-
-    if (elements.btnWalletPack) {
-      elements.btnWalletPack.addEventListener('click', () => {
-        if (!state.currentTripId) {
-          showToast('No trip currently loaded', 'warning');
-          return;
-        }
-        const includeEmerg = elements.walletIncludeEmergency && elements.walletIncludeEmergency.checked;
-        const url = `/api/trips/${encodeURIComponent(state.currentTripId)}/wallet/pack` + (includeEmerg ? '?includeEmergency=true' : '');
-        window.location.href = url;
-      });
-    }
-
-    // Phase 15: Trip Readiness Event Listeners
-    if (elements.btnViewReadiness) {
-      elements.btnViewReadiness.addEventListener('click', () => {
-        if (elements.sectionReadiness) {
-          elements.sectionReadiness.scrollIntoView({ behavior: 'smooth' });
-        }
-        if (state.currentTripId) {
-          loadTripReadiness(state.currentTripId);
+    // Hotel & Cab click delegation -> opens checkout modal with trip choice
+    if (elements.marketHotelsList) {
+      elements.marketHotelsList.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-book-hotel-now');
+        if (!btn) return;
+        const hotelId = btn.getAttribute('data-id');
+        const hotel = (marketState.hotels || []).find(h => h.id === hotelId);
+        if (hotel) {
+          openHotelCheckoutModal(hotel);
         }
       });
     }
 
-    if (elements.btnRefreshReadiness) {
-      elements.btnRefreshReadiness.addEventListener('click', () => {
-        if (state.currentTripId) {
-          loadTripReadiness(state.currentTripId);
-          showToast('Refreshing trip readiness...', 'info');
+    if (elements.marketCabsList) {
+      elements.marketCabsList.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-book-cab-now');
+        if (!btn) return;
+        const cabId = btn.getAttribute('data-id');
+        const cab = (marketState.cabs || []).find(c => c.id === cabId);
+        if (cab) {
+          openCabCheckoutModal(cab);
         }
       });
     }
 
-    // Connect Marketplace Event Listeners
-    function setupMarketplaceEventListeners() {
-      setupMarketSubtabs();
-      setupCityAutocomplete(elements.marketSearchOrigin, elements.originSuggestions, elements.originFuzzyBox);
-      setupCityAutocomplete(elements.marketSearchDest, elements.destSuggestions, elements.destFuzzyBox);
-      setupPopularRoutes();
+    // Checkout trip choice radio toggles
+    if (elements.choiceCreateTrip) {
+      elements.choiceCreateTrip.addEventListener('change', () => {
+        if (elements.choiceCreateTrip.checked && elements.checkoutExistingTripContainer) {
+          elements.checkoutExistingTripContainer.classList.add('hidden');
+        }
+      });
+    }
+    if (elements.choiceExistingTrip) {
+      elements.choiceExistingTrip.addEventListener('change', () => {
+        if (elements.choiceExistingTrip.checked && elements.checkoutExistingTripContainer) {
+          elements.checkoutExistingTripContainer.classList.remove('hidden');
+        }
+      });
+    }
 
-      if (elements.formMarketSearch) elements.formMarketSearch.addEventListener('submit', handleMarketSearch);
-      if (elements.formMarketHotels) elements.formMarketHotels.addEventListener('submit', handleMarketHotelsSearch);
-      if (elements.formMarketCabs) elements.formMarketCabs.addEventListener('submit', handleMarketCabsQuote);
-
-      // Dynamic automatic recalculation whenever pickup, dropoff, or city changes
-      let cabQuoteDebounceTimer = null;
-      function autoUpdateCabQuotes() {
-        clearTimeout(cabQuoteDebounceTimer);
-        cabQuoteDebounceTimer = setTimeout(() => {
-          const city = elements.marketCabCity ? elements.marketCabCity.value.trim() : '';
-          const pickup = elements.marketCabPickup ? elements.marketCabPickup.value.trim() : '';
-          const dropoff = elements.marketCabDropoff ? elements.marketCabDropoff.value.trim() : '';
-          if (city || pickup || dropoff) {
-            handleMarketCabsQuote();
-          }
-        }, 350);
-      }
-
-      if (elements.marketCabCity) {
-        elements.marketCabCity.addEventListener('input', autoUpdateCabQuotes);
-        elements.marketCabCity.addEventListener('change', autoUpdateCabQuotes);
-      }
-      if (elements.marketCabPickup) {
-        elements.marketCabPickup.addEventListener('input', autoUpdateCabQuotes);
-        elements.marketCabPickup.addEventListener('change', autoUpdateCabQuotes);
-      }
-      if (elements.marketCabDropoff) {
-        elements.marketCabDropoff.addEventListener('input', autoUpdateCabQuotes);
-        elements.marketCabDropoff.addEventListener('change', autoUpdateCabQuotes);
-      }
-
-      if (elements.btnRefreshMarketBookings) elements.btnRefreshMarketBookings.addEventListener('click', loadMyMarketBookings);
-
-      // Book service button click delegation
-      if (elements.marketServicesList) {
-        elements.marketServicesList.addEventListener('click', (e) => {
-          const btn = e.target.closest('.btn-book-service');
-          if (!btn) return;
-          const depId = btn.getAttribute('data-departure-id');
-          const service = marketState.services.find(s => s.departureId === depId);
-          if (service) {
-            openSeatSelectionModal(service);
-          }
-        });
-      }
-
-      // Hotel & Cab click delegation -> opens checkout modal with trip choice
-      if (elements.marketHotelsList) {
-        elements.marketHotelsList.addEventListener('click', (e) => {
-          const btn = e.target.closest('.btn-book-hotel-now');
-          if (!btn) return;
-          const hotelId = btn.getAttribute('data-id');
-          const hotel = (marketState.hotels || []).find(h => h.id === hotelId);
-          if (hotel) {
-            openHotelCheckoutModal(hotel);
-          }
-        });
-      }
-
-      if (elements.marketCabsList) {
-        elements.marketCabsList.addEventListener('click', (e) => {
-          const btn = e.target.closest('.btn-book-cab-now');
-          if (!btn) return;
-          const cabId = btn.getAttribute('data-id');
-          const cab = (marketState.cabs || []).find(c => c.id === cabId);
-          if (cab) {
-            openCabCheckoutModal(cab);
-          }
-        });
-      }
-
-      // Checkout trip choice radio toggles
-      if (elements.choiceCreateTrip) {
-        elements.choiceCreateTrip.addEventListener('change', () => {
-          if (elements.choiceCreateTrip.checked && elements.checkoutExistingTripContainer) {
-            elements.checkoutExistingTripContainer.classList.add('hidden');
-          }
-        });
-      }
-      if (elements.choiceExistingTrip) {
-        elements.choiceExistingTrip.addEventListener('change', () => {
-          if (elements.choiceExistingTrip.checked && elements.checkoutExistingTripContainer) {
-            elements.checkoutExistingTripContainer.classList.remove('hidden');
-          }
-        });
-      }
-
-      // Add-on checkboxes
-      if (elements.checkoutAddonCabToggle) {
-        elements.checkoutAddonCabToggle.addEventListener('change', () => {
-          if (elements.checkoutAddonCabContainer) {
-            const isChecked = elements.checkoutAddonCabToggle.checked;
-            elements.checkoutAddonCabContainer.classList.toggle('hidden', !isChecked);
-            if (isChecked) {
-              const destCity = (marketState.currentService && marketState.currentService.destinationCity) || '';
-              const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value : '';
-              const dropoff = elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value : '';
-              loadCheckoutCabOptions(destCity, pickup, dropoff);
-            }
-          }
-        });
-      }
-      if (elements.checkoutAddonHotelToggle) {
-        elements.checkoutAddonHotelToggle.addEventListener('change', () => {
-          if (elements.checkoutAddonHotelContainer) {
-            const isChecked = elements.checkoutAddonHotelToggle.checked;
-            elements.checkoutAddonHotelContainer.classList.toggle('hidden', !isChecked);
+    // Add-on checkboxes
+    if (elements.checkoutAddonCabToggle) {
+      elements.checkoutAddonCabToggle.addEventListener('change', () => {
+        if (elements.checkoutAddonCabContainer) {
+          const isChecked = elements.checkoutAddonCabToggle.checked;
+          elements.checkoutAddonCabContainer.classList.toggle('hidden', !isChecked);
+          if (isChecked) {
             const destCity = (marketState.currentService && marketState.currentService.destinationCity) || '';
-            if (isChecked) {
-              const nights = elements.checkoutHotelNights ? parseInt(elements.checkoutHotelNights.value, 10) || 1 : 1;
-              const rooms = elements.checkoutHotelRooms ? parseInt(elements.checkoutHotelRooms.value, 10) || 1 : 1;
-              loadCheckoutHotelOptions(destCity, null, nights, rooms);
-            } else {
-              if (elements.checkoutSelectedHotelId) elements.checkoutSelectedHotelId.value = '';
-              if (elements.checkoutSelectedRoomTypeId) elements.checkoutSelectedRoomTypeId.value = '';
-              if (elements.checkoutHotelName) elements.checkoutHotelName.value = '';
-              if (elements.checkoutCabDropoff) {
-                elements.checkoutCabDropoff.value = destCity ? `${destCity} Center` : '';
-              }
-              if (elements.checkoutAddonCabToggle && elements.checkoutAddonCabToggle.checked) {
-                const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value : '';
-                loadCheckoutCabOptions(destCity, pickup, elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value : '');
-              }
-            }
-          }
-        });
-      }
-
-      // Allow traveller to edit pickup or dropoff location manually with dynamic recalculation
-      let checkoutCabDebounceTimer = null;
-      function debouncedLoadCheckoutCabOptions() {
-        clearTimeout(checkoutCabDebounceTimer);
-        checkoutCabDebounceTimer = setTimeout(() => {
-          if (elements.checkoutAddonCabToggle && elements.checkoutAddonCabToggle.checked && marketState.currentService) {
-            const destCity = marketState.currentService.destinationCity || '';
-            const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value.trim() : '';
-            const dropoff = elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value.trim() : '';
+            const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value : '';
+            const dropoff = elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value : '';
             loadCheckoutCabOptions(destCity, pickup, dropoff);
           }
-        }, 350);
-      }
-
-      if (elements.checkoutCabPickup) {
-        elements.checkoutCabPickup.addEventListener('change', debouncedLoadCheckoutCabOptions);
-        elements.checkoutCabPickup.addEventListener('input', debouncedLoadCheckoutCabOptions);
-      }
-
-      if (elements.checkoutCabDropoff) {
-        elements.checkoutCabDropoff.addEventListener('change', debouncedLoadCheckoutCabOptions);
-        elements.checkoutCabDropoff.addEventListener('input', debouncedLoadCheckoutCabOptions);
-      }
-      if (elements.checkoutHotelNights) {
-        elements.checkoutHotelNights.addEventListener('change', () => {
-          if (elements.checkoutAddonHotelToggle && elements.checkoutAddonHotelToggle.checked) {
-            const destCity = (marketState.currentService && marketState.currentService.destinationCity) || '';
-            const nights = parseInt(elements.checkoutHotelNights.value, 10) || 1;
-            const rooms = parseInt(elements.checkoutHotelRooms.value, 10) || 1;
+        }
+      });
+    }
+    if (elements.checkoutAddonHotelToggle) {
+      elements.checkoutAddonHotelToggle.addEventListener('change', () => {
+        if (elements.checkoutAddonHotelContainer) {
+          const isChecked = elements.checkoutAddonHotelToggle.checked;
+          elements.checkoutAddonHotelContainer.classList.toggle('hidden', !isChecked);
+          const destCity = (marketState.currentService && marketState.currentService.destinationCity) || '';
+          if (isChecked) {
+            const nights = elements.checkoutHotelNights ? parseInt(elements.checkoutHotelNights.value, 10) || 1 : 1;
+            const rooms = elements.checkoutHotelRooms ? parseInt(elements.checkoutHotelRooms.value, 10) || 1 : 1;
             loadCheckoutHotelOptions(destCity, null, nights, rooms);
+          } else {
+            if (elements.checkoutSelectedHotelId) elements.checkoutSelectedHotelId.value = '';
+            if (elements.checkoutSelectedRoomTypeId) elements.checkoutSelectedRoomTypeId.value = '';
+            if (elements.checkoutHotelName) elements.checkoutHotelName.value = '';
+            if (elements.checkoutCabDropoff) {
+              elements.checkoutCabDropoff.value = destCity ? `${destCity} Center` : '';
+            }
+            if (elements.checkoutAddonCabToggle && elements.checkoutAddonCabToggle.checked) {
+              const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value : '';
+              loadCheckoutCabOptions(destCity, pickup, elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value : '');
+            }
           }
-        });
-      }
-      if (elements.checkoutHotelRooms) {
-        elements.checkoutHotelRooms.addEventListener('change', () => {
-          if (elements.checkoutAddonHotelToggle && elements.checkoutAddonHotelToggle.checked) {
-            const destCity = (marketState.currentService && marketState.currentService.destinationCity) || '';
-            const nights = parseInt(elements.checkoutHotelNights.value, 10) || 1;
-            const rooms = parseInt(elements.checkoutHotelRooms.value, 10) || 1;
-            loadCheckoutHotelOptions(destCity, null, nights, rooms);
-          }
-        });
-      }
-      if (elements.btnCancelPendingRequest) {
-        elements.btnCancelPendingRequest.addEventListener('click', () => {
-          closePendingConfirmationModal();
-          if (elements.modalCheckout) {
-            elements.modalCheckout.classList.remove('hidden');
-            elements.modalCheckout.classList.add('is-open');
-          }
-        });
-      }
+        }
+      });
+    }
 
-      // Payment method radios
-      const handlePaymentMethodChange = (mode) => {
-        if (elements.checkoutCardFields) elements.checkoutCardFields.classList.toggle('hidden', mode !== 'CARD');
-        if (elements.checkoutUpiFields) elements.checkoutUpiFields.classList.toggle('hidden', mode !== 'UPI');
-        if (elements.checkoutNetbankingFields) elements.checkoutNetbankingFields.classList.toggle('hidden', mode !== 'NETBANKING');
-      };
-      if (elements.paymentMethodCard) elements.paymentMethodCard.addEventListener('change', () => handlePaymentMethodChange('CARD'));
-      if (elements.paymentMethodUpi) elements.paymentMethodUpi.addEventListener('change', () => handlePaymentMethodChange('UPI'));
-      if (elements.paymentMethodNetbanking) elements.paymentMethodNetbanking.addEventListener('change', () => handlePaymentMethodChange('NETBANKING'));
+    // Allow traveller to edit pickup or dropoff location manually with dynamic recalculation
+    let checkoutCabDebounceTimer = null;
+    function debouncedLoadCheckoutCabOptions() {
+      clearTimeout(checkoutCabDebounceTimer);
+      checkoutCabDebounceTimer = setTimeout(() => {
+        if (elements.checkoutAddonCabToggle && elements.checkoutAddonCabToggle.checked && marketState.currentService) {
+          const destCity = marketState.currentService.destinationCity || '';
+          const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value.trim() : '';
+          const dropoff = elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value.trim() : '';
+          loadCheckoutCabOptions(destCity, pickup, dropoff);
+        }
+      }, 350);
+    }
 
-      // Seat selection modal
-      if (elements.btnCloseSeatModal) elements.btnCloseSeatModal.addEventListener('click', closeSeatSelectionModal);
-      if (elements.btnCancelSeatSelection) elements.btnCancelSeatSelection.addEventListener('click', closeSeatSelectionModal);
-      if (elements.btnProceedToCheckout) elements.btnProceedToCheckout.addEventListener('click', openCheckoutModal);
+    if (elements.checkoutCabPickup) {
+      elements.checkoutCabPickup.addEventListener('change', debouncedLoadCheckoutCabOptions);
+      elements.checkoutCabPickup.addEventListener('input', debouncedLoadCheckoutCabOptions);
+    }
 
-      if (elements.flightPassengerCount) {
-        elements.flightPassengerCount.addEventListener('input', () => {
-          const count = Math.min(6, Math.max(1, parseInt(elements.flightPassengerCount.value, 10) || 1));
-          const list = [];
-          for (let i = 1; i <= count; i++) list.push(`Seat ${i} (Auto)`);
-          renderPassengerInputs(list);
-        });
-      }
+    if (elements.checkoutCabDropoff) {
+      elements.checkoutCabDropoff.addEventListener('change', debouncedLoadCheckoutCabOptions);
+      elements.checkoutCabDropoff.addEventListener('input', debouncedLoadCheckoutCabOptions);
+    }
+    if (elements.checkoutHotelNights) {
+      elements.checkoutHotelNights.addEventListener('change', () => {
+        if (elements.checkoutAddonHotelToggle && elements.checkoutAddonHotelToggle.checked) {
+          const destCity = (marketState.currentService && marketState.currentService.destinationCity) || '';
+          const nights = parseInt(elements.checkoutHotelNights.value, 10) || 1;
+          const rooms = parseInt(elements.checkoutHotelRooms.value, 10) || 1;
+          loadCheckoutHotelOptions(destCity, null, nights, rooms);
+        }
+      });
+    }
+    if (elements.checkoutHotelRooms) {
+      elements.checkoutHotelRooms.addEventListener('change', () => {
+        if (elements.checkoutAddonHotelToggle && elements.checkoutAddonHotelToggle.checked) {
+          const destCity = (marketState.currentService && marketState.currentService.destinationCity) || '';
+          const nights = parseInt(elements.checkoutHotelNights.value, 10) || 1;
+          const rooms = parseInt(elements.checkoutHotelRooms.value, 10) || 1;
+          loadCheckoutHotelOptions(destCity, null, nights, rooms);
+        }
+      });
+    }
+    if (elements.btnCancelPendingRequest) {
+      elements.btnCancelPendingRequest.addEventListener('click', () => {
+        closePendingConfirmationModal();
+        if (elements.modalCheckout) {
+          elements.modalCheckout.classList.remove('hidden');
+          elements.modalCheckout.classList.add('is-open');
+        }
+      });
+    }
 
-      // Checkout & Mock Payment
-      if (elements.btnCloseCheckoutModal) elements.btnCloseCheckoutModal.addEventListener('click', closeCheckoutModal);
-      if (elements.btnCancelCheckout) {
-        elements.btnCancelCheckout.addEventListener('click', () => {
-          closeCheckoutModal();
-          if (elements.modalSeatSelection && marketState.checkoutType === 'TRANSPORT') {
-            elements.modalSeatSelection.classList.remove('hidden');
-          }
-        });
-      }
-      if (elements.formMockPayment) elements.formMockPayment.addEventListener('submit', handleMockPaymentSubmit);
+    // Payment method radios
+    const handlePaymentMethodChange = (mode) => {
+      if (elements.checkoutCardFields) elements.checkoutCardFields.classList.toggle('hidden', mode !== 'CARD');
+      if (elements.checkoutUpiFields) elements.checkoutUpiFields.classList.toggle('hidden', mode !== 'UPI');
+      if (elements.checkoutNetbankingFields) elements.checkoutNetbankingFields.classList.toggle('hidden', mode !== 'NETBANKING');
+    };
+    if (elements.paymentMethodCard) elements.paymentMethodCard.addEventListener('change', () => handlePaymentMethodChange('CARD'));
+    if (elements.paymentMethodUpi) elements.paymentMethodUpi.addEventListener('change', () => handlePaymentMethodChange('UPI'));
+    if (elements.paymentMethodNetbanking) elements.paymentMethodNetbanking.addEventListener('change', () => handlePaymentMethodChange('NETBANKING'));
 
-      // Confirmation modal
-      if (elements.btnCloseConfirmationModal) elements.btnCloseConfirmationModal.addEventListener('click', closeConfirmationModal);
-      if (elements.btnConfirmGoToBookings) {
-        elements.btnConfirmGoToBookings.addEventListener('click', () => {
-          closeConfirmationModal();
-          switchView('market-bookings');
-        });
-      }
-      if (elements.btnOpenConfirmedTrip) {
-        elements.btnOpenConfirmedTrip.addEventListener('click', () => {
-          const tripId = elements.btnOpenConfirmedTrip.getAttribute('data-trip-id');
-          closeConfirmationModal();
+    // Seat selection modal
+    if (elements.btnCloseSeatModal) elements.btnCloseSeatModal.addEventListener('click', closeSeatSelectionModal);
+    if (elements.btnCancelSeatSelection) elements.btnCancelSeatSelection.addEventListener('click', closeSeatSelectionModal);
+    if (elements.btnProceedToCheckout) elements.btnProceedToCheckout.addEventListener('click', openCheckoutModal);
+
+    if (elements.flightPassengerCount) {
+      elements.flightPassengerCount.addEventListener('input', () => {
+        const count = Math.min(6, Math.max(1, parseInt(elements.flightPassengerCount.value, 10) || 1));
+        const list = [];
+        for (let i = 1; i <= count; i++) list.push(`Seat ${i} (Auto)`);
+        renderPassengerInputs(list);
+      });
+    }
+
+    // Checkout & Mock Payment
+    if (elements.btnCloseCheckoutModal) elements.btnCloseCheckoutModal.addEventListener('click', closeCheckoutModal);
+    if (elements.btnCancelCheckout) {
+      elements.btnCancelCheckout.addEventListener('click', () => {
+        closeCheckoutModal();
+        if (elements.modalSeatSelection && marketState.checkoutType === 'TRANSPORT') {
+          elements.modalSeatSelection.classList.remove('hidden');
+        }
+      });
+    }
+    if (elements.formMockPayment) elements.formMockPayment.addEventListener('submit', handleMockPaymentSubmit);
+
+    // Confirmation modal
+    if (elements.btnCloseConfirmationModal) elements.btnCloseConfirmationModal.addEventListener('click', closeConfirmationModal);
+    if (elements.btnConfirmGoToBookings) {
+      elements.btnConfirmGoToBookings.addEventListener('click', () => {
+        closeConfirmationModal();
+        switchView('market-bookings');
+      });
+    }
+    if (elements.btnOpenConfirmedTrip) {
+      elements.btnOpenConfirmedTrip.addEventListener('click', () => {
+        const tripId = elements.btnOpenConfirmedTrip.getAttribute('data-trip-id');
+        closeConfirmationModal();
+        if (tripId) {
+          loadTripById(tripId);
+        }
+      });
+    }
+
+    // Bookings container click delegation (Cancel & Open Trip)
+    if (elements.marketBookingsContainer) {
+      elements.marketBookingsContainer.addEventListener('click', (e) => {
+        const tripLink = e.target.closest('.link-open-trip');
+        if (tripLink) {
+          e.preventDefault();
+          const tripId = tripLink.getAttribute('data-trip-id');
           if (tripId) {
             loadTripById(tripId);
           }
-        });
-      }
+          return;
+        }
 
-      // Bookings container click delegation (Cancel & Open Trip)
-      if (elements.marketBookingsContainer) {
-        elements.marketBookingsContainer.addEventListener('click', (e) => {
-          const tripLink = e.target.closest('.link-open-trip');
-          if (tripLink) {
-            e.preventDefault();
-            const tripId = tripLink.getAttribute('data-trip-id');
-            if (tripId) {
-              loadTripById(tripId);
-            }
-            return;
-          }
+        const btn = e.target.closest('.btn-trigger-cancel');
+        if (!btn) return;
+        const id = btn.getAttribute('data-id');
+        const ref = btn.getAttribute('data-ref');
+        openCancelBookingModal(id, ref);
+      });
+    }
 
-          const btn = e.target.closest('.btn-trigger-cancel');
-          if (!btn) return;
-          const id = btn.getAttribute('data-id');
-          const ref = btn.getAttribute('data-ref');
-          openCancelBookingModal(id, ref);
-        });
-      }
+    if (elements.btnCloseCancelModal) elements.btnCloseCancelModal.addEventListener('click', closeCancelBookingModal);
+    if (elements.btnDismissCancelBooking) elements.btnDismissCancelBooking.addEventListener('click', closeCancelBookingModal);
+    if (elements.btnExecuteCancelBooking) elements.btnExecuteCancelBooking.addEventListener('click', executeCancelBooking);
 
-      if (elements.btnCloseCancelModal) elements.btnCloseCancelModal.addEventListener('click', closeCancelBookingModal);
-      if (elements.btnDismissCancelBooking) elements.btnDismissCancelBooking.addEventListener('click', closeCancelBookingModal);
-      if (elements.btnExecuteCancelBooking) elements.btnExecuteCancelBooking.addEventListener('click', executeCancelBooking);
-
-      // Phase 10C: Status Simulation & Replacement Modals
-      if (elements.btnCloseSimulateModal) elements.btnCloseSimulateModal.addEventListener('click', closeSimulateDepartureModal);
-      if (elements.btnDismissSimulate) elements.btnDismissSimulate.addEventListener('click', closeSimulateDepartureModal);
-      if (elements.btnApplyDepSimulation) elements.btnApplyDepSimulation.addEventListener('click', handleApplyDepartureSimulation);
-      if (elements.simulateStatusSelect) {
-        elements.simulateStatusSelect.addEventListener('change', () => {
-          if (elements.simulateDelayGroup) {
-            elements.simulateDelayGroup.classList.toggle('hidden', elements.simulateStatusSelect.value !== 'DELAYED');
-          }
-        });
-      }
-
-      if (elements.btnCloseReplacementModal) elements.btnCloseReplacementModal.addEventListener('click', closeReplacementBookingModal);
-      if (elements.btnDismissReplacement) elements.btnDismissReplacement.addEventListener('click', closeReplacementBookingModal);
-      if (elements.btnConfirmBookReplacement) elements.btnConfirmBookReplacement.addEventListener('click', handleConfirmBookReplacement);
-
-      // Global delegation for .btn-simulate-departure
-      document.addEventListener('click', (e) => {
-        const simBtn = e.target.closest('.btn-simulate-departure');
-        if (simBtn) {
-          e.preventDefault();
-          const depId = simBtn.getAttribute('data-departure-id');
-          const op = simBtn.getAttribute('data-operator');
-          const veh = simBtn.getAttribute('data-vehicle');
-          const status = simBtn.getAttribute('data-status') || 'SCHEDULED';
-          const delay = parseInt(simBtn.getAttribute('data-delay'), 10) || 0;
-          if (depId) {
-            openSimulateDepartureModal(depId, op, veh, status, delay);
-          }
+    // Phase 10C: Status Simulation & Replacement Modals
+    if (elements.btnCloseSimulateModal) elements.btnCloseSimulateModal.addEventListener('click', closeSimulateDepartureModal);
+    if (elements.btnDismissSimulate) elements.btnDismissSimulate.addEventListener('click', closeSimulateDepartureModal);
+    if (elements.btnApplyDepSimulation) elements.btnApplyDepSimulation.addEventListener('click', handleApplyDepartureSimulation);
+    if (elements.simulateStatusSelect) {
+      elements.simulateStatusSelect.addEventListener('change', () => {
+        if (elements.simulateDelayGroup) {
+          elements.simulateDelayGroup.classList.toggle('hidden', elements.simulateStatusSelect.value !== 'DELAYED');
         }
       });
     }
 
-    // Modal Simulation Handlers
-    let activeSimulationDepartureId = null;
+    if (elements.btnCloseReplacementModal) elements.btnCloseReplacementModal.addEventListener('click', closeReplacementBookingModal);
+    if (elements.btnDismissReplacement) elements.btnDismissReplacement.addEventListener('click', closeReplacementBookingModal);
+    if (elements.btnConfirmBookReplacement) elements.btnConfirmBookReplacement.addEventListener('click', handleConfirmBookReplacement);
 
-    function openSimulateDepartureModal(departureId, operator, vehicleNumber, currentStatus, currentDelay) {
-      activeSimulationDepartureId = departureId;
-      if (elements.simulateDepartureInfo) {
-        elements.simulateDepartureInfo.innerHTML = `
+    // Global delegation for .btn-simulate-departure
+    document.addEventListener('click', (e) => {
+      const simBtn = e.target.closest('.btn-simulate-departure');
+      if (simBtn) {
+        e.preventDefault();
+        const depId = simBtn.getAttribute('data-departure-id');
+        const op = simBtn.getAttribute('data-operator');
+        const veh = simBtn.getAttribute('data-vehicle');
+        const status = simBtn.getAttribute('data-status') || 'SCHEDULED';
+        const delay = parseInt(simBtn.getAttribute('data-delay'), 10) || 0;
+        if (depId) {
+          openSimulateDepartureModal(depId, op, veh, status, delay);
+        }
+      }
+    });
+  }
+
+  // Modal Simulation Handlers
+  let activeSimulationDepartureId = null;
+
+  function openSimulateDepartureModal(departureId, operator, vehicleNumber, currentStatus, currentDelay) {
+    activeSimulationDepartureId = departureId;
+    if (elements.simulateDepartureInfo) {
+      elements.simulateDepartureInfo.innerHTML = `
           <strong>Departure ID:</strong> <code class="font-mono">${escapeHtml(departureId)}</code><br>
           <strong>Service:</strong> ${escapeHtml(operator || 'Operator')} (${escapeHtml(vehicleNumber || 'Vehicle')})
         `;
+    }
+    if (elements.simulateStatusSelect) {
+      elements.simulateStatusSelect.value = (currentStatus === 'DELAYED' || currentStatus === 'CANCELLED') ? currentStatus : 'SCHEDULED';
+    }
+    if (elements.simulateDelayMinutes) {
+      elements.simulateDelayMinutes.value = currentDelay && currentDelay > 0 ? currentDelay : 75;
+    }
+    if (elements.simulateDelayGroup) {
+      elements.simulateDelayGroup.classList.toggle('hidden', elements.simulateStatusSelect.value !== 'DELAYED');
+    }
+    if (elements.simulateErrorMsg) {
+      elements.simulateErrorMsg.classList.add('hidden');
+      elements.simulateErrorMsg.textContent = '';
+    }
+    if (elements.modalSimulateDeparture) {
+      elements.modalSimulateDeparture.classList.remove('hidden');
+      elements.modalSimulateDeparture.classList.add('is-open');
+    }
+  }
+
+  function closeSimulateDepartureModal() {
+    if (elements.modalSimulateDeparture) {
+      elements.modalSimulateDeparture.classList.add('hidden');
+      elements.modalSimulateDeparture.classList.remove('is-open');
+    }
+    activeSimulationDepartureId = null;
+  }
+
+  async function handleApplyDepartureSimulation() {
+    if (!activeSimulationDepartureId) return;
+    const newState = elements.simulateStatusSelect ? elements.simulateStatusSelect.value : 'SCHEDULED';
+    const delayMinutes = newState === 'DELAYED' ? (parseInt(elements.simulateDelayMinutes.value, 10) || 60) : 0;
+
+    setButtonLoading(elements.btnApplyDepSimulation, true);
+    if (elements.simulateErrorMsg) {
+      elements.simulateErrorMsg.classList.add('hidden');
+      elements.simulateErrorMsg.textContent = '';
+    }
+
+    try {
+      const res = await fetch('/api/market/simulate/departure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serviceDepartureId: activeSimulationDepartureId,
+          state: newState,
+          delayMinutes: delayMinutes
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Simulation failed');
       }
-      if (elements.simulateStatusSelect) {
-        elements.simulateStatusSelect.value = (currentStatus === 'DELAYED' || currentStatus === 'CANCELLED') ? currentStatus : 'SCHEDULED';
+
+      closeSimulateDepartureModal();
+      showToast(`Departure updated to ${newState}. Affected trips evaluated.`, 'success');
+
+      if (state.currentTripId) {
+        await loadTripById(state.currentTripId);
       }
-      if (elements.simulateDelayMinutes) {
-        elements.simulateDelayMinutes.value = currentDelay && currentDelay > 0 ? currentDelay : 75;
-      }
-      if (elements.simulateDelayGroup) {
-        elements.simulateDelayGroup.classList.toggle('hidden', elements.simulateStatusSelect.value !== 'DELAYED');
-      }
+      await fetchTripsDirectory();
+      loadMyMarketBookings();
+    } catch (err) {
       if (elements.simulateErrorMsg) {
-        elements.simulateErrorMsg.classList.add('hidden');
-        elements.simulateErrorMsg.textContent = '';
+        elements.simulateErrorMsg.textContent = err.message;
+        elements.simulateErrorMsg.classList.remove('hidden');
       }
-      if (elements.modalSimulateDeparture) {
-        elements.modalSimulateDeparture.classList.remove('hidden');
-        elements.modalSimulateDeparture.classList.add('is-open');
-      }
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(elements.btnApplyDepSimulation, false);
+    }
+  }
+
+  // Modal Replacement Booking Handlers
+  let activeReplacementData = null;
+
+  async function openReplacementBookingModal(tripId, oldBookingId, serviceDepartureId) {
+    if (elements.replacementErrorMsg) {
+      elements.replacementErrorMsg.classList.add('hidden');
+      elements.replacementErrorMsg.textContent = '';
+    }
+    if (elements.replacementPreviewContent) {
+      elements.replacementPreviewContent.innerHTML = '<p style="color: #94a3b8; font-style: italic;">Loading replacement preview and auto-assigned seats...</p>';
+    }
+    if (elements.modalReplacementBooking) {
+      elements.modalReplacementBooking.classList.remove('hidden');
+      elements.modalReplacementBooking.classList.add('is-open');
     }
 
-    function closeSimulateDepartureModal() {
-      if (elements.modalSimulateDeparture) {
-        elements.modalSimulateDeparture.classList.add('hidden');
-        elements.modalSimulateDeparture.classList.remove('is-open');
-      }
-      activeSimulationDepartureId = null;
-    }
-
-    async function handleApplyDepartureSimulation() {
-      if (!activeSimulationDepartureId) return;
-      const newState = elements.simulateStatusSelect ? elements.simulateStatusSelect.value : 'SCHEDULED';
-      const delayMinutes = newState === 'DELAYED' ? (parseInt(elements.simulateDelayMinutes.value, 10) || 60) : 0;
-
-      setButtonLoading(elements.btnApplyDepSimulation, true);
-      if (elements.simulateErrorMsg) {
-        elements.simulateErrorMsg.classList.add('hidden');
-        elements.simulateErrorMsg.textContent = '';
+    try {
+      const res = await fetch(`/api/market/replacement/preview?tripId=${encodeURIComponent(tripId)}&oldBookingId=${encodeURIComponent(oldBookingId)}&serviceDepartureId=${encodeURIComponent(serviceDepartureId)}`);
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to load replacement preview');
       }
 
-      try {
-        const res = await fetch('/api/market/simulate/departure', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            serviceDepartureId: activeSimulationDepartureId,
-            state: newState,
-            delayMinutes: delayMinutes
-          })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Simulation failed');
-        }
+      const p = data.data;
+      activeReplacementData = { tripId, oldBookingId, serviceDepartureId };
 
-        closeSimulateDepartureModal();
-        showToast(`Departure updated to ${newState}. Affected trips evaluated.`, 'success');
+      const costFormatted = Number(p.replacementCost).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      const refundFormatted = Number(p.refundAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      const netFormatted = Number(p.netCost).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
-        if (state.currentTripId) {
-          await loadTripById(state.currentTripId);
-        }
-        await fetchTripsDirectory();
-        loadMyMarketBookings();
-      } catch (err) {
-        if (elements.simulateErrorMsg) {
-          elements.simulateErrorMsg.textContent = err.message;
-          elements.simulateErrorMsg.classList.remove('hidden');
-        }
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(elements.btnApplyDepSimulation, false);
-      }
-    }
-
-    // Modal Replacement Booking Handlers
-    let activeReplacementData = null;
-
-    async function openReplacementBookingModal(tripId, oldBookingId, serviceDepartureId) {
-      if (elements.replacementErrorMsg) {
-        elements.replacementErrorMsg.classList.add('hidden');
-        elements.replacementErrorMsg.textContent = '';
-      }
-      if (elements.replacementPreviewContent) {
-        elements.replacementPreviewContent.innerHTML = '<p style="color: #94a3b8; font-style: italic;">Loading replacement preview and auto-assigned seats...</p>';
-      }
-      if (elements.modalReplacementBooking) {
-        elements.modalReplacementBooking.classList.remove('hidden');
-        elements.modalReplacementBooking.classList.add('is-open');
-      }
-
-      try {
-        const res = await fetch(`/api/market/replacement/preview?tripId=${encodeURIComponent(tripId)}&oldBookingId=${encodeURIComponent(oldBookingId)}&serviceDepartureId=${encodeURIComponent(serviceDepartureId)}`);
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to load replacement preview');
-        }
-
-        const p = data.data;
-        activeReplacementData = { tripId, oldBookingId, serviceDepartureId };
-
-        const costFormatted = Number(p.replacementCost).toLocaleString('en-IN', { minimumFractionDigits: 2 });
-        const refundFormatted = Number(p.refundAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 });
-        const netFormatted = Number(p.netCost).toLocaleString('en-IN', { minimumFractionDigits: 2 });
-
-        elements.replacementPreviewContent.innerHTML = `
+      elements.replacementPreviewContent.innerHTML = `
           <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 0.88rem;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
               <span style="color: #94a3b8;">Service:</span>
@@ -9047,382 +9209,382 @@
             </div>
           </div>
         `;
-      } catch (err) {
-        if (elements.replacementPreviewContent) {
-          elements.replacementPreviewContent.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
-        }
+    } catch (err) {
+      if (elements.replacementPreviewContent) {
+        elements.replacementPreviewContent.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
       }
     }
+  }
 
-    function closeReplacementBookingModal() {
-      if (elements.modalReplacementBooking) {
-        elements.modalReplacementBooking.classList.add('hidden');
-        elements.modalReplacementBooking.classList.remove('is-open');
-      }
-      activeReplacementData = null;
+  function closeReplacementBookingModal() {
+    if (elements.modalReplacementBooking) {
+      elements.modalReplacementBooking.classList.add('hidden');
+      elements.modalReplacementBooking.classList.remove('is-open');
+    }
+    activeReplacementData = null;
+  }
+
+  async function handleConfirmBookReplacement() {
+    if (!activeReplacementData) return;
+    const { tripId, oldBookingId, serviceDepartureId } = activeReplacementData;
+
+    setButtonLoading(elements.btnConfirmBookReplacement, true);
+    if (elements.replacementErrorMsg) {
+      elements.replacementErrorMsg.classList.add('hidden');
+      elements.replacementErrorMsg.textContent = '';
     }
 
-    async function handleConfirmBookReplacement() {
-      if (!activeReplacementData) return;
-      const { tripId, oldBookingId, serviceDepartureId } = activeReplacementData;
+    try {
+      const res = await fetch('/api/market/replacement/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tripId, oldBookingId, serviceDepartureId })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Replacement booking failed');
+      }
 
-      setButtonLoading(elements.btnConfirmBookReplacement, true);
+      closeReplacementBookingModal();
+      showToast('Replacement leg booked successfully! Seats assigned and demo refund issued.', 'success');
+
+      await loadTripById(tripId);
+      await fetchTripsDirectory();
+      loadMyMarketBookings();
+    } catch (err) {
       if (elements.replacementErrorMsg) {
-        elements.replacementErrorMsg.classList.add('hidden');
-        elements.replacementErrorMsg.textContent = '';
+        elements.replacementErrorMsg.textContent = err.message;
+        elements.replacementErrorMsg.classList.remove('hidden');
       }
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(elements.btnConfirmBookReplacement, false);
+    }
+  }
 
-      try {
-        const res = await fetch('/api/market/replacement/book', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tripId, oldBookingId, serviceDepartureId })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Replacement booking failed');
-        }
+  // ==========================================
+  // Phase 18A: Provider & Admin Portal Logic
+  // ==========================================
 
-        closeReplacementBookingModal();
-        showToast('Replacement leg booked successfully! Seats assigned and demo refund issued.', 'success');
+  let activeAdminFilter = '';
 
-        await loadTripById(tripId);
-        await fetchTripsDirectory();
-        loadMyMarketBookings();
-      } catch (err) {
-        if (elements.replacementErrorMsg) {
-          elements.replacementErrorMsg.textContent = err.message;
-          elements.replacementErrorMsg.classList.remove('hidden');
-        }
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(elements.btnConfirmBookReplacement, false);
-      }
+  function setupProviderEventListeners() {
+    // Nav buttons
+    if (elements.navBtnProvider) {
+      elements.navBtnProvider.addEventListener('click', () => switchView('provider'));
+    }
+    if (elements.navBtnAdmin) {
+      elements.navBtnAdmin.addEventListener('click', () => switchView('admin'));
     }
 
-    // ==========================================
-    // Phase 18A: Provider & Admin Portal Logic
-    // ==========================================
+    // Provider Dashboard Sub-Tabs
+    const provTabs = [
+      { btn: elements.btnProvTabVehicles, content: elements.provTabContentVehicles },
+      { btn: elements.btnProvTabSchedules, content: elements.provTabContentSchedules },
+      { btn: elements.btnProvTabDepartures, content: elements.provTabContentDepartures },
+      { btn: elements.btnProvTabHotels, content: elements.provTabContentHotels },
+      { btn: elements.btnProvTabCabs, content: elements.provTabContentCabs },
+      { btn: elements.btnProvTabRefunds, content: elements.provTabContentRefunds },
+      { btn: elements.btnProvTabPending, content: elements.provTabContentPending },
+    ];
 
-    let activeAdminFilter = '';
-
-    function setupProviderEventListeners() {
-      // Nav buttons
-      if (elements.navBtnProvider) {
-        elements.navBtnProvider.addEventListener('click', () => switchView('provider'));
-      }
-      if (elements.navBtnAdmin) {
-        elements.navBtnAdmin.addEventListener('click', () => switchView('admin'));
-      }
-
-      // Provider Dashboard Sub-Tabs
-      const provTabs = [
-        { btn: elements.btnProvTabVehicles, content: elements.provTabContentVehicles },
-        { btn: elements.btnProvTabSchedules, content: elements.provTabContentSchedules },
-        { btn: elements.btnProvTabDepartures, content: elements.provTabContentDepartures },
-        { btn: elements.btnProvTabHotels, content: elements.provTabContentHotels },
-        { btn: elements.btnProvTabCabs, content: elements.provTabContentCabs },
-        { btn: elements.btnProvTabRefunds, content: elements.provTabContentRefunds },
-        { btn: elements.btnProvTabPending, content: elements.provTabContentPending },
-      ];
-
-      provTabs.forEach(({ btn, content }) => {
-        if (!btn) return;
-        btn.addEventListener('click', () => {
-          provTabs.forEach(t => {
-            if (t.btn) t.btn.classList.remove('active');
-            if (t.content) t.content.classList.add('hidden');
-          });
-          btn.classList.add('active');
-          if (content) content.classList.remove('hidden');
-          const subtabName = btn.id.replace('btn-prov-tab-', '');
-          window.history.pushState({}, '', `/provider/${subtabName}`);
-          if (subtabName === 'refunds') loadProviderRefunds();
-          if (subtabName === 'pending') loadProviderPendingBookings();
+    provTabs.forEach(({ btn, content }) => {
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        provTabs.forEach(t => {
+          if (t.btn) t.btn.classList.remove('active');
+          if (t.content) t.content.classList.add('hidden');
         });
+        btn.classList.add('active');
+        if (content) content.classList.remove('hidden');
+        const subtabName = btn.id.replace('btn-prov-tab-', '');
+        window.history.pushState({}, '', `/provider/${subtabName}`);
+        if (subtabName === 'refunds') loadProviderRefunds();
+        if (subtabName === 'pending') loadProviderPendingBookings();
       });
+    });
 
-      if (elements.btnRefreshProvPending) {
-        elements.btnRefreshProvPending.addEventListener('click', loadProviderPendingBookings);
-      }
-
-      // Provider Onboarding Form
-      if (elements.formProviderRegister) {
-        elements.formProviderRegister.addEventListener('submit', handleProviderRegisterSubmit);
-      }
-
-      // Vehicle Actions
-      if (elements.btnProvAddVehicle) {
-        elements.btnProvAddVehicle.addEventListener('click', openAddVehicleModal);
-      }
-      if (elements.btnCloseProvVehicleModal) {
-        elements.btnCloseProvVehicleModal.addEventListener('click', closeVehicleModal);
-      }
-      if (elements.btnCancelProvVehicle) {
-        elements.btnCancelProvVehicle.addEventListener('click', closeVehicleModal);
-      }
-      if (elements.formProvVehicle) {
-        elements.formProvVehicle.addEventListener('submit', handleSaveVehicleSubmit);
-      }
-      const provVehMode = document.getElementById('prov-veh-mode');
-      if (provVehMode) {
-        provVehMode.addEventListener('change', () => {
-          const modeVal = provVehMode.value;
-          const typeEl = document.getElementById('prov-veh-type');
-          const seatsEl = document.getElementById('prov-veh-seats');
-          if (modeVal === 'CAB') {
-            if (typeEl) {
-              typeEl.placeholder = 'e.g. Sedan (Dzire, Etios) or SUV (Innova)';
-              if (!typeEl.value || typeEl.value.includes('Sleeper') || typeEl.value.includes('Coach') || typeEl.value.includes('Airbus')) {
-                typeEl.value = 'Sedan (4 Seats)';
-              }
-            }
-            if (seatsEl && (parseInt(seatsEl.value, 10) === 40 || parseInt(seatsEl.value, 10) === 72 || parseInt(seatsEl.value, 10) === 180)) {
-              seatsEl.value = 4;
-            }
-          } else if (modeVal === 'BUS') {
-            if (typeEl) {
-              typeEl.placeholder = 'e.g. AC Multi-Axle Sleeper';
-              if (!typeEl.value || typeEl.value.includes('Sedan') || typeEl.value.includes('SUV')) {
-                typeEl.value = 'AC Multi-Axle Sleeper';
-              }
-            }
-            if (seatsEl && parseInt(seatsEl.value, 10) === 4) {
-              seatsEl.value = 40;
-            }
-          } else if (modeVal === 'TRAIN') {
-            if (typeEl) {
-              typeEl.placeholder = 'e.g. Express AC Chair Car';
-              if (!typeEl.value || typeEl.value.includes('Sedan') || typeEl.value.includes('Sleeper')) {
-                typeEl.value = 'Express Coach';
-              }
-            }
-            if (seatsEl && (parseInt(seatsEl.value, 10) === 4 || parseInt(seatsEl.value, 10) === 40)) {
-              seatsEl.value = 72;
-            }
-          } else if (modeVal === 'FLIGHT') {
-            if (typeEl) {
-              typeEl.placeholder = 'e.g. Airbus A320 / Boeing 737';
-              if (!typeEl.value || typeEl.value.includes('Sedan') || typeEl.value.includes('Coach')) {
-                typeEl.value = 'Airbus A320';
-              }
-            }
-            if (seatsEl && (parseInt(seatsEl.value, 10) === 4 || parseInt(seatsEl.value, 10) === 40)) {
-              seatsEl.value = 180;
-            }
-          }
-        });
-      }
-
-      // Schedule Actions
-      if (elements.btnProvAddSchedule) {
-        elements.btnProvAddSchedule.addEventListener('click', openAddScheduleModal);
-      }
-      if (elements.btnCloseProvScheduleModal) {
-        elements.btnCloseProvScheduleModal.addEventListener('click', closeScheduleModal);
-      }
-      if (elements.btnCancelProvSchedule) {
-        elements.btnCancelProvSchedule.addEventListener('click', closeScheduleModal);
-      }
-      if (elements.formProvSchedule) {
-        elements.formProvSchedule.addEventListener('submit', handleSaveScheduleSubmit);
-      }
-
-      // Departures Actions & Status Report
-      if (elements.btnRefreshProvDepartures) {
-        elements.btnRefreshProvDepartures.addEventListener('click', loadProviderDepartures);
-      }
-      if (elements.btnCloseProvStatusModal) {
-        elements.btnCloseProvStatusModal.addEventListener('click', closeStatusModal);
-      }
-      if (elements.btnCancelProvStatus) {
-        elements.btnCancelProvStatus.addEventListener('click', closeStatusModal);
-      }
-      if (elements.formProvStatus) {
-        elements.formProvStatus.addEventListener('submit', handleSaveStatusSubmit);
-      }
-      if (elements.provStatusState) {
-        elements.provStatusState.addEventListener('change', (e) => {
-          if (elements.provStatusDelayGroup) {
-            if (e.target.value === 'DELAYED') {
-              elements.provStatusDelayGroup.classList.remove('hidden');
-            } else {
-              elements.provStatusDelayGroup.classList.add('hidden');
-            }
-          }
-        });
-      }
-
-      // Passenger Manifest Modal
-      if (elements.btnCloseProvBookingsModal) {
-        elements.btnCloseProvBookingsModal.addEventListener('click', closeBookingsModal);
-      }
-      if (elements.btnCloseProvBookings) {
-        elements.btnCloseProvBookings.addEventListener('click', closeBookingsModal);
-      }
-
-      // Offer Alternative Modal (Phase 19)
-      if (elements.btnCloseProvOfferAltModal) {
-        elements.btnCloseProvOfferAltModal.addEventListener('click', closeOfferAlternativeModal);
-      }
-      if (elements.btnCancelProvOfferAlt) {
-        elements.btnCancelProvOfferAlt.addEventListener('click', closeOfferAlternativeModal);
-      }
-      if (elements.formProvOfferAlt) {
-        elements.formProvOfferAlt.addEventListener('submit', handleOfferAlternativeSubmit);
-      }
-      if (elements.provOfferAltSelect) {
-        elements.provOfferAltSelect.addEventListener('change', () => {
-          if (elements.provOfferAltNewVehicleSection) {
-            if (elements.provOfferAltSelect.value === 'NEW_VEHICLE') {
-              elements.provOfferAltNewVehicleSection.classList.remove('hidden');
-            } else {
-              elements.provOfferAltNewVehicleSection.classList.add('hidden');
-            }
-          }
-        });
-      }
-
-      // Phase 18B: Hotel Actions
-      if (elements.btnProvAddHotel) {
-        elements.btnProvAddHotel.addEventListener('click', openAddHotelModal);
-      }
-      if (elements.btnCloseProvHotelModal) {
-        elements.btnCloseProvHotelModal.addEventListener('click', closeHotelModal);
-      }
-      if (elements.btnCancelProvHotel) {
-        elements.btnCancelProvHotel.addEventListener('click', closeHotelModal);
-      }
-      if (elements.formProvHotel) {
-        elements.formProvHotel.addEventListener('submit', handleSaveHotelSubmit);
-      }
-
-      // Room Type Actions
-      if (elements.btnProvAddRoomType) {
-        elements.btnProvAddRoomType.addEventListener('click', () => openAddRoomTypeModal(activeSelectedHotelId));
-      }
-      if (elements.btnCloseProvRoomModal) {
-        elements.btnCloseProvRoomModal.addEventListener('click', closeRoomTypeModal);
-      }
-      if (elements.btnCancelProvRoom) {
-        elements.btnCancelProvRoom.addEventListener('click', closeRoomTypeModal);
-      }
-      if (elements.formProvRoomType) {
-        elements.formProvRoomType.addEventListener('submit', handleSaveRoomTypeSubmit);
-      }
-      if (elements.btnProvCloseRoomsView) {
-        elements.btnProvCloseRoomsView.addEventListener('click', () => {
-          if (elements.provHotelRoomsSection) elements.provHotelRoomsSection.classList.add('hidden');
-          activeSelectedHotelId = null;
-        });
-      }
-
-      // Availability Calendar Actions
-      if (elements.btnCloseProvAvailModal) {
-        elements.btnCloseProvAvailModal.addEventListener('click', closeRoomAvailabilityModal);
-      }
-      if (elements.btnCloseProvAvail) {
-        elements.btnCloseProvAvail.addEventListener('click', closeRoomAvailabilityModal);
-      }
-
-      // Cab Actions
-      if (elements.btnProvAddCab) {
-        elements.btnProvAddCab.addEventListener('click', openAddCabModal);
-      }
-      if (elements.btnCloseProvCabModal) {
-        elements.btnCloseProvCabModal.addEventListener('click', closeCabModal);
-      }
-      if (elements.btnCancelProvCab) {
-        elements.btnCancelProvCab.addEventListener('click', closeCabModal);
-      }
-      if (elements.formProvCab) {
-        elements.formProvCab.addEventListener('submit', handleSaveCabSubmit);
-      }
-
-      // Hotel Bookings Manifest & Cannot Honour Actions
-      if (elements.btnCloseProvHotelBkgModal) {
-        elements.btnCloseProvHotelBkgModal.addEventListener('click', closeHotelBookingsModal);
-      }
-      if (elements.btnCloseProvHotelBookings) {
-        elements.btnCloseProvHotelBookings.addEventListener('click', closeHotelBookingsModal);
-      }
-      if (elements.btnCloseProvHonourModal) {
-        elements.btnCloseProvHonourModal.addEventListener('click', closeCannotHonourModal);
-      }
-      if (elements.btnCancelProvHonour) {
-        elements.btnCancelProvHonour.addEventListener('click', closeCannotHonourModal);
-      }
-      if (elements.formProvCannotHonour) {
-        elements.formProvCannotHonour.addEventListener('submit', handleCannotHonourSubmit);
-      }
-
-      // Admin Review Queue Actions
-      if (elements.btnRefreshAdminProviders) {
-        elements.btnRefreshAdminProviders.addEventListener('click', () => loadAdminProviders(activeAdminFilter));
-      }
-      const adminFilterBtns = document.querySelectorAll('.admin-filter-btn');
-      adminFilterBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          adminFilterBtns.forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          activeAdminFilter = btn.getAttribute('data-status') || '';
-          loadAdminProviders(activeAdminFilter);
-        });
-      });
-      if (elements.btnCloseAdminActionModal) {
-        elements.btnCloseAdminActionModal.addEventListener('click', closeAdminActionModal);
-      }
-      if (elements.btnCancelAdminAction) {
-        elements.btnCancelAdminAction.addEventListener('click', closeAdminActionModal);
-      }
-      if (elements.formAdminAction) {
-        elements.formAdminAction.addEventListener('submit', handleAdminActionSubmit);
-      }
-
-      // Phase 18C: Provider Refunds
-      if (elements.btnRefreshProvRefunds) {
-        elements.btnRefreshProvRefunds.addEventListener('click', loadProviderRefunds);
-      }
-      if (elements.btnCloseProvRefundModal) {
-        elements.btnCloseProvRefundModal.addEventListener('click', closeProviderRefundModal);
-      }
-      if (elements.btnCancelProvRefund) {
-        elements.btnCancelProvRefund.addEventListener('click', closeProviderRefundModal);
-      }
-      if (elements.formProvRefund) {
-        elements.formProvRefund.addEventListener('submit', handleProviderRefundSubmit);
-      }
+    if (elements.btnRefreshProvPending) {
+      elements.btnRefreshProvPending.addEventListener('click', loadProviderPendingBookings);
     }
 
-    // Phase 18C: Provider Refunds Management
-    async function loadProviderRefunds() {
-      if (!elements.provRefundsTbody) return;
-      try {
-        const res = await fetch('/api/provider/refunds/eligible');
-        if (!res.ok) {
-          throw new Error('Failed to fetch refund-eligible bookings');
+    // Provider Onboarding Form
+    if (elements.formProviderRegister) {
+      elements.formProviderRegister.addEventListener('submit', handleProviderRegisterSubmit);
+    }
+
+    // Vehicle Actions
+    if (elements.btnProvAddVehicle) {
+      elements.btnProvAddVehicle.addEventListener('click', openAddVehicleModal);
+    }
+    if (elements.btnCloseProvVehicleModal) {
+      elements.btnCloseProvVehicleModal.addEventListener('click', closeVehicleModal);
+    }
+    if (elements.btnCancelProvVehicle) {
+      elements.btnCancelProvVehicle.addEventListener('click', closeVehicleModal);
+    }
+    if (elements.formProvVehicle) {
+      elements.formProvVehicle.addEventListener('submit', handleSaveVehicleSubmit);
+    }
+    const provVehMode = document.getElementById('prov-veh-mode');
+    if (provVehMode) {
+      provVehMode.addEventListener('change', () => {
+        const modeVal = provVehMode.value;
+        const typeEl = document.getElementById('prov-veh-type');
+        const seatsEl = document.getElementById('prov-veh-seats');
+        if (modeVal === 'CAB') {
+          if (typeEl) {
+            typeEl.placeholder = 'e.g. Sedan (Dzire, Etios) or SUV (Innova)';
+            if (!typeEl.value || typeEl.value.includes('Sleeper') || typeEl.value.includes('Coach') || typeEl.value.includes('Airbus')) {
+              typeEl.value = 'Sedan (4 Seats)';
+            }
+          }
+          if (seatsEl && (parseInt(seatsEl.value, 10) === 40 || parseInt(seatsEl.value, 10) === 72 || parseInt(seatsEl.value, 10) === 180)) {
+            seatsEl.value = 4;
+          }
+        } else if (modeVal === 'BUS') {
+          if (typeEl) {
+            typeEl.placeholder = 'e.g. AC Multi-Axle Sleeper';
+            if (!typeEl.value || typeEl.value.includes('Sedan') || typeEl.value.includes('SUV')) {
+              typeEl.value = 'AC Multi-Axle Sleeper';
+            }
+          }
+          if (seatsEl && parseInt(seatsEl.value, 10) === 4) {
+            seatsEl.value = 40;
+          }
+        } else if (modeVal === 'TRAIN') {
+          if (typeEl) {
+            typeEl.placeholder = 'e.g. Express AC Chair Car';
+            if (!typeEl.value || typeEl.value.includes('Sedan') || typeEl.value.includes('Sleeper')) {
+              typeEl.value = 'Express Coach';
+            }
+          }
+          if (seatsEl && (parseInt(seatsEl.value, 10) === 4 || parseInt(seatsEl.value, 10) === 40)) {
+            seatsEl.value = 72;
+          }
+        } else if (modeVal === 'FLIGHT') {
+          if (typeEl) {
+            typeEl.placeholder = 'e.g. Airbus A320 / Boeing 737';
+            if (!typeEl.value || typeEl.value.includes('Sedan') || typeEl.value.includes('Coach')) {
+              typeEl.value = 'Airbus A320';
+            }
+          }
+          if (seatsEl && (parseInt(seatsEl.value, 10) === 4 || parseInt(seatsEl.value, 10) === 40)) {
+            seatsEl.value = 180;
+          }
         }
-        const data = await res.json();
-        const bookings = (data && data.success && Array.isArray(data.data)) ? data.data : [];
-        renderProviderRefunds(bookings);
-      } catch (err) {
-        elements.provRefundsTbody.innerHTML = `<tr><td colspan="8" class="empty-state">Error loading bookings: ${escapeHtml(err.message)}</td></tr>`;
-      }
+      });
     }
 
-    function renderProviderRefunds(bookings) {
-      if (!elements.provRefundsTbody) return;
-      if (bookings.length === 0) {
-        elements.provRefundsTbody.innerHTML = '<tr><td colspan="8" class="empty-state">No cancelled or unhonoured bookings eligible for refund.</td></tr>';
-        return;
-      }
-      elements.provRefundsTbody.innerHTML = bookings.map(b => {
-        const isRefunded = b.refunded || (b.refundStatus && b.refundStatus !== 'NONE');
-        const actionHtml = isRefunded
-          ? `<span class="badge badge-green">Refunded (₹${Number(b.refundAmount || b.cost).toFixed(2)})</span>`
-          : `<button type="button" class="btn btn-gold btn-sm btn-issue-prov-refund" data-id="${escapeHtml(b.id)}" data-ref="${escapeHtml(b.bookingReference || b.id)}" data-cost="${b.cost}">Issue Refund</button>`;
+    // Schedule Actions
+    if (elements.btnProvAddSchedule) {
+      elements.btnProvAddSchedule.addEventListener('click', openAddScheduleModal);
+    }
+    if (elements.btnCloseProvScheduleModal) {
+      elements.btnCloseProvScheduleModal.addEventListener('click', closeScheduleModal);
+    }
+    if (elements.btnCancelProvSchedule) {
+      elements.btnCancelProvSchedule.addEventListener('click', closeScheduleModal);
+    }
+    if (elements.formProvSchedule) {
+      elements.formProvSchedule.addEventListener('submit', handleSaveScheduleSubmit);
+    }
 
-        return `
+    // Departures Actions & Status Report
+    if (elements.btnRefreshProvDepartures) {
+      elements.btnRefreshProvDepartures.addEventListener('click', loadProviderDepartures);
+    }
+    if (elements.btnCloseProvStatusModal) {
+      elements.btnCloseProvStatusModal.addEventListener('click', closeStatusModal);
+    }
+    if (elements.btnCancelProvStatus) {
+      elements.btnCancelProvStatus.addEventListener('click', closeStatusModal);
+    }
+    if (elements.formProvStatus) {
+      elements.formProvStatus.addEventListener('submit', handleSaveStatusSubmit);
+    }
+    if (elements.provStatusState) {
+      elements.provStatusState.addEventListener('change', (e) => {
+        if (elements.provStatusDelayGroup) {
+          if (e.target.value === 'DELAYED') {
+            elements.provStatusDelayGroup.classList.remove('hidden');
+          } else {
+            elements.provStatusDelayGroup.classList.add('hidden');
+          }
+        }
+      });
+    }
+
+    // Passenger Manifest Modal
+    if (elements.btnCloseProvBookingsModal) {
+      elements.btnCloseProvBookingsModal.addEventListener('click', closeBookingsModal);
+    }
+    if (elements.btnCloseProvBookings) {
+      elements.btnCloseProvBookings.addEventListener('click', closeBookingsModal);
+    }
+
+    // Offer Alternative Modal (Phase 19)
+    if (elements.btnCloseProvOfferAltModal) {
+      elements.btnCloseProvOfferAltModal.addEventListener('click', closeOfferAlternativeModal);
+    }
+    if (elements.btnCancelProvOfferAlt) {
+      elements.btnCancelProvOfferAlt.addEventListener('click', closeOfferAlternativeModal);
+    }
+    if (elements.formProvOfferAlt) {
+      elements.formProvOfferAlt.addEventListener('submit', handleOfferAlternativeSubmit);
+    }
+    if (elements.provOfferAltSelect) {
+      elements.provOfferAltSelect.addEventListener('change', () => {
+        if (elements.provOfferAltNewVehicleSection) {
+          if (elements.provOfferAltSelect.value === 'NEW_VEHICLE') {
+            elements.provOfferAltNewVehicleSection.classList.remove('hidden');
+          } else {
+            elements.provOfferAltNewVehicleSection.classList.add('hidden');
+          }
+        }
+      });
+    }
+
+    // Phase 18B: Hotel Actions
+    if (elements.btnProvAddHotel) {
+      elements.btnProvAddHotel.addEventListener('click', openAddHotelModal);
+    }
+    if (elements.btnCloseProvHotelModal) {
+      elements.btnCloseProvHotelModal.addEventListener('click', closeHotelModal);
+    }
+    if (elements.btnCancelProvHotel) {
+      elements.btnCancelProvHotel.addEventListener('click', closeHotelModal);
+    }
+    if (elements.formProvHotel) {
+      elements.formProvHotel.addEventListener('submit', handleSaveHotelSubmit);
+    }
+
+    // Room Type Actions
+    if (elements.btnProvAddRoomType) {
+      elements.btnProvAddRoomType.addEventListener('click', () => openAddRoomTypeModal(activeSelectedHotelId));
+    }
+    if (elements.btnCloseProvRoomModal) {
+      elements.btnCloseProvRoomModal.addEventListener('click', closeRoomTypeModal);
+    }
+    if (elements.btnCancelProvRoom) {
+      elements.btnCancelProvRoom.addEventListener('click', closeRoomTypeModal);
+    }
+    if (elements.formProvRoomType) {
+      elements.formProvRoomType.addEventListener('submit', handleSaveRoomTypeSubmit);
+    }
+    if (elements.btnProvCloseRoomsView) {
+      elements.btnProvCloseRoomsView.addEventListener('click', () => {
+        if (elements.provHotelRoomsSection) elements.provHotelRoomsSection.classList.add('hidden');
+        activeSelectedHotelId = null;
+      });
+    }
+
+    // Availability Calendar Actions
+    if (elements.btnCloseProvAvailModal) {
+      elements.btnCloseProvAvailModal.addEventListener('click', closeRoomAvailabilityModal);
+    }
+    if (elements.btnCloseProvAvail) {
+      elements.btnCloseProvAvail.addEventListener('click', closeRoomAvailabilityModal);
+    }
+
+    // Cab Actions
+    if (elements.btnProvAddCab) {
+      elements.btnProvAddCab.addEventListener('click', openAddCabModal);
+    }
+    if (elements.btnCloseProvCabModal) {
+      elements.btnCloseProvCabModal.addEventListener('click', closeCabModal);
+    }
+    if (elements.btnCancelProvCab) {
+      elements.btnCancelProvCab.addEventListener('click', closeCabModal);
+    }
+    if (elements.formProvCab) {
+      elements.formProvCab.addEventListener('submit', handleSaveCabSubmit);
+    }
+
+    // Hotel Bookings Manifest & Cannot Honour Actions
+    if (elements.btnCloseProvHotelBkgModal) {
+      elements.btnCloseProvHotelBkgModal.addEventListener('click', closeHotelBookingsModal);
+    }
+    if (elements.btnCloseProvHotelBookings) {
+      elements.btnCloseProvHotelBookings.addEventListener('click', closeHotelBookingsModal);
+    }
+    if (elements.btnCloseProvHonourModal) {
+      elements.btnCloseProvHonourModal.addEventListener('click', closeCannotHonourModal);
+    }
+    if (elements.btnCancelProvHonour) {
+      elements.btnCancelProvHonour.addEventListener('click', closeCannotHonourModal);
+    }
+    if (elements.formProvCannotHonour) {
+      elements.formProvCannotHonour.addEventListener('submit', handleCannotHonourSubmit);
+    }
+
+    // Admin Review Queue Actions
+    if (elements.btnRefreshAdminProviders) {
+      elements.btnRefreshAdminProviders.addEventListener('click', () => loadAdminProviders(activeAdminFilter));
+    }
+    const adminFilterBtns = document.querySelectorAll('.admin-filter-btn');
+    adminFilterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        adminFilterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeAdminFilter = btn.getAttribute('data-status') || '';
+        loadAdminProviders(activeAdminFilter);
+      });
+    });
+    if (elements.btnCloseAdminActionModal) {
+      elements.btnCloseAdminActionModal.addEventListener('click', closeAdminActionModal);
+    }
+    if (elements.btnCancelAdminAction) {
+      elements.btnCancelAdminAction.addEventListener('click', closeAdminActionModal);
+    }
+    if (elements.formAdminAction) {
+      elements.formAdminAction.addEventListener('submit', handleAdminActionSubmit);
+    }
+
+    // Phase 18C: Provider Refunds
+    if (elements.btnRefreshProvRefunds) {
+      elements.btnRefreshProvRefunds.addEventListener('click', loadProviderRefunds);
+    }
+    if (elements.btnCloseProvRefundModal) {
+      elements.btnCloseProvRefundModal.addEventListener('click', closeProviderRefundModal);
+    }
+    if (elements.btnCancelProvRefund) {
+      elements.btnCancelProvRefund.addEventListener('click', closeProviderRefundModal);
+    }
+    if (elements.formProvRefund) {
+      elements.formProvRefund.addEventListener('submit', handleProviderRefundSubmit);
+    }
+  }
+
+  // Phase 18C: Provider Refunds Management
+  async function loadProviderRefunds() {
+    if (!elements.provRefundsTbody) return;
+    try {
+      const res = await fetch('/api/provider/refunds/eligible');
+      if (!res.ok) {
+        throw new Error('Failed to fetch refund-eligible bookings');
+      }
+      const data = await res.json();
+      const bookings = (data && data.success && Array.isArray(data.data)) ? data.data : [];
+      renderProviderRefunds(bookings);
+    } catch (err) {
+      elements.provRefundsTbody.innerHTML = `<tr><td colspan="8" class="empty-state">Error loading bookings: ${escapeHtml(err.message)}</td></tr>`;
+    }
+  }
+
+  function renderProviderRefunds(bookings) {
+    if (!elements.provRefundsTbody) return;
+    if (bookings.length === 0) {
+      elements.provRefundsTbody.innerHTML = '<tr><td colspan="8" class="empty-state">No cancelled or unhonoured bookings eligible for refund.</td></tr>';
+      return;
+    }
+    elements.provRefundsTbody.innerHTML = bookings.map(b => {
+      const isRefunded = b.refunded || (b.refundStatus && b.refundStatus !== 'NONE');
+      const actionHtml = isRefunded
+        ? `<span class="badge badge-green">Refunded (₹${Number(b.refundAmount || b.cost).toFixed(2)})</span>`
+        : `<button type="button" class="btn btn-gold btn-sm btn-issue-prov-refund" data-id="${escapeHtml(b.id)}" data-ref="${escapeHtml(b.bookingReference || b.id)}" data-cost="${b.cost}">Issue Refund</button>`;
+
+      return `
           <tr>
             <td><strong style="color: var(--gold-color); font-family: monospace;">${escapeHtml(b.bookingReference || b.id)}</strong></td>
             <td><span class="badge badge-neutral">${escapeHtml(b.type)}</span></td>
@@ -9434,121 +9596,121 @@
             <td>${actionHtml}</td>
           </tr>
         `;
-      }).join('');
+    }).join('');
 
-      elements.provRefundsTbody.querySelectorAll('.btn-issue-prov-refund').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.getAttribute('data-id');
-          const ref = btn.getAttribute('data-ref');
-          const cost = Number(btn.getAttribute('data-cost')) || 0;
-          openProviderRefundModal(id, ref, cost);
-        });
+    elements.provRefundsTbody.querySelectorAll('.btn-issue-prov-refund').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const ref = btn.getAttribute('data-ref');
+        const cost = Number(btn.getAttribute('data-cost')) || 0;
+        openProviderRefundModal(id, ref, cost);
       });
+    });
+  }
+
+  function openProviderRefundModal(id, ref, cost) {
+    if (!elements.modalProvRefund) return;
+    if (elements.provRefundBookingId) elements.provRefundBookingId.value = id;
+    if (elements.provRefundBookingRef) elements.provRefundBookingRef.textContent = ref;
+    if (elements.provRefundOriginalCost) elements.provRefundOriginalCost.textContent = `₹${cost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    if (elements.provRefundAmount) {
+      elements.provRefundAmount.value = cost;
+      elements.provRefundAmount.max = cost;
+    }
+    if (elements.provRefundReason) elements.provRefundReason.value = '';
+    if (elements.provRefundErrorMsg) {
+      elements.provRefundErrorMsg.classList.add('hidden');
+      elements.provRefundErrorMsg.textContent = '';
+    }
+    elements.modalProvRefund.classList.remove('hidden');
+    elements.modalProvRefund.classList.add('is-open');
+  }
+
+  function closeProviderRefundModal() {
+    if (elements.modalProvRefund) {
+      elements.modalProvRefund.classList.add('hidden');
+      elements.modalProvRefund.classList.remove('is-open');
+    }
+  }
+
+  async function handleProviderRefundSubmit(e) {
+    e.preventDefault();
+    const bookingId = elements.provRefundBookingId.value;
+    const amount = parseFloat(elements.provRefundAmount.value);
+    const reason = elements.provRefundReason.value.trim();
+
+    if (!bookingId || isNaN(amount) || amount <= 0) {
+      showToast('Please enter a valid refund amount greater than 0', 'warning');
+      return;
+    }
+    if (reason.length < 10 || reason.length > 200) {
+      showToast('Reason must be between 10 and 200 characters', 'warning');
+      return;
     }
 
-    function openProviderRefundModal(id, ref, cost) {
-      if (!elements.modalProvRefund) return;
-      if (elements.provRefundBookingId) elements.provRefundBookingId.value = id;
-      if (elements.provRefundBookingRef) elements.provRefundBookingRef.textContent = ref;
-      if (elements.provRefundOriginalCost) elements.provRefundOriginalCost.textContent = `₹${cost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-      if (elements.provRefundAmount) {
-        elements.provRefundAmount.value = cost;
-        elements.provRefundAmount.max = cost;
+    setButtonLoading(elements.btnSubmitProvRefund, true);
+    if (elements.provRefundErrorMsg) elements.provRefundErrorMsg.classList.add('hidden');
+
+    try {
+      const res = await fetch('/api/provider/refunds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, amount, reason })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to issue refund');
       }
-      if (elements.provRefundReason) elements.provRefundReason.value = '';
+
+      showToast(`Refund of ₹${amount} issued successfully`, 'success');
+      closeProviderRefundModal();
+      loadProviderRefunds();
+    } catch (err) {
       if (elements.provRefundErrorMsg) {
-        elements.provRefundErrorMsg.classList.add('hidden');
-        elements.provRefundErrorMsg.textContent = '';
+        elements.provRefundErrorMsg.textContent = err.message;
+        elements.provRefundErrorMsg.classList.remove('hidden');
       }
-      elements.modalProvRefund.classList.remove('hidden');
-      elements.modalProvRefund.classList.add('is-open');
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(elements.btnSubmitProvRefund, false);
     }
+  }
 
-    function closeProviderRefundModal() {
-      if (elements.modalProvRefund) {
-        elements.modalProvRefund.classList.add('hidden');
-        elements.modalProvRefund.classList.remove('is-open');
+  // 10. Provider Pending Requests (Phase 18E)
+  async function loadProviderPendingBookings() {
+    if (!elements.provPendingTbody) return;
+    try {
+      const res = await fetch('/api/provider/pending-bookings');
+      if (!res.ok) {
+        if (res.status === 403 || res.status === 401) {
+          elements.provPendingTbody.innerHTML = '<tr><td colspan="8" class="empty-state">Provider login required.</td></tr>';
+          return;
+        }
+        throw new Error(`Failed to load pending requests (HTTP ${res.status})`);
       }
+      const data = await res.json();
+      const bookings = (data && data.success && Array.isArray(data.data)) ? data.data : [];
+      if (elements.provPendingCount) elements.provPendingCount.textContent = bookings.length;
+      renderProviderPendingBookings(bookings);
+    } catch (err) {
+      elements.provPendingTbody.innerHTML = `<tr><td colspan="8" class="empty-state">Error loading requests: ${escapeHtml(err.message)}</td></tr>`;
     }
+  }
 
-    async function handleProviderRefundSubmit(e) {
-      e.preventDefault();
-      const bookingId = elements.provRefundBookingId.value;
-      const amount = parseFloat(elements.provRefundAmount.value);
-      const reason = elements.provRefundReason.value.trim();
-
-      if (!bookingId || isNaN(amount) || amount <= 0) {
-        showToast('Please enter a valid refund amount greater than 0', 'warning');
-        return;
-      }
-      if (reason.length < 10 || reason.length > 200) {
-        showToast('Reason must be between 10 and 200 characters', 'warning');
-        return;
-      }
-
-      setButtonLoading(elements.btnSubmitProvRefund, true);
-      if (elements.provRefundErrorMsg) elements.provRefundErrorMsg.classList.add('hidden');
-
-      try {
-        const res = await fetch('/api/provider/refunds', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookingId, amount, reason })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to issue refund');
-        }
-
-        showToast(`Refund of ₹${amount} issued successfully`, 'success');
-        closeProviderRefundModal();
-        loadProviderRefunds();
-      } catch (err) {
-        if (elements.provRefundErrorMsg) {
-          elements.provRefundErrorMsg.textContent = err.message;
-          elements.provRefundErrorMsg.classList.remove('hidden');
-        }
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(elements.btnSubmitProvRefund, false);
-      }
+  function renderProviderPendingBookings(bookings) {
+    if (!elements.provPendingTbody) return;
+    if (bookings.length === 0) {
+      elements.provPendingTbody.innerHTML = '<tr><td colspan="8" class="empty-state">No pending booking requests.</td></tr>';
+      return;
     }
-
-    // 10. Provider Pending Requests (Phase 18E)
-    async function loadProviderPendingBookings() {
-      if (!elements.provPendingTbody) return;
-      try {
-        const res = await fetch('/api/provider/pending-bookings');
-        if (!res.ok) {
-          if (res.status === 403 || res.status === 401) {
-            elements.provPendingTbody.innerHTML = '<tr><td colspan="8" class="empty-state">Provider login required.</td></tr>';
-            return;
-          }
-          throw new Error(`Failed to load pending requests (HTTP ${res.status})`);
-        }
-        const data = await res.json();
-        const bookings = (data && data.success && Array.isArray(data.data)) ? data.data : [];
-        if (elements.provPendingCount) elements.provPendingCount.textContent = bookings.length;
-        renderProviderPendingBookings(bookings);
-      } catch (err) {
-        elements.provPendingTbody.innerHTML = `<tr><td colspan="8" class="empty-state">Error loading requests: ${escapeHtml(err.message)}</td></tr>`;
+    elements.provPendingTbody.innerHTML = bookings.map(b => {
+      let expiryText = '--';
+      if (b.confirmationExpiresAt) {
+        const sec = Math.max(0, Math.round((new Date(b.confirmationExpiresAt).getTime() - Date.now()) / 1000));
+        expiryText = `${sec}s remaining`;
       }
-    }
-
-    function renderProviderPendingBookings(bookings) {
-      if (!elements.provPendingTbody) return;
-      if (bookings.length === 0) {
-        elements.provPendingTbody.innerHTML = '<tr><td colspan="8" class="empty-state">No pending booking requests.</td></tr>';
-        return;
-      }
-      elements.provPendingTbody.innerHTML = bookings.map(b => {
-        let expiryText = '--';
-        if (b.confirmationExpiresAt) {
-          const sec = Math.max(0, Math.round((new Date(b.confirmationExpiresAt).getTime() - Date.now()) / 1000));
-          expiryText = `${sec}s remaining`;
-        }
-        const locationText = b.from && b.to ? `${b.from} → ${b.to}` : (b.to || b.from || b.operator || 'Local');
-        return `
+      const locationText = b.from && b.to ? `${b.from} → ${b.to}` : (b.to || b.from || b.operator || 'Local');
+      return `
           <tr>
             <td><strong style="color: var(--gold-color); font-family: monospace;">${escapeHtml(b.bookingReference || b.id)}</strong></td>
             <td><span class="badge badge-neutral">${escapeHtml(b.type)}</span></td>
@@ -9563,153 +9725,153 @@
             </td>
           </tr>
         `;
-      }).join('');
+    }).join('');
 
-      elements.provPendingTbody.querySelectorAll('.btn-prov-accept').forEach(btn => {
-        btn.addEventListener('click', () => handleProviderAcceptBooking(btn.dataset.id));
+    elements.provPendingTbody.querySelectorAll('.btn-prov-accept').forEach(btn => {
+      btn.addEventListener('click', () => handleProviderAcceptBooking(btn.dataset.id));
+    });
+    elements.provPendingTbody.querySelectorAll('.btn-prov-reject').forEach(btn => {
+      btn.addEventListener('click', () => handleProviderRejectBooking(btn.dataset.id));
+    });
+  }
+
+  async function handleProviderAcceptBooking(bookingId) {
+    try {
+      const res = await fetch(`/api/provider/bookings/${encodeURIComponent(bookingId)}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       });
-      elements.provPendingTbody.querySelectorAll('.btn-prov-reject').forEach(btn => {
-        btn.addEventListener('click', () => handleProviderRejectBooking(btn.dataset.id));
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to accept booking');
+      }
+      showToast('Booking accepted! Confirmation confirmed.', 'success');
+      loadProviderPendingBookings();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  }
+
+  async function handleProviderRejectBooking(bookingId) {
+    const reason = prompt('Reason for rejecting booking request:', 'Capacity unavailable') || 'Declined by provider';
+    try {
+      const res = await fetch(`/api/provider/bookings/${encodeURIComponent(bookingId)}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
       });
-    }
-
-    async function handleProviderAcceptBooking(bookingId) {
-      try {
-        const res = await fetch(`/api/provider/bookings/${encodeURIComponent(bookingId)}/accept`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to accept booking');
-        }
-        showToast('Booking accepted! Confirmation confirmed.', 'success');
-        loadProviderPendingBookings();
-      } catch (err) {
-        showToast(err.message, 'danger');
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to reject booking');
       }
+      showToast('Booking request rejected.', 'info');
+      loadProviderPendingBookings();
+    } catch (err) {
+      showToast(err.message, 'danger');
     }
+  }
 
-    async function handleProviderRejectBooking(bookingId) {
-      const reason = prompt('Reason for rejecting booking request:', 'Capacity unavailable') || 'Declined by provider';
-      try {
-        const res = await fetch(`/api/provider/bookings/${encodeURIComponent(bookingId)}/reject`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to reject booking');
-        }
-        showToast('Booking request rejected.', 'info');
-        loadProviderPendingBookings();
-      } catch (err) {
-        showToast(err.message, 'danger');
+  async function loadProviderPortal() {
+    try {
+      const res = await fetch('/api/provider/me');
+      if (res.status === 404) {
+        state.providerProfile = null;
+        if (elements.panelProviderRegister) elements.panelProviderRegister.classList.remove('hidden');
+        if (elements.panelProviderDashboard) elements.panelProviderDashboard.classList.add('hidden');
+        return;
       }
-    }
-
-    async function loadProviderPortal() {
-      try {
-        const res = await fetch('/api/provider/me');
-        if (res.status === 404) {
-          state.providerProfile = null;
-          if (elements.panelProviderRegister) elements.panelProviderRegister.classList.remove('hidden');
-          if (elements.panelProviderDashboard) elements.panelProviderDashboard.classList.add('hidden');
-          return;
-        }
-        if (!res.ok) {
-          throw new Error(`Failed to load provider profile (HTTP ${res.status})`);
-        }
-        const data = await res.json();
-        if (!data.success || !data.data) {
-          throw new Error(data.message || 'Unable to retrieve provider details');
-        }
-
-        state.providerProfile = data.data;
-        if (elements.panelProviderRegister) elements.panelProviderRegister.classList.add('hidden');
-        if (elements.panelProviderDashboard) elements.panelProviderDashboard.classList.remove('hidden');
-
-        renderProviderStatusBanner(data.data);
-        updateProviderTabVisibility(data.data.businessType);
-
-        const loadPromises = [];
-        const bType = (data.data.businessType || '').toUpperCase();
-        if (bType === 'TRANSPORT' || bType === 'BOTH') {
-          loadPromises.push(loadProviderVehicles());
-          loadPromises.push(loadProviderSchedules());
-          loadPromises.push(loadProviderDepartures());
-        }
-        if (bType === 'HOTEL' || bType === 'BOTH') {
-          loadPromises.push(loadProviderHotels());
-          loadPromises.push(loadProviderCabs());
-        }
-        loadPromises.push(loadProviderRefunds());
-        loadPromises.push(loadProviderPendingBookings());
-        await Promise.all(loadPromises);
-      } catch (err) {
-        showToast(err.message, 'danger');
+      if (!res.ok) {
+        throw new Error(`Failed to load provider profile (HTTP ${res.status})`);
       }
-    }
-
-    function updateProviderTabVisibility(businessType) {
-      const type = (businessType || 'TRANSPORT').toUpperCase();
-      const isTransport = type === 'TRANSPORT' || type === 'BOTH';
-      const isHotel = type === 'HOTEL' || type === 'BOTH';
-
-      if (elements.btnProvTabVehicles) elements.btnProvTabVehicles.classList.toggle('hidden', !isTransport);
-      if (elements.btnProvTabSchedules) elements.btnProvTabSchedules.classList.toggle('hidden', !isTransport);
-      if (elements.btnProvTabDepartures) elements.btnProvTabDepartures.classList.toggle('hidden', !isTransport);
-
-      if (elements.btnProvTabHotels) elements.btnProvTabHotels.classList.toggle('hidden', !isHotel);
-      if (elements.btnProvTabCabs) elements.btnProvTabCabs.classList.toggle('hidden', !isHotel);
-
-      if (elements.btnProvTabRefunds) elements.btnProvTabRefunds.classList.remove('hidden');
-      if (elements.btnProvTabPending) elements.btnProvTabPending.classList.remove('hidden');
-
-      const allTabs = [
-        { btn: elements.btnProvTabVehicles, content: elements.provTabContentVehicles, visible: isTransport },
-        { btn: elements.btnProvTabSchedules, content: elements.provTabContentSchedules, visible: isTransport },
-        { btn: elements.btnProvTabDepartures, content: elements.provTabContentDepartures, visible: isTransport },
-        { btn: elements.btnProvTabHotels, content: elements.provTabContentHotels, visible: isHotel },
-        { btn: elements.btnProvTabCabs, content: elements.provTabContentCabs, visible: isHotel },
-        { btn: elements.btnProvTabRefunds, content: elements.provTabContentRefunds, visible: true },
-        { btn: elements.btnProvTabPending, content: elements.provTabContentPending, visible: true }
-      ];
-
-      const activeTab = allTabs.find(t => t.btn && t.btn.classList.contains('active'));
-      if (!activeTab || !activeTab.visible) {
-        allTabs.forEach(t => {
-          if (t.btn) t.btn.classList.remove('active');
-          if (t.content) t.content.classList.add('hidden');
-        });
-        const firstVisible = allTabs.find(t => t.visible && t.btn);
-        if (firstVisible) {
-          if (firstVisible.btn) firstVisible.btn.classList.add('active');
-          if (firstVisible.content) firstVisible.content.classList.remove('hidden');
-        }
-      }
-    }
-
-    function renderProviderStatusBanner(p) {
-      if (!elements.providerStatusBanner) return;
-      let badgeClass = 'badge-neutral';
-      let statusDesc = '';
-      if (p.status === 'PENDING') {
-        badgeClass = 'badge-amber';
-        statusDesc = 'Your provider profile is currently <strong>PENDING</strong> administrator review. You can add vehicles and draft schedules now; departures will be visible to travellers once approved.';
-      } else if (p.status === 'APPROVED') {
-        badgeClass = 'badge-green';
-        statusDesc = 'Your provider account is <strong>APPROVED</strong>. Intercity schedules and 14-day departures are published and bookable across the Odyssey network.';
-      } else if (p.status === 'SUSPENDED') {
-        badgeClass = 'badge-danger';
-        statusDesc = `Your provider account is <strong>SUSPENDED</strong>. Reason: ${escapeHtml(p.suspensionReason || 'Account suspended by administrator')}. Active listings are hidden from search, but existing bookings remain valid.`;
-      } else if (p.status === 'REJECTED') {
-        badgeClass = 'badge-danger';
-        statusDesc = `Your registration was <strong>REJECTED</strong>. Reason: ${escapeHtml(p.rejectionReason || 'Application rejected by administrator')}.`;
+      const data = await res.json();
+      if (!data.success || !data.data) {
+        throw new Error(data.message || 'Unable to retrieve provider details');
       }
 
-      elements.providerStatusBanner.innerHTML = `
+      state.providerProfile = data.data;
+      if (elements.panelProviderRegister) elements.panelProviderRegister.classList.add('hidden');
+      if (elements.panelProviderDashboard) elements.panelProviderDashboard.classList.remove('hidden');
+
+      renderProviderStatusBanner(data.data);
+      updateProviderTabVisibility(data.data.businessType);
+
+      const loadPromises = [];
+      const bType = (data.data.businessType || '').toUpperCase();
+      if (bType === 'TRANSPORT' || bType === 'BOTH') {
+        loadPromises.push(loadProviderVehicles());
+        loadPromises.push(loadProviderSchedules());
+        loadPromises.push(loadProviderDepartures());
+      }
+      if (bType === 'HOTEL' || bType === 'BOTH') {
+        loadPromises.push(loadProviderHotels());
+        loadPromises.push(loadProviderCabs());
+      }
+      loadPromises.push(loadProviderRefunds());
+      loadPromises.push(loadProviderPendingBookings());
+      await Promise.all(loadPromises);
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  }
+
+  function updateProviderTabVisibility(businessType) {
+    const type = (businessType || 'TRANSPORT').toUpperCase();
+    const isTransport = type === 'TRANSPORT' || type === 'BOTH';
+    const isHotel = type === 'HOTEL' || type === 'BOTH';
+
+    if (elements.btnProvTabVehicles) elements.btnProvTabVehicles.classList.toggle('hidden', !isTransport);
+    if (elements.btnProvTabSchedules) elements.btnProvTabSchedules.classList.toggle('hidden', !isTransport);
+    if (elements.btnProvTabDepartures) elements.btnProvTabDepartures.classList.toggle('hidden', !isTransport);
+
+    if (elements.btnProvTabHotels) elements.btnProvTabHotels.classList.toggle('hidden', !isHotel);
+    if (elements.btnProvTabCabs) elements.btnProvTabCabs.classList.toggle('hidden', !isHotel);
+
+    if (elements.btnProvTabRefunds) elements.btnProvTabRefunds.classList.remove('hidden');
+    if (elements.btnProvTabPending) elements.btnProvTabPending.classList.remove('hidden');
+
+    const allTabs = [
+      { btn: elements.btnProvTabVehicles, content: elements.provTabContentVehicles, visible: isTransport },
+      { btn: elements.btnProvTabSchedules, content: elements.provTabContentSchedules, visible: isTransport },
+      { btn: elements.btnProvTabDepartures, content: elements.provTabContentDepartures, visible: isTransport },
+      { btn: elements.btnProvTabHotels, content: elements.provTabContentHotels, visible: isHotel },
+      { btn: elements.btnProvTabCabs, content: elements.provTabContentCabs, visible: isHotel },
+      { btn: elements.btnProvTabRefunds, content: elements.provTabContentRefunds, visible: true },
+      { btn: elements.btnProvTabPending, content: elements.provTabContentPending, visible: true }
+    ];
+
+    const activeTab = allTabs.find(t => t.btn && t.btn.classList.contains('active'));
+    if (!activeTab || !activeTab.visible) {
+      allTabs.forEach(t => {
+        if (t.btn) t.btn.classList.remove('active');
+        if (t.content) t.content.classList.add('hidden');
+      });
+      const firstVisible = allTabs.find(t => t.visible && t.btn);
+      if (firstVisible) {
+        if (firstVisible.btn) firstVisible.btn.classList.add('active');
+        if (firstVisible.content) firstVisible.content.classList.remove('hidden');
+      }
+    }
+  }
+
+  function renderProviderStatusBanner(p) {
+    if (!elements.providerStatusBanner) return;
+    let badgeClass = 'badge-neutral';
+    let statusDesc = '';
+    if (p.status === 'PENDING') {
+      badgeClass = 'badge-amber';
+      statusDesc = 'Your provider profile is currently <strong>PENDING</strong> administrator review. You can add vehicles and draft schedules now; departures will be visible to travellers once approved.';
+    } else if (p.status === 'APPROVED') {
+      badgeClass = 'badge-green';
+      statusDesc = 'Your provider account is <strong>APPROVED</strong>. Intercity schedules and 14-day departures are published and bookable across the Odyssey network.';
+    } else if (p.status === 'SUSPENDED') {
+      badgeClass = 'badge-danger';
+      statusDesc = `Your provider account is <strong>SUSPENDED</strong>. Reason: ${escapeHtml(p.suspensionReason || 'Account suspended by administrator')}. Active listings are hidden from search, but existing bookings remain valid.`;
+    } else if (p.status === 'REJECTED') {
+      badgeClass = 'badge-danger';
+      statusDesc = `Your registration was <strong>REJECTED</strong>. Reason: ${escapeHtml(p.rejectionReason || 'Application rejected by administrator')}.`;
+    }
+
+    elements.providerStatusBanner.innerHTML = `
         <div class="provider-banner-card">
           <div class="provider-banner-header">
             <div>
@@ -9727,74 +9889,74 @@
           </div>
         </div>
       `;
+  }
+
+  async function handleProviderRegisterSubmit(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('btn-submit-provider-register');
+    setButtonLoading(submitBtn, true);
+
+    const businessName = document.getElementById('provider-reg-business-name').value.trim();
+    const businessType = document.getElementById('provider-reg-business-type').value;
+    const city = document.getElementById('provider-reg-city').value.trim();
+    const contactEmail = document.getElementById('provider-reg-contact-email').value.trim();
+    const contactPhone = document.getElementById('provider-reg-contact-phone').value.trim();
+    const description = document.getElementById('provider-reg-desc').value.trim();
+
+    try {
+      const res = await fetch('/api/provider/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessName, businessType, city, contactEmail, contactPhone, description })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Provider registration failed');
+      }
+
+      if (state.currentUser) {
+        state.currentUser.role = 'PROVIDER';
+        updateAuthHeader();
+      }
+      showToast('Provider registration submitted! Account status is PENDING review.', 'success');
+      await loadProviderPortal();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(submitBtn, false);
     }
+  }
 
-    async function handleProviderRegisterSubmit(e) {
-      e.preventDefault();
-      const submitBtn = document.getElementById('btn-submit-provider-register');
-      setButtonLoading(submitBtn, true);
+  // --- Provider Vehicles Management ---
 
-      const businessName = document.getElementById('provider-reg-business-name').value.trim();
-      const businessType = document.getElementById('provider-reg-business-type').value;
-      const city = document.getElementById('provider-reg-city').value.trim();
-      const contactEmail = document.getElementById('provider-reg-contact-email').value.trim();
-      const contactPhone = document.getElementById('provider-reg-contact-phone').value.trim();
-      const description = document.getElementById('provider-reg-desc').value.trim();
-
-      try {
-        const res = await fetch('/api/provider/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ businessName, businessType, city, contactEmail, contactPhone, description })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Provider registration failed');
-        }
-
-        if (state.currentUser) {
-          state.currentUser.role = 'PROVIDER';
-          updateAuthHeader();
-        }
-        showToast('Provider registration submitted! Account status is PENDING review.', 'success');
-        await loadProviderPortal();
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(submitBtn, false);
+  async function loadProviderVehicles() {
+    if (!elements.provVehiclesTbody) return;
+    try {
+      const res = await fetch('/api/provider/vehicles');
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to fetch vehicles');
+      }
+      state.providerVehicles = data.data || [];
+      if (elements.provVehiclesCount) {
+        elements.provVehiclesCount.textContent = state.providerVehicles.length;
+      }
+      renderProviderVehicles(state.providerVehicles);
+    } catch (err) {
+      console.warn('Failed to load provider vehicles:', err);
+      if (elements.provVehiclesTbody) {
+        elements.provVehiclesTbody.innerHTML = `<tr><td colspan="5" class="empty-state" style="color: #f87171;">Unable to load fleet vehicles: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
+  }
 
-    // --- Provider Vehicles Management ---
-
-    async function loadProviderVehicles() {
-      if (!elements.provVehiclesTbody) return;
-      try {
-        const res = await fetch('/api/provider/vehicles');
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to fetch vehicles');
-        }
-        state.providerVehicles = data.data || [];
-        if (elements.provVehiclesCount) {
-          elements.provVehiclesCount.textContent = state.providerVehicles.length;
-        }
-        renderProviderVehicles(state.providerVehicles);
-      } catch (err) {
-        console.warn('Failed to load provider vehicles:', err);
-        if (elements.provVehiclesTbody) {
-          elements.provVehiclesTbody.innerHTML = `<tr><td colspan="5" class="empty-state" style="color: #f87171;">Unable to load fleet vehicles: ${escapeHtml(err.message)}</td></tr>`;
-        }
-      }
+  function renderProviderVehicles(vehicles) {
+    if (!elements.provVehiclesTbody) return;
+    if (vehicles.length === 0) {
+      elements.provVehiclesTbody.innerHTML = '<tr><td colspan="5" class="empty-state">No vehicles in fleet. Click "+ Add Vehicle" to add one.</td></tr>';
+      return;
     }
-
-    function renderProviderVehicles(vehicles) {
-      if (!elements.provVehiclesTbody) return;
-      if (vehicles.length === 0) {
-        elements.provVehiclesTbody.innerHTML = '<tr><td colspan="5" class="empty-state">No vehicles in fleet. Click "+ Add Vehicle" to add one.</td></tr>';
-        return;
-      }
-      elements.provVehiclesTbody.innerHTML = vehicles.map(v => `
+    elements.provVehiclesTbody.innerHTML = vehicles.map(v => `
         <tr>
           <td><strong style="color: #f8fafc;">${escapeHtml(v.vehicleNumber)}</strong><br><small style="color: #94a3b8;">${escapeHtml(v.vehicleType || '')}</small></td>
           <td><span class="badge ${v.mode === 'BUS' ? 'badge-amber' : (v.mode === 'TRAIN' ? 'badge-blue' : (v.mode === 'CAB' ? 'badge-cyan' : 'badge-purple'))}">${escapeHtml(v.mode)}</span></td>
@@ -9813,176 +9975,176 @@
         </tr>
       `).join('');
 
-      elements.provVehiclesTbody.querySelectorAll('.btn-prov-toggle-veh').forEach(btn => {
-        btn.addEventListener('click', () => handleToggleVehicle(btn.getAttribute('data-id'), btn.getAttribute('data-active') === 'true'));
+    elements.provVehiclesTbody.querySelectorAll('.btn-prov-toggle-veh').forEach(btn => {
+      btn.addEventListener('click', () => handleToggleVehicle(btn.getAttribute('data-id'), btn.getAttribute('data-active') === 'true'));
+    });
+    elements.provVehiclesTbody.querySelectorAll('.btn-prov-edit-veh').forEach(btn => {
+      btn.addEventListener('click', () => openEditVehicleModal(btn.getAttribute('data-id')));
+    });
+    elements.provVehiclesTbody.querySelectorAll('.btn-prov-delete-veh').forEach(btn => {
+      btn.addEventListener('click', () => handleDeleteVehicle(btn.getAttribute('data-id')));
+    });
+  }
+
+  function openAddVehicleModal() {
+    const bizName = (state.providerProfile && state.providerProfile.businessName) || '';
+    const isCabBiz = /cab|taxi|car/i.test(bizName);
+    const modeSelect = document.getElementById('prov-veh-mode');
+    const typeInput = document.getElementById('prov-veh-type');
+    const seatsInput = document.getElementById('prov-veh-seats');
+
+    document.getElementById('prov-veh-id').value = '';
+    document.getElementById('modal-prov-vehicle-title').textContent = 'Add Vehicle';
+    document.getElementById('prov-veh-number').value = '';
+
+    if (isCabBiz) {
+      if (modeSelect) modeSelect.value = 'CAB';
+      if (typeInput) {
+        typeInput.placeholder = 'e.g. Sedan (Dzire, Etios) or SUV (Innova)';
+        typeInput.value = 'Sedan (4 Seats)';
+      }
+      if (seatsInput) seatsInput.value = 4;
+    } else {
+      if (modeSelect) modeSelect.value = 'BUS';
+      if (typeInput) {
+        typeInput.placeholder = 'e.g. AC Multi-Axle Sleeper';
+        typeInput.value = 'AC Multi-Axle Sleeper';
+      }
+      if (seatsInput) seatsInput.value = 40;
+    }
+    document.getElementById('prov-veh-active').checked = true;
+    if (elements.modalProvVehicle) {
+      elements.modalProvVehicle.classList.remove('hidden');
+      elements.modalProvVehicle.classList.add('is-open');
+    }
+  }
+
+  function openEditVehicleModal(id) {
+    const v = state.providerVehicles.find(item => item.id === id);
+    if (!v) return;
+    document.getElementById('prov-veh-id').value = v.id;
+    document.getElementById('modal-prov-vehicle-title').textContent = 'Edit Vehicle';
+    document.getElementById('prov-veh-number').value = v.vehicleNumber;
+    document.getElementById('prov-veh-mode').value = v.mode;
+    document.getElementById('prov-veh-type').value = v.vehicleType || '';
+    document.getElementById('prov-veh-seats').value = v.seatsTotal;
+    document.getElementById('prov-veh-active').checked = v.active;
+    if (elements.modalProvVehicle) {
+      elements.modalProvVehicle.classList.remove('hidden');
+      elements.modalProvVehicle.classList.add('is-open');
+    }
+  }
+
+  function closeVehicleModal() {
+    if (elements.modalProvVehicle) {
+      elements.modalProvVehicle.classList.add('hidden');
+      elements.modalProvVehicle.classList.remove('is-open');
+    }
+  }
+
+  async function handleSaveVehicleSubmit(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('btn-submit-prov-vehicle');
+    setButtonLoading(submitBtn, true);
+
+    const id = document.getElementById('prov-veh-id').value.trim();
+    const vehicleNumber = document.getElementById('prov-veh-number').value.trim();
+    const mode = document.getElementById('prov-veh-mode').value;
+    const vehicleType = document.getElementById('prov-veh-type').value.trim() || `${mode} Express`;
+    const seatsTotal = parseInt(document.getElementById('prov-veh-seats').value, 10);
+    const active = document.getElementById('prov-veh-active').checked;
+
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/provider/vehicles/${id}` : '/api/provider/vehicles';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vehicleNumber, mode, vehicleType, seatsTotal, active })
       });
-      elements.provVehiclesTbody.querySelectorAll('.btn-prov-edit-veh').forEach(btn => {
-        btn.addEventListener('click', () => openEditVehicleModal(btn.getAttribute('data-id')));
+      const data = await res.json();
+      if (res.status === 409) {
+        throw new Error(data.message || 'Conflict: cannot modify vehicle with active future bookings');
+      }
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to save vehicle');
+      }
+
+      closeVehicleModal();
+      showToast(id ? 'Vehicle updated successfully!' : 'Vehicle added to fleet!', 'success');
+      await loadProviderVehicles();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(submitBtn, false);
+    }
+  }
+
+  async function handleToggleVehicle(id, currentActive) {
+    try {
+      const res = await fetch(`/api/provider/vehicles/${id}/status?active=${!currentActive}`, {
+        method: 'PATCH'
       });
-      elements.provVehiclesTbody.querySelectorAll('.btn-prov-delete-veh').forEach(btn => {
-        btn.addEventListener('click', () => handleDeleteVehicle(btn.getAttribute('data-id')));
-      });
-    }
-
-    function openAddVehicleModal() {
-      const bizName = (state.providerProfile && state.providerProfile.businessName) || '';
-      const isCabBiz = /cab|taxi|car/i.test(bizName);
-      const modeSelect = document.getElementById('prov-veh-mode');
-      const typeInput = document.getElementById('prov-veh-type');
-      const seatsInput = document.getElementById('prov-veh-seats');
-
-      document.getElementById('prov-veh-id').value = '';
-      document.getElementById('modal-prov-vehicle-title').textContent = 'Add Vehicle';
-      document.getElementById('prov-veh-number').value = '';
-
-      if (isCabBiz) {
-        if (modeSelect) modeSelect.value = 'CAB';
-        if (typeInput) {
-          typeInput.placeholder = 'e.g. Sedan (Dzire, Etios) or SUV (Innova)';
-          typeInput.value = 'Sedan (4 Seats)';
-        }
-        if (seatsInput) seatsInput.value = 4;
-      } else {
-        if (modeSelect) modeSelect.value = 'BUS';
-        if (typeInput) {
-          typeInput.placeholder = 'e.g. AC Multi-Axle Sleeper';
-          typeInput.value = 'AC Multi-Axle Sleeper';
-        }
-        if (seatsInput) seatsInput.value = 40;
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update vehicle status');
       }
-      document.getElementById('prov-veh-active').checked = true;
-      if (elements.modalProvVehicle) {
-        elements.modalProvVehicle.classList.remove('hidden');
-        elements.modalProvVehicle.classList.add('is-open');
-      }
+      showToast(`Vehicle marked ${!currentActive ? 'Active' : 'Inactive'}`, 'info');
+      await loadProviderVehicles();
+    } catch (err) {
+      showToast(err.message, 'danger');
     }
+  }
 
-    function openEditVehicleModal(id) {
-      const v = state.providerVehicles.find(item => item.id === id);
-      if (!v) return;
-      document.getElementById('prov-veh-id').value = v.id;
-      document.getElementById('modal-prov-vehicle-title').textContent = 'Edit Vehicle';
-      document.getElementById('prov-veh-number').value = v.vehicleNumber;
-      document.getElementById('prov-veh-mode').value = v.mode;
-      document.getElementById('prov-veh-type').value = v.vehicleType || '';
-      document.getElementById('prov-veh-seats').value = v.seatsTotal;
-      document.getElementById('prov-veh-active').checked = v.active;
-      if (elements.modalProvVehicle) {
-        elements.modalProvVehicle.classList.remove('hidden');
-        elements.modalProvVehicle.classList.add('is-open');
+  async function handleDeleteVehicle(id) {
+    if (!confirm('Are you sure you want to delete this vehicle? This action cannot be undone.')) return;
+    try {
+      const res = await fetch(`/api/provider/vehicles/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.status === 409) {
+        throw new Error(data.message || 'Conflict: cannot delete vehicle with future bookings');
+      }
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to delete vehicle');
+      }
+      showToast('Vehicle deleted successfully', 'success');
+      await loadProviderVehicles();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  }
+
+  // --- Provider Schedules Management ---
+
+  async function loadProviderSchedules() {
+    if (!elements.provSchedulesTbody) return;
+    try {
+      const res = await fetch('/api/provider/schedules');
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to fetch schedules');
+      }
+      state.providerSchedules = data.data || [];
+      if (elements.provSchedulesCount) {
+        elements.provSchedulesCount.textContent = state.providerSchedules.length;
+      }
+      renderProviderSchedules(state.providerSchedules);
+    } catch (err) {
+      console.warn('Failed to load provider schedules:', err);
+      if (elements.provSchedulesTbody) {
+        elements.provSchedulesTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #f87171;">Unable to load schedules: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
+  }
 
-    function closeVehicleModal() {
-      if (elements.modalProvVehicle) {
-        elements.modalProvVehicle.classList.add('hidden');
-        elements.modalProvVehicle.classList.remove('is-open');
-      }
+  function renderProviderSchedules(schedules) {
+    if (!elements.provSchedulesTbody) return;
+    if (schedules.length === 0) {
+      elements.provSchedulesTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No schedules configured. Click "+ Add Schedule" to create one.</td></tr>';
+      return;
     }
-
-    async function handleSaveVehicleSubmit(e) {
-      e.preventDefault();
-      const submitBtn = document.getElementById('btn-submit-prov-vehicle');
-      setButtonLoading(submitBtn, true);
-
-      const id = document.getElementById('prov-veh-id').value.trim();
-      const vehicleNumber = document.getElementById('prov-veh-number').value.trim();
-      const mode = document.getElementById('prov-veh-mode').value;
-      const vehicleType = document.getElementById('prov-veh-type').value.trim() || `${mode} Express`;
-      const seatsTotal = parseInt(document.getElementById('prov-veh-seats').value, 10);
-      const active = document.getElementById('prov-veh-active').checked;
-
-      const method = id ? 'PUT' : 'POST';
-      const url = id ? `/api/provider/vehicles/${id}` : '/api/provider/vehicles';
-
-      try {
-        const res = await fetch(url, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ vehicleNumber, mode, vehicleType, seatsTotal, active })
-        });
-        const data = await res.json();
-        if (res.status === 409) {
-          throw new Error(data.message || 'Conflict: cannot modify vehicle with active future bookings');
-        }
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to save vehicle');
-        }
-
-        closeVehicleModal();
-        showToast(id ? 'Vehicle updated successfully!' : 'Vehicle added to fleet!', 'success');
-        await loadProviderVehicles();
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(submitBtn, false);
-      }
-    }
-
-    async function handleToggleVehicle(id, currentActive) {
-      try {
-        const res = await fetch(`/api/provider/vehicles/${id}/status?active=${!currentActive}`, {
-          method: 'PATCH'
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to update vehicle status');
-        }
-        showToast(`Vehicle marked ${!currentActive ? 'Active' : 'Inactive'}`, 'info');
-        await loadProviderVehicles();
-      } catch (err) {
-        showToast(err.message, 'danger');
-      }
-    }
-
-    async function handleDeleteVehicle(id) {
-      if (!confirm('Are you sure you want to delete this vehicle? This action cannot be undone.')) return;
-      try {
-        const res = await fetch(`/api/provider/vehicles/${id}`, { method: 'DELETE' });
-        const data = await res.json();
-        if (res.status === 409) {
-          throw new Error(data.message || 'Conflict: cannot delete vehicle with future bookings');
-        }
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to delete vehicle');
-        }
-        showToast('Vehicle deleted successfully', 'success');
-        await loadProviderVehicles();
-      } catch (err) {
-        showToast(err.message, 'danger');
-      }
-    }
-
-    // --- Provider Schedules Management ---
-
-    async function loadProviderSchedules() {
-      if (!elements.provSchedulesTbody) return;
-      try {
-        const res = await fetch('/api/provider/schedules');
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to fetch schedules');
-        }
-        state.providerSchedules = data.data || [];
-        if (elements.provSchedulesCount) {
-          elements.provSchedulesCount.textContent = state.providerSchedules.length;
-        }
-        renderProviderSchedules(state.providerSchedules);
-      } catch (err) {
-        console.warn('Failed to load provider schedules:', err);
-        if (elements.provSchedulesTbody) {
-          elements.provSchedulesTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #f87171;">Unable to load schedules: ${escapeHtml(err.message)}</td></tr>`;
-        }
-      }
-    }
-
-    function renderProviderSchedules(schedules) {
-      if (!elements.provSchedulesTbody) return;
-      if (schedules.length === 0) {
-        elements.provSchedulesTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No schedules configured. Click "+ Add Schedule" to create one.</td></tr>';
-        return;
-      }
-      elements.provSchedulesTbody.innerHTML = schedules.map(s => `
+    elements.provSchedulesTbody.innerHTML = schedules.map(s => `
         <tr>
           <td><strong style="color: #f8fafc;">${escapeHtml(s.originCity)} &rarr; ${escapeHtml(s.destinationCity)}</strong><br><small style="color: #94a3b8;">${escapeHtml(s.originStop)} to ${escapeHtml(s.destinationStop)}</small></td>
           <td>${escapeHtml(s.vehicleNumber)}</td>
@@ -10003,262 +10165,262 @@
         </tr>
       `).join('');
 
-      elements.provSchedulesTbody.querySelectorAll('.btn-prov-toggle-sch').forEach(btn => {
-        btn.addEventListener('click', () => handleToggleSchedule(btn.getAttribute('data-id'), btn.getAttribute('data-active') === 'true'));
-      });
-      elements.provSchedulesTbody.querySelectorAll('.btn-prov-edit-sch').forEach(btn => {
-        btn.addEventListener('click', () => openEditScheduleModal(btn.getAttribute('data-id')));
-      });
-      elements.provSchedulesTbody.querySelectorAll('.btn-prov-delete-sch').forEach(btn => {
-        btn.addEventListener('click', () => handleDeleteSchedule(btn.getAttribute('data-id')));
-      });
+    elements.provSchedulesTbody.querySelectorAll('.btn-prov-toggle-sch').forEach(btn => {
+      btn.addEventListener('click', () => handleToggleSchedule(btn.getAttribute('data-id'), btn.getAttribute('data-active') === 'true'));
+    });
+    elements.provSchedulesTbody.querySelectorAll('.btn-prov-edit-sch').forEach(btn => {
+      btn.addEventListener('click', () => openEditScheduleModal(btn.getAttribute('data-id')));
+    });
+    elements.provSchedulesTbody.querySelectorAll('.btn-prov-delete-sch').forEach(btn => {
+      btn.addEventListener('click', () => handleDeleteSchedule(btn.getAttribute('data-id')));
+    });
+  }
+
+  function openAddScheduleModal() {
+    const schErr = document.getElementById('prov-sch-error');
+    if (schErr) { schErr.textContent = ''; schErr.classList.add('hidden'); }
+    if (state.providerVehicles.length === 0) {
+      showToast('Please add at least one vehicle before creating a schedule.', 'warning');
+      return;
     }
+    document.getElementById('prov-sch-id').value = '';
+    document.getElementById('modal-prov-schedule-title').textContent = 'Add Schedule';
 
-    function openAddScheduleModal() {
-      const schErr = document.getElementById('prov-sch-error');
-      if (schErr) { schErr.textContent = ''; schErr.classList.add('hidden'); }
-      if (state.providerVehicles.length === 0) {
-        showToast('Please add at least one vehicle before creating a schedule.', 'warning');
-        return;
-      }
-      document.getElementById('prov-sch-id').value = '';
-      document.getElementById('modal-prov-schedule-title').textContent = 'Add Schedule';
-
-      const vehSelect = document.getElementById('prov-sch-vehicle');
-      vehSelect.innerHTML = state.providerVehicles.filter(v => v.active).map(v => `
+    const vehSelect = document.getElementById('prov-sch-vehicle');
+    vehSelect.innerHTML = state.providerVehicles.filter(v => v.active).map(v => `
         <option value="${escapeHtml(v.id)}">${escapeHtml(v.vehicleNumber)} (${escapeHtml(v.mode)}, ${v.seatsTotal} seats)</option>
       `).join('');
 
-      document.getElementById('prov-sch-origin').value = '';
-      document.getElementById('prov-sch-dest').value = '';
-      document.getElementById('prov-sch-origin-stop').value = '';
-      document.getElementById('prov-sch-dest-stop').value = '';
-      document.getElementById('prov-sch-dep-time').value = '08:00';
-      document.getElementById('prov-sch-arr-time').value = '14:00';
-      document.getElementById('prov-sch-next-day').checked = false;
-      document.getElementById('prov-sch-price').value = '650.00';
-      document.getElementById('prov-sch-seats-offered').value = '';
+    document.getElementById('prov-sch-origin').value = '';
+    document.getElementById('prov-sch-dest').value = '';
+    document.getElementById('prov-sch-origin-stop').value = '';
+    document.getElementById('prov-sch-dest-stop').value = '';
+    document.getElementById('prov-sch-dep-time').value = '08:00';
+    document.getElementById('prov-sch-arr-time').value = '14:00';
+    document.getElementById('prov-sch-next-day').checked = false;
+    document.getElementById('prov-sch-price').value = '650.00';
+    document.getElementById('prov-sch-seats-offered').value = '';
 
-      const today = new Date();
-      const todayStr = today.toISOString().substring(0, 10);
-      const future = new Date();
-      future.setDate(future.getDate() + 30);
-      const futureStr = future.toISOString().substring(0, 10);
+    const today = new Date();
+    const todayStr = today.toISOString().substring(0, 10);
+    const future = new Date();
+    future.setDate(future.getDate() + 30);
+    const futureStr = future.toISOString().substring(0, 10);
 
-      const validFromInput = document.getElementById('prov-sch-valid-from');
-      const validToInput = document.getElementById('prov-sch-valid-to');
-      if (validFromInput) validFromInput.value = todayStr;
-      if (validToInput) validToInput.value = futureStr;
+    const validFromInput = document.getElementById('prov-sch-valid-from');
+    const validToInput = document.getElementById('prov-sch-valid-to');
+    if (validFromInput) validFromInput.value = todayStr;
+    if (validToInput) validToInput.value = futureStr;
 
-      document.querySelectorAll('.prov-day-chk').forEach(chk => { chk.checked = true; });
+    document.querySelectorAll('.prov-day-chk').forEach(chk => { chk.checked = true; });
 
-      if (elements.modalProvSchedule) {
-        elements.modalProvSchedule.classList.remove('hidden');
-        elements.modalProvSchedule.classList.add('is-open');
-      }
+    if (elements.modalProvSchedule) {
+      elements.modalProvSchedule.classList.remove('hidden');
+      elements.modalProvSchedule.classList.add('is-open');
     }
+  }
 
-    function openEditScheduleModal(id) {
-      const schErr = document.getElementById('prov-sch-error');
-      if (schErr) { schErr.textContent = ''; schErr.classList.add('hidden'); }
-      const s = state.providerSchedules.find(item => item.id === id);
-      if (!s) return;
-      document.getElementById('prov-sch-id').value = s.id;
-      document.getElementById('modal-prov-schedule-title').textContent = 'Edit Schedule';
+  function openEditScheduleModal(id) {
+    const schErr = document.getElementById('prov-sch-error');
+    if (schErr) { schErr.textContent = ''; schErr.classList.add('hidden'); }
+    const s = state.providerSchedules.find(item => item.id === id);
+    if (!s) return;
+    document.getElementById('prov-sch-id').value = s.id;
+    document.getElementById('modal-prov-schedule-title').textContent = 'Edit Schedule';
 
-      const vehSelect = document.getElementById('prov-sch-vehicle');
-      vehSelect.innerHTML = state.providerVehicles.map(v => `
+    const vehSelect = document.getElementById('prov-sch-vehicle');
+    vehSelect.innerHTML = state.providerVehicles.map(v => `
         <option value="${escapeHtml(v.id)}" ${v.id === s.vehicleId ? 'selected' : ''}>${escapeHtml(v.vehicleNumber)} (${escapeHtml(v.mode)}, ${v.seatsTotal} seats)</option>
       `).join('');
 
-      document.getElementById('prov-sch-origin').value = s.originCity;
-      document.getElementById('prov-sch-dest').value = s.destinationCity;
-      document.getElementById('prov-sch-origin-stop').value = s.originStop;
-      document.getElementById('prov-sch-dest-stop').value = s.destinationStop;
-      document.getElementById('prov-sch-dep-time').value = String(s.departureTime).substring(0, 5);
-      document.getElementById('prov-sch-arr-time').value = String(s.arrivalTime).substring(0, 5);
-      document.getElementById('prov-sch-next-day').checked = !!s.arrivesNextDay;
-      document.getElementById('prov-sch-price').value = s.price;
-      document.getElementById('prov-sch-seats-offered').value = s.seatsOffered;
+    document.getElementById('prov-sch-origin').value = s.originCity;
+    document.getElementById('prov-sch-dest').value = s.destinationCity;
+    document.getElementById('prov-sch-origin-stop').value = s.originStop;
+    document.getElementById('prov-sch-dest-stop').value = s.destinationStop;
+    document.getElementById('prov-sch-dep-time').value = String(s.departureTime).substring(0, 5);
+    document.getElementById('prov-sch-arr-time').value = String(s.arrivalTime).substring(0, 5);
+    document.getElementById('prov-sch-next-day').checked = !!s.arrivesNextDay;
+    document.getElementById('prov-sch-price').value = s.price;
+    document.getElementById('prov-sch-seats-offered').value = s.seatsOffered;
 
-      const validFromInput = document.getElementById('prov-sch-valid-from');
-      const validToInput = document.getElementById('prov-sch-valid-to');
-      if (validFromInput && s.validFrom) validFromInput.value = s.validFrom;
-      if (validToInput && s.validTo) validToInput.value = s.validTo;
+    const validFromInput = document.getElementById('prov-sch-valid-from');
+    const validToInput = document.getElementById('prov-sch-valid-to');
+    if (validFromInput && s.validFrom) validFromInput.value = s.validFrom;
+    if (validToInput && s.validTo) validToInput.value = s.validTo;
 
-      const daysArr = (s.daysOfWeek || '').split(',');
-      document.querySelectorAll('.prov-day-chk').forEach(chk => {
-        chk.checked = daysArr.includes(chk.value);
+    const daysArr = (s.daysOfWeek || '').split(',');
+    document.querySelectorAll('.prov-day-chk').forEach(chk => {
+      chk.checked = daysArr.includes(chk.value);
+    });
+
+    if (elements.modalProvSchedule) {
+      elements.modalProvSchedule.classList.remove('hidden');
+      elements.modalProvSchedule.classList.add('is-open');
+    }
+  }
+
+  function closeScheduleModal() {
+    if (elements.modalProvSchedule) {
+      elements.modalProvSchedule.classList.add('hidden');
+      elements.modalProvSchedule.classList.remove('is-open');
+    }
+  }
+
+  async function handleSaveScheduleSubmit(e) {
+    e.preventDefault();
+    const schErr = document.getElementById('prov-sch-error');
+    if (schErr) { schErr.textContent = ''; schErr.classList.add('hidden'); }
+    const submitBtn = document.getElementById('btn-submit-prov-schedule');
+    setButtonLoading(submitBtn, true);
+
+    const id = document.getElementById('prov-sch-id').value.trim();
+    const vehicleId = document.getElementById('prov-sch-vehicle').value;
+    const originCity = document.getElementById('prov-sch-origin').value.trim();
+    const destinationCity = document.getElementById('prov-sch-dest').value.trim();
+    const originStopVal = document.getElementById('prov-sch-origin-stop').value.trim();
+    const destinationStopVal = document.getElementById('prov-sch-dest-stop').value.trim();
+    const originStop = originStopVal || (originCity ? `${originCity} Central` : 'Origin Central');
+    const destinationStop = destinationStopVal || (destinationCity ? `${destinationCity} Central` : 'Destination Central');
+    const departureTime = document.getElementById('prov-sch-dep-time').value;
+    const arrivalTime = document.getElementById('prov-sch-arr-time').value;
+    const arrivesNextDay = document.getElementById('prov-sch-next-day').checked;
+    const price = parseFloat(document.getElementById('prov-sch-price').value);
+
+    const seatsOfferedVal = document.getElementById('prov-sch-seats-offered').value;
+    const selectedVehicle = state.providerVehicles.find(v => v.id === vehicleId);
+    const seatsOffered = (seatsOfferedVal && parseInt(seatsOfferedVal, 10) > 0)
+      ? parseInt(seatsOfferedVal, 10)
+      : (selectedVehicle ? selectedVehicle.seatsTotal : 40);
+
+    const days = [];
+    document.querySelectorAll('.prov-day-chk:checked').forEach(c => days.push(c.value));
+    const daysOfWeek = days.join(',');
+
+    const today = new Date().toISOString().substring(0, 10);
+    const validFrom = (document.getElementById('prov-sch-valid-from') && document.getElementById('prov-sch-valid-from').value) || today;
+    const validTo = (document.getElementById('prov-sch-valid-to') && document.getElementById('prov-sch-valid-to').value) || today;
+
+    const payload = {
+      vehicleId, originCity, destinationCity, originStop, destinationStop,
+      departureTime, arrivalTime, arrivesNextDay, price, seatsOffered,
+      daysOfWeek, validFrom, validTo, active: true
+    };
+
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/provider/schedules/${id}` : '/api/provider/schedules';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        let errText = data.message || 'Failed to save schedule';
+        if (data.details && Array.isArray(data.details) && data.details.length > 0) {
+          errText = data.details.join(', ');
+        }
+        throw new Error(errText);
+      }
 
-      if (elements.modalProvSchedule) {
-        elements.modalProvSchedule.classList.remove('hidden');
-        elements.modalProvSchedule.classList.add('is-open');
+      closeScheduleModal();
+      showToast(id ? 'Schedule updated (unbooked departures re-materialised)!' : 'Schedule created and 14-day departures materialised!', 'success');
+      await Promise.all([
+        loadProviderSchedules(),
+        loadProviderDepartures()
+      ]);
+    } catch (err) {
+      if (schErr) {
+        schErr.textContent = err.message;
+        schErr.classList.remove('hidden');
+      }
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(submitBtn, false);
+    }
+  }
+
+  async function handleToggleSchedule(id, currentActive) {
+    try {
+      const res = await fetch(`/api/provider/schedules/${id}/status?active=${!currentActive}`, {
+        method: 'PATCH'
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update schedule status');
+      }
+      showToast(`Schedule marked ${!currentActive ? 'Active' : 'Inactive'}`, 'info');
+      await Promise.all([
+        loadProviderSchedules(),
+        loadProviderDepartures()
+      ]);
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  }
+
+  async function handleDeleteSchedule(id) {
+    if (!confirm('Are you sure you want to delete this schedule?')) return;
+    try {
+      const res = await fetch(`/api/provider/schedules/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to delete schedule');
+      }
+      showToast('Schedule deleted successfully', 'success');
+      await Promise.all([
+        loadProviderSchedules(),
+        loadProviderDepartures()
+      ]);
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  }
+
+  // --- Provider Departures Management & Status Reporting ---
+
+  async function loadProviderDepartures() {
+    if (!elements.provDeparturesTbody) return;
+    try {
+      const res = await fetch('/api/provider/departures');
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to fetch departures');
+      }
+      state.providerDepartures = data.data || [];
+      if (elements.provDeparturesCount) {
+        elements.provDeparturesCount.textContent = state.providerDepartures.length;
+      }
+      renderProviderDepartures(state.providerDepartures);
+    } catch (err) {
+      console.warn('Failed to load provider departures:', err);
+      if (elements.provDeparturesTbody) {
+        elements.provDeparturesTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #f87171;">Unable to load departures: ${escapeHtml(err.message)}</td></tr>`;
       }
     }
+  }
 
-    function closeScheduleModal() {
-      if (elements.modalProvSchedule) {
-        elements.modalProvSchedule.classList.add('hidden');
-        elements.modalProvSchedule.classList.remove('is-open');
-      }
+  function renderProviderDepartures(departures) {
+    if (!elements.provDeparturesTbody) return;
+    if (departures.length === 0) {
+      elements.provDeparturesTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No upcoming departures materialised.</td></tr>';
+      return;
     }
-
-    async function handleSaveScheduleSubmit(e) {
-      e.preventDefault();
-      const schErr = document.getElementById('prov-sch-error');
-      if (schErr) { schErr.textContent = ''; schErr.classList.add('hidden'); }
-      const submitBtn = document.getElementById('btn-submit-prov-schedule');
-      setButtonLoading(submitBtn, true);
-
-      const id = document.getElementById('prov-sch-id').value.trim();
-      const vehicleId = document.getElementById('prov-sch-vehicle').value;
-      const originCity = document.getElementById('prov-sch-origin').value.trim();
-      const destinationCity = document.getElementById('prov-sch-dest').value.trim();
-      const originStopVal = document.getElementById('prov-sch-origin-stop').value.trim();
-      const destinationStopVal = document.getElementById('prov-sch-dest-stop').value.trim();
-      const originStop = originStopVal || (originCity ? `${originCity} Central` : 'Origin Central');
-      const destinationStop = destinationStopVal || (destinationCity ? `${destinationCity} Central` : 'Destination Central');
-      const departureTime = document.getElementById('prov-sch-dep-time').value;
-      const arrivalTime = document.getElementById('prov-sch-arr-time').value;
-      const arrivesNextDay = document.getElementById('prov-sch-next-day').checked;
-      const price = parseFloat(document.getElementById('prov-sch-price').value);
-
-      const seatsOfferedVal = document.getElementById('prov-sch-seats-offered').value;
-      const selectedVehicle = state.providerVehicles.find(v => v.id === vehicleId);
-      const seatsOffered = (seatsOfferedVal && parseInt(seatsOfferedVal, 10) > 0)
-        ? parseInt(seatsOfferedVal, 10)
-        : (selectedVehicle ? selectedVehicle.seatsTotal : 40);
-
-      const days = [];
-      document.querySelectorAll('.prov-day-chk:checked').forEach(c => days.push(c.value));
-      const daysOfWeek = days.join(',');
-
-      const today = new Date().toISOString().substring(0, 10);
-      const validFrom = (document.getElementById('prov-sch-valid-from') && document.getElementById('prov-sch-valid-from').value) || today;
-      const validTo = (document.getElementById('prov-sch-valid-to') && document.getElementById('prov-sch-valid-to').value) || today;
-
-      const payload = {
-        vehicleId, originCity, destinationCity, originStop, destinationStop,
-        departureTime, arrivalTime, arrivesNextDay, price, seatsOffered,
-        daysOfWeek, validFrom, validTo, active: true
-      };
-
-      const method = id ? 'PUT' : 'POST';
-      const url = id ? `/api/provider/schedules/${id}` : '/api/provider/schedules';
-
-      try {
-        const res = await fetch(url, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          let errText = data.message || 'Failed to save schedule';
-          if (data.details && Array.isArray(data.details) && data.details.length > 0) {
-            errText = data.details.join(', ');
-          }
-          throw new Error(errText);
-        }
-
-        closeScheduleModal();
-        showToast(id ? 'Schedule updated (unbooked departures re-materialised)!' : 'Schedule created and 14-day departures materialised!', 'success');
-        await Promise.all([
-          loadProviderSchedules(),
-          loadProviderDepartures()
-        ]);
-      } catch (err) {
-        if (schErr) {
-          schErr.textContent = err.message;
-          schErr.classList.remove('hidden');
-        }
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(submitBtn, false);
+    elements.provDeparturesTbody.innerHTML = departures.map(d => {
+      let statusBadge = 'badge-green';
+      let statusText = d.status || 'SCHEDULED';
+      if (d.status === 'DELAYED') {
+        statusBadge = 'badge-amber';
+        statusText = `DELAYED (+${d.delayMinutes || 0}m)`;
+      } else if (d.status === 'CANCELLED') {
+        statusBadge = 'badge-danger';
       }
-    }
 
-    async function handleToggleSchedule(id, currentActive) {
-      try {
-        const res = await fetch(`/api/provider/schedules/${id}/status?active=${!currentActive}`, {
-          method: 'PATCH'
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to update schedule status');
-        }
-        showToast(`Schedule marked ${!currentActive ? 'Active' : 'Inactive'}`, 'info');
-        await Promise.all([
-          loadProviderSchedules(),
-          loadProviderDepartures()
-        ]);
-      } catch (err) {
-        showToast(err.message, 'danger');
-      }
-    }
+      const booked = (d.seatsTotal || 0) - (d.seatsAvailable || 0);
+      const isTransportMode = d.mode === 'BUS' || d.mode === 'TRAIN' || d.mode === 'FLIGHT';
 
-    async function handleDeleteSchedule(id) {
-      if (!confirm('Are you sure you want to delete this schedule?')) return;
-      try {
-        const res = await fetch(`/api/provider/schedules/${id}`, { method: 'DELETE' });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to delete schedule');
-        }
-        showToast('Schedule deleted successfully', 'success');
-        await Promise.all([
-          loadProviderSchedules(),
-          loadProviderDepartures()
-        ]);
-      } catch (err) {
-        showToast(err.message, 'danger');
-      }
-    }
-
-    // --- Provider Departures Management & Status Reporting ---
-
-    async function loadProviderDepartures() {
-      if (!elements.provDeparturesTbody) return;
-      try {
-        const res = await fetch('/api/provider/departures');
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to fetch departures');
-        }
-        state.providerDepartures = data.data || [];
-        if (elements.provDeparturesCount) {
-          elements.provDeparturesCount.textContent = state.providerDepartures.length;
-        }
-        renderProviderDepartures(state.providerDepartures);
-      } catch (err) {
-        console.warn('Failed to load provider departures:', err);
-        if (elements.provDeparturesTbody) {
-          elements.provDeparturesTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #f87171;">Unable to load departures: ${escapeHtml(err.message)}</td></tr>`;
-        }
-      }
-    }
-
-    function renderProviderDepartures(departures) {
-      if (!elements.provDeparturesTbody) return;
-      if (departures.length === 0) {
-        elements.provDeparturesTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No upcoming departures materialised.</td></tr>';
-        return;
-      }
-      elements.provDeparturesTbody.innerHTML = departures.map(d => {
-        let statusBadge = 'badge-green';
-        let statusText = d.status || 'SCHEDULED';
-        if (d.status === 'DELAYED') {
-          statusBadge = 'badge-amber';
-          statusText = `DELAYED (+${d.delayMinutes || 0}m)`;
-        } else if (d.status === 'CANCELLED') {
-          statusBadge = 'badge-danger';
-        }
-
-        const booked = (d.seatsTotal || 0) - (d.seatsAvailable || 0);
-        const isTransportMode = d.mode === 'BUS' || d.mode === 'TRAIN' || d.mode === 'FLIGHT';
-
-        return `
+      return `
           <tr>
             <td><strong style="color: #f8fafc;">${escapeHtml(d.travelDate)}</strong></td>
             <td>${escapeHtml(d.originCity)} &rarr; ${escapeHtml(d.destinationCity)}</td>
@@ -10276,289 +10438,290 @@
             </td>
           </tr>
         `;
-      }).join('');
+    }).join('');
 
-      elements.provDeparturesTbody.querySelectorAll('.btn-prov-report-delay').forEach(btn => {
-        btn.addEventListener('click', () => openStatusModal(btn.getAttribute('data-id'), 'DELAYED'));
-      });
-      elements.provDeparturesTbody.querySelectorAll('.btn-prov-report-cancel').forEach(btn => {
-        btn.addEventListener('click', () => openStatusModal(btn.getAttribute('data-id'), 'CANCELLED'));
-      });
-      elements.provDeparturesTbody.querySelectorAll('.btn-prov-offer-alt').forEach(btn => {
-        btn.addEventListener('click', () => openOfferAlternativeModal(btn.getAttribute('data-id')));
-      });
-      elements.provDeparturesTbody.querySelectorAll('.btn-prov-view-manifest').forEach(btn => {
-        btn.addEventListener('click', () => openBookingsModal(btn.getAttribute('data-id')));
-      });
-    }
+    elements.provDeparturesTbody.querySelectorAll('.btn-prov-report-delay').forEach(btn => {
+      btn.addEventListener('click', () => openStatusModal(btn.getAttribute('data-id'), 'DELAYED'));
+    });
+    elements.provDeparturesTbody.querySelectorAll('.btn-prov-report-cancel').forEach(btn => {
+      btn.addEventListener('click', () => openStatusModal(btn.getAttribute('data-id'), 'CANCELLED'));
+    });
+    elements.provDeparturesTbody.querySelectorAll('.btn-prov-offer-alt').forEach(btn => {
+      btn.addEventListener('click', () => openOfferAlternativeModal(btn.getAttribute('data-id')));
+    });
+    elements.provDeparturesTbody.querySelectorAll('.btn-prov-view-manifest').forEach(btn => {
+      btn.addEventListener('click', () => openBookingsModal(btn.getAttribute('data-id')));
+    });
+  }
 
-    function openStatusModal(id, preselectedStatus = null) {
-      const dep = state.providerDepartures.find(d => d.id === id);
-      if (!dep) return;
-      if (elements.provStatusDepId) elements.provStatusDepId.value = dep.id;
-      if (elements.provStatusDepSummary) {
-        elements.provStatusDepSummary.innerHTML = `
+  function openStatusModal(id, preselectedStatus = null) {
+    const dep = state.providerDepartures.find(d => d.id === id);
+    if (!dep) return;
+    if (elements.provStatusDepId) elements.provStatusDepId.value = dep.id;
+    if (elements.provStatusDepSummary) {
+      elements.provStatusDepSummary.innerHTML = `
           <strong>Departure:</strong> ${escapeHtml(dep.travelDate)} &bull; ${escapeHtml(dep.originCity)} &rarr; ${escapeHtml(dep.destinationCity)}<br>
           <strong>Vehicle:</strong> ${escapeHtml(dep.vehicleNumber)} &bull; <strong>Current Status:</strong> ${escapeHtml(dep.status)}
         `;
-      }
-      const targetStatus = preselectedStatus || (dep.status === 'CANCELLED' ? 'CANCELLED' : 'DELAYED');
-      if (elements.provStatusState) elements.provStatusState.value = targetStatus;
-      if (elements.provStatusDelay) elements.provStatusDelay.value = dep.delayMinutes || 30;
-      if (elements.provStatusReason) elements.provStatusReason.value = dep.statusReason || (targetStatus === 'CANCELLED' ? 'Operational cancellation due to technical scheduling' : '');
-      if (elements.provStatusDelayGroup) {
-        elements.provStatusDelayGroup.classList.toggle('hidden', targetStatus !== 'DELAYED');
-      }
-
-      if (elements.modalProvStatus) {
-        elements.modalProvStatus.classList.remove('hidden');
-        elements.modalProvStatus.classList.add('is-open');
-      }
+    }
+    const targetStatus = preselectedStatus || (dep.status === 'CANCELLED' ? 'CANCELLED' : 'DELAYED');
+    if (elements.provStatusState) elements.provStatusState.value = targetStatus;
+    if (elements.provStatusDelay) elements.provStatusDelay.value = dep.delayMinutes || 30;
+    if (elements.provStatusReason) elements.provStatusReason.value = dep.statusReason || (targetStatus === 'CANCELLED' ? 'Operational cancellation due to technical scheduling' : '');
+    if (elements.provStatusDelayGroup) {
+      elements.provStatusDelayGroup.classList.toggle('hidden', targetStatus !== 'DELAYED');
     }
 
-    function closeStatusModal() {
-      if (elements.modalProvStatus) {
-        elements.modalProvStatus.classList.add('hidden');
-        elements.modalProvStatus.classList.remove('is-open');
-      }
+    if (elements.modalProvStatus) {
+      elements.modalProvStatus.classList.remove('hidden');
+      elements.modalProvStatus.classList.add('is-open');
     }
+  }
 
-    async function handleSaveStatusSubmit(e) {
-      e.preventDefault();
-      const submitBtn = document.getElementById('btn-submit-prov-status');
-      setButtonLoading(submitBtn, true);
-
-      const depId = elements.provStatusDepId.value.trim();
-      const stateVal = elements.provStatusState.value;
-      const delayMinutes = stateVal === 'DELAYED' ? parseInt(elements.provStatusDelay.value, 10) : 0;
-      const reason = elements.provStatusReason.value.trim();
-
-      try {
-        const res = await fetch(`/api/provider/departures/${depId}/status`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: stateVal, delayMinutes, reason })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to update departure status');
-        }
-
-        closeStatusModal();
-        showToast('Departure status updated! Disruption recorded for affected travellers.', 'warning');
-        await loadProviderDepartures();
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(submitBtn, false);
-      }
+  function closeStatusModal() {
+    if (elements.modalProvStatus) {
+      elements.modalProvStatus.classList.add('hidden');
+      elements.modalProvStatus.classList.remove('is-open');
     }
+  }
 
-    function openOfferAlternativeModal(depId) {
-      const dep = (state.providerDepartures || []).find(d => d.id === depId);
-      if (!dep) return;
-      if (elements.provOfferAltDepId) elements.provOfferAltDepId.value = dep.id;
-      if (elements.provOfferAltDepSummary) {
-        elements.provOfferAltDepSummary.innerHTML = `
+  async function handleSaveStatusSubmit(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('btn-submit-prov-status');
+    setButtonLoading(submitBtn, true);
+
+    const depId = elements.provStatusDepId.value.trim();
+    const stateVal = elements.provStatusState.value;
+    const delayMinutes = stateVal === 'DELAYED' ? parseInt(elements.provStatusDelay.value, 10) : 0;
+    const reason = elements.provStatusReason.value.trim();
+
+    try {
+      const res = await fetch(`/api/provider/departures/${depId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: stateVal, delayMinutes, reason })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update departure status');
+      }
+
+      closeStatusModal();
+      showToast('Departure status updated! Disruption recorded for affected travellers.', 'warning');
+      await loadProviderDepartures();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(submitBtn, false);
+    }
+  }
+
+  function openOfferAlternativeModal(depId) {
+    const dep = (state.providerDepartures || []).find(d => d.id === depId);
+    if (!dep) return;
+    if (elements.provOfferAltDepId) elements.provOfferAltDepId.value = dep.id;
+    if (elements.provOfferAltDepSummary) {
+      elements.provOfferAltDepSummary.innerHTML = `
           <strong>Primary Problem Departure:</strong> ${escapeHtml(dep.travelDate)} &bull; ${escapeHtml(dep.originCity)} &rarr; ${escapeHtml(dep.destinationCity)}<br>
           <strong>Vehicle:</strong> ${escapeHtml(dep.vehicleNumber)} &bull; <strong>Time:</strong> ${escapeHtml(String(dep.departureTime).substring(0, 5))} - ${escapeHtml(String(dep.arrivalTime).substring(0, 5))}<br>
           <em>Offering a replacement will mark this departure as CANCELLED and suggest the alternative vehicle to affected travellers.</em>
         `;
-      }
-
-      if (elements.provOfferAltSelect) {
-        elements.provOfferAltSelect.innerHTML = '<option value="">-- Choose replacement vehicle --</option>';
-
-        // 1. Existing departures on the same route & date with available seats
-        const existingDepartures = (state.providerDepartures || []).filter(other =>
-          other.id !== dep.id &&
-          other.travelDate === dep.travelDate &&
-          String(other.originCity).toLowerCase() === String(dep.originCity).toLowerCase() &&
-          String(other.destinationCity).toLowerCase() === String(dep.destinationCity).toLowerCase() &&
-          (other.seatsAvailable || 0) > 0 &&
-          other.status !== 'CANCELLED'
-        );
-
-        // 2. Active fleet vehicles (spare / backup buses) registered to this provider
-        const fleetVehicles = (state.providerVehicles || []).filter(v =>
-          v.active !== false &&
-          String(v.vehicleNumber).toLowerCase() !== String(dep.vehicleNumber).toLowerCase()
-        );
-
-        let optionCount = 0;
-
-        if (existingDepartures.length > 0) {
-          const groupDep = document.createElement('optgroup');
-          groupDep.label = `Existing Departures on Same Route (${dep.travelDate})`;
-          existingDepartures.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m.id;
-            opt.textContent = `${m.vehicleNumber} (${String(m.departureTime).substring(0, 5)} - ${String(m.arrivalTime).substring(0, 5)}) — ${m.seatsAvailable} seats available`;
-            groupDep.appendChild(opt);
-            optionCount++;
-          });
-          elements.provOfferAltSelect.appendChild(groupDep);
-        }
-
-        if (fleetVehicles.length > 0) {
-          const groupFleet = document.createElement('optgroup');
-          groupFleet.label = 'Deploy Replacement Vehicle from Fleet';
-          fleetVehicles.forEach(v => {
-            const opt = document.createElement('option');
-            opt.value = `VEHICLE:${v.id}`;
-            opt.textContent = `${v.vehicleNumber} (${v.vehicleType || 'Bus'}, ${v.seatsTotal} seats) — Deploy on this route`;
-            groupFleet.appendChild(opt);
-            optionCount++;
-          });
-          elements.provOfferAltSelect.appendChild(groupFleet);
-        }
-
-        // 3. Option to deploy a new backup bus right here
-        const groupNew = document.createElement('optgroup');
-        groupNew.label = 'Deploy Other / New Backup Bus';
-        const optNew = document.createElement('option');
-        optNew.value = 'NEW_VEHICLE';
-        optNew.textContent = '+ Deploy New Backup Bus to Route...';
-        groupNew.appendChild(optNew);
-        elements.provOfferAltSelect.appendChild(groupNew);
-
-        // Pre-fill default seats for new backup bus
-        if (elements.provOfferAltNewSeats) {
-          elements.provOfferAltNewSeats.value = dep.seatsTotal || 40;
-        }
-        if (elements.provOfferAltNewNumber) {
-          elements.provOfferAltNewNumber.value = '';
-        }
-        if (elements.provOfferAltNewType) {
-          elements.provOfferAltNewType.value = `${dep.mode || 'Bus'} Backup Vehicle`;
-        }
-
-        // If no existing departures and no fleet vehicles, auto-select NEW_VEHICLE and show the input fields
-        if (optionCount === 0) {
-          elements.provOfferAltSelect.value = 'NEW_VEHICLE';
-          if (elements.provOfferAltNewVehicleSection) elements.provOfferAltNewVehicleSection.classList.remove('hidden');
-        } else {
-          if (elements.provOfferAltNewVehicleSection) elements.provOfferAltNewVehicleSection.classList.add('hidden');
-        }
-
-        if (elements.btnSubmitProvOfferAlt) elements.btnSubmitProvOfferAlt.disabled = false;
-      }
-
-      if (elements.provOfferAltReason) elements.provOfferAltReason.value = '';
-
-      if (elements.modalProvOfferAlt) {
-        elements.modalProvOfferAlt.classList.remove('hidden');
-        elements.modalProvOfferAlt.classList.add('is-open');
-      }
     }
 
-    function closeOfferAlternativeModal() {
-      if (elements.modalProvOfferAlt) {
-        elements.modalProvOfferAlt.classList.add('hidden');
-        elements.modalProvOfferAlt.classList.remove('is-open');
+    if (elements.provOfferAltSelect) {
+      elements.provOfferAltSelect.innerHTML = '<option value="">-- Choose replacement vehicle --</option>';
+
+      // 1. Existing departures on the same route & date with available seats
+      const existingDepartures = (state.providerDepartures || []).filter(other =>
+        other.id !== dep.id &&
+        other.travelDate === dep.travelDate &&
+        String(other.originCity).toLowerCase() === String(dep.originCity).toLowerCase() &&
+        String(other.destinationCity).toLowerCase() === String(dep.destinationCity).toLowerCase() &&
+        (other.seatsAvailable || 0) > 0 &&
+        other.status !== 'CANCELLED'
+      );
+
+      // 2. Active fleet vehicles (spare / backup buses) registered to this provider
+      const fleetVehicles = (state.providerVehicles || []).filter(v =>
+        v.active !== false &&
+        String(v.vehicleNumber).toLowerCase() !== String(dep.vehicleNumber).toLowerCase()
+      );
+
+      let optionCount = 0;
+
+      if (existingDepartures.length > 0) {
+        const groupDep = document.createElement('optgroup');
+        groupDep.label = `Existing Departures on Same Route (${dep.travelDate})`;
+        existingDepartures.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m.id;
+          opt.textContent = `${m.vehicleNumber} (${String(m.departureTime).substring(0, 5)} - ${String(m.arrivalTime).substring(0, 5)}) — ${m.seatsAvailable} seats available`;
+          groupDep.appendChild(opt);
+          optionCount++;
+        });
+        elements.provOfferAltSelect.appendChild(groupDep);
       }
+
+      if (fleetVehicles.length > 0) {
+        const groupFleet = document.createElement('optgroup');
+        groupFleet.label = 'Deploy Replacement Vehicle from Fleet';
+        fleetVehicles.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = `VEHICLE:${v.id}`;
+          opt.textContent = `${v.vehicleNumber} (${v.vehicleType || 'Bus'}, ${v.seatsTotal} seats) — Deploy on this route`;
+          groupFleet.appendChild(opt);
+          optionCount++;
+        });
+        elements.provOfferAltSelect.appendChild(groupFleet);
+      }
+
+      // 3. Option to deploy a new backup vehicle right here
+      const modeLabel = dep.mode === 'CAB' ? 'Cab' : (dep.mode === 'TRAIN' ? 'Train' : (dep.mode === 'FLIGHT' ? 'Flight' : 'Bus'));
+      const groupNew = document.createElement('optgroup');
+      groupNew.label = `Deploy Other / New Backup ${modeLabel}`;
+      const optNew = document.createElement('option');
+      optNew.value = 'NEW_VEHICLE';
+      optNew.textContent = `+ Deploy New Backup ${modeLabel} to Route...`;
+      groupNew.appendChild(optNew);
+      elements.provOfferAltSelect.appendChild(groupNew);
+
+      // Pre-fill default seats for new backup vehicle
+      if (elements.provOfferAltNewSeats) {
+        elements.provOfferAltNewSeats.value = dep.seatsTotal || (dep.mode === 'CAB' ? 4 : 40);
+      }
+      if (elements.provOfferAltNewNumber) {
+        elements.provOfferAltNewNumber.value = '';
+      }
+      if (elements.provOfferAltNewType) {
+        elements.provOfferAltNewType.value = `${dep.mode || 'Vehicle'} Backup Vehicle`;
+      }
+
+      // If no existing departures and no fleet vehicles, auto-select NEW_VEHICLE and show the input fields
+      if (optionCount === 0) {
+        elements.provOfferAltSelect.value = 'NEW_VEHICLE';
+        if (elements.provOfferAltNewVehicleSection) elements.provOfferAltNewVehicleSection.classList.remove('hidden');
+      } else {
+        if (elements.provOfferAltNewVehicleSection) elements.provOfferAltNewVehicleSection.classList.add('hidden');
+      }
+
+      if (elements.btnSubmitProvOfferAlt) elements.btnSubmitProvOfferAlt.disabled = false;
     }
 
-    async function handleOfferAlternativeSubmit(e) {
-      e.preventDefault();
-      const submitBtn = elements.btnSubmitProvOfferAlt || document.getElementById('btn-submit-prov-offer-alt');
-      setButtonLoading(submitBtn, true);
+    if (elements.provOfferAltReason) elements.provOfferAltReason.value = '';
 
-      const depId = elements.provOfferAltDepId.value.trim();
-      const altValue = elements.provOfferAltSelect.value.trim();
-      const reason = elements.provOfferAltReason ? elements.provOfferAltReason.value.trim() : '';
+    if (elements.modalProvOfferAlt) {
+      elements.modalProvOfferAlt.classList.remove('hidden');
+      elements.modalProvOfferAlt.classList.add('is-open');
+    }
+  }
 
-      if (!altValue) {
-        showToast('Please select an alternative departure or backup vehicle', 'danger');
+  function closeOfferAlternativeModal() {
+    if (elements.modalProvOfferAlt) {
+      elements.modalProvOfferAlt.classList.add('hidden');
+      elements.modalProvOfferAlt.classList.remove('is-open');
+    }
+  }
+
+  async function handleOfferAlternativeSubmit(e) {
+    e.preventDefault();
+    const submitBtn = elements.btnSubmitProvOfferAlt || document.getElementById('btn-submit-prov-offer-alt');
+    setButtonLoading(submitBtn, true);
+
+    const depId = elements.provOfferAltDepId.value.trim();
+    const altValue = elements.provOfferAltSelect.value.trim();
+    const reason = elements.provOfferAltReason ? elements.provOfferAltReason.value.trim() : '';
+
+    if (!altValue) {
+      showToast('Please select an alternative departure or backup vehicle', 'danger');
+      setButtonLoading(submitBtn, false);
+      return;
+    }
+
+    const payload = {
+      reason: reason
+    };
+
+    if (altValue === 'NEW_VEHICLE') {
+      const newNum = elements.provOfferAltNewNumber ? elements.provOfferAltNewNumber.value.trim() : '';
+      const newSeats = elements.provOfferAltNewSeats ? parseInt(elements.provOfferAltNewSeats.value, 10) : 40;
+      const newType = elements.provOfferAltNewType ? elements.provOfferAltNewType.value.trim() : 'Bus';
+      if (!newNum) {
+        showToast('Please enter the replacement vehicle number', 'danger');
         setButtonLoading(submitBtn, false);
         return;
       }
-
-      const payload = {
-        reason: reason
-      };
-
-      if (altValue === 'NEW_VEHICLE') {
-        const newNum = elements.provOfferAltNewNumber ? elements.provOfferAltNewNumber.value.trim() : '';
-        const newSeats = elements.provOfferAltNewSeats ? parseInt(elements.provOfferAltNewSeats.value, 10) : 40;
-        const newType = elements.provOfferAltNewType ? elements.provOfferAltNewType.value.trim() : 'Bus';
-        if (!newNum) {
-          showToast('Please enter the replacement vehicle number', 'danger');
-          setButtonLoading(submitBtn, false);
-          return;
-        }
-        payload.alternativeDepartureId = 'NEW_VEHICLE';
-        payload.replacementVehicleNumber = newNum;
-        payload.replacementSeatsTotal = newSeats;
-        payload.replacementVehicleType = newType;
-      } else if (altValue.startsWith('VEHICLE:')) {
-        payload.alternativeDepartureId = altValue;
-        payload.alternativeVehicleId = altValue.substring(8);
-      } else {
-        payload.alternativeDepartureId = altValue;
-      }
-
-      try {
-        const res = await fetch(`/api/provider/departures/${encodeURIComponent(depId)}/offer-alternative`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to offer alternative vehicle');
-        }
-
-        closeOfferAlternativeModal();
-        showToast('Alternative vehicle offered successfully! Injected into recovery pipeline for affected travellers.', 'success');
-        await Promise.all([
-          loadProviderDepartures(),
-          loadProviderVehicles()
-        ]);
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(submitBtn, false);
-      }
+      payload.alternativeDepartureId = 'NEW_VEHICLE';
+      payload.replacementVehicleNumber = newNum;
+      payload.replacementSeatsTotal = newSeats;
+      payload.replacementVehicleType = newType;
+    } else if (altValue.startsWith('VEHICLE:')) {
+      payload.alternativeDepartureId = altValue;
+      payload.alternativeVehicleId = altValue.substring(8);
+    } else {
+      payload.alternativeDepartureId = altValue;
     }
 
-    async function openBookingsModal(depId) {
-      const dep = (state.providerDepartures || []).find(d => d.id === depId);
-      if (elements.provBookingsDepSummary && dep) {
-        const booked = (dep.seatsTotal || 0) - (dep.seatsAvailable || 0);
-        elements.provBookingsDepSummary.innerHTML = `
+    try {
+      const res = await fetch(`/api/provider/departures/${encodeURIComponent(depId)}/offer-alternative`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to offer alternative vehicle');
+      }
+
+      closeOfferAlternativeModal();
+      showToast('Alternative vehicle offered successfully! Injected into recovery pipeline for affected travellers.', 'success');
+      await Promise.all([
+        loadProviderDepartures(),
+        loadProviderVehicles()
+      ]);
+    } catch (err) {
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(submitBtn, false);
+    }
+  }
+
+  async function openBookingsModal(depId) {
+    const dep = (state.providerDepartures || []).find(d => d.id === depId);
+    if (elements.provBookingsDepSummary && dep) {
+      const booked = (dep.seatsTotal || 0) - (dep.seatsAvailable || 0);
+      elements.provBookingsDepSummary.innerHTML = `
           <strong>Departure:</strong> ${escapeHtml(dep.travelDate)} &bull; ${escapeHtml(dep.originCity)} &rarr; ${escapeHtml(dep.destinationCity)} (${escapeHtml(dep.vehicleNumber)})<br>
           <strong>Total Seats Booked Today:</strong> <span class="badge ${booked > 0 ? 'badge-amber' : 'badge-neutral'}">${booked} / ${dep.seatsTotal} seats booked</span> &bull; <strong>Available:</strong> ${dep.seatsAvailable} seats
         `;
+    }
+
+    if (elements.provBookingsTbody) {
+      elements.provBookingsTbody.innerHTML = '<tr><td colspan="5" class="empty-state">Loading manifest...</td></tr>';
+    }
+    if (elements.provCancellationsTbody) {
+      elements.provCancellationsTbody.innerHTML = '<tr><td colspan="5" class="empty-state">Loading cancellations...</td></tr>';
+    }
+
+    if (elements.modalProvBookings) {
+      elements.modalProvBookings.classList.remove('hidden');
+      elements.modalProvBookings.classList.add('is-open');
+    }
+
+    try {
+      const res = await fetch(`/api/provider/departures/${depId}/bookings`);
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to load departure manifest');
       }
+      const bookings = data.data || [];
+      const confirmedBookings = bookings.filter(b => b.status !== 'CANCELLED');
+      const cancelledBookings = bookings.filter(b => b.status === 'CANCELLED');
 
       if (elements.provBookingsTbody) {
-        elements.provBookingsTbody.innerHTML = '<tr><td colspan="5" class="empty-state">Loading manifest...</td></tr>';
-      }
-      if (elements.provCancellationsTbody) {
-        elements.provCancellationsTbody.innerHTML = '<tr><td colspan="5" class="empty-state">Loading cancellations...</td></tr>';
-      }
-
-      if (elements.modalProvBookings) {
-        elements.modalProvBookings.classList.remove('hidden');
-        elements.modalProvBookings.classList.add('is-open');
-      }
-
-      try {
-        const res = await fetch(`/api/provider/departures/${depId}/bookings`);
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to load departure manifest');
-        }
-        const bookings = data.data || [];
-        const confirmedBookings = bookings.filter(b => b.status !== 'CANCELLED');
-        const cancelledBookings = bookings.filter(b => b.status === 'CANCELLED');
-
-        if (elements.provBookingsTbody) {
-          if (confirmedBookings.length === 0) {
-            elements.provBookingsTbody.innerHTML = '<tr><td colspan="5" class="empty-state">No active bookings on this departure.</td></tr>';
-          } else {
-            elements.provBookingsTbody.innerHTML = confirmedBookings.map(b => `
+        if (confirmedBookings.length === 0) {
+          elements.provBookingsTbody.innerHTML = '<tr><td colspan="5" class="empty-state">No active bookings on this departure.</td></tr>';
+        } else {
+          elements.provBookingsTbody.innerHTML = confirmedBookings.map(b => `
               <tr>
                 <td><span class="mono-tag">${escapeHtml(b.bookingReference || '-')}</span></td>
                 <td><strong>${escapeHtml(b.passengerNames || 'Passenger')}</strong></td>
@@ -10567,14 +10730,14 @@
                 <td><span class="badge ${getStatusBadgeClass(b.status)}">${escapeHtml(formatStatus(b.status))}</span></td>
               </tr>
             `).join('');
-          }
         }
+      }
 
-        if (elements.provCancellationsTbody) {
-          if (cancelledBookings.length === 0) {
-            elements.provCancellationsTbody.innerHTML = '<tr><td colspan="5" class="empty-state">No cancelled bookings for this departure.</td></tr>';
-          } else {
-            elements.provCancellationsTbody.innerHTML = cancelledBookings.map(b => `
+      if (elements.provCancellationsTbody) {
+        if (cancelledBookings.length === 0) {
+          elements.provCancellationsTbody.innerHTML = '<tr><td colspan="5" class="empty-state">No cancelled bookings for this departure.</td></tr>';
+        } else {
+          elements.provCancellationsTbody.innerHTML = cancelledBookings.map(b => `
               <tr>
                 <td><span class="mono-tag">${escapeHtml(b.bookingReference || '-')}</span></td>
                 <td><strong>${escapeHtml(b.passengerNames || 'Passenger')}</strong></td>
@@ -10583,938 +10746,8 @@
                 <td><span class="badge badge-danger">CANCELLED</span></td>
               </tr>
             `).join('');
-          }
-        }
-      } catch (err) {
-        if (elements.provBookingsTbody) {
-          elements.provBookingsTbody.innerHTML = `<tr><td colspan="5" class="empty-state" style="color: #f87171;">${escapeHtml(err.message)}</td></tr>`;
-        }
-        if (elements.provCancellationsTbody) {
-          elements.provCancellationsTbody.innerHTML = `<tr><td colspan="5" class="empty-state" style="color: #f87171;">${escapeHtml(err.message)}</td></tr>`;
         }
       }
-    }
-
-    function closeBookingsModal() {
-      if (elements.modalProvBookings) {
-        elements.modalProvBookings.classList.add('hidden');
-        elements.modalProvBookings.classList.remove('is-open');
-      }
-    }
-
-    // --- Admin Review Queue Logic ---
-
-    async function loadAdminProviders(status = '') {
-      if (!elements.adminProvidersTbody) return;
-      elements.adminProvidersTbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading provider applications...</td></tr>';
-      try {
-        const url = status ? `/api/admin/providers?status=${encodeURIComponent(status)}` : '/api/admin/providers';
-        const res = await fetch(url);
-        if (res.status === 403) {
-          elements.adminProvidersTbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color: #f87171;">Access Denied: You must be an administrator to view this portal.</td></tr>';
-          return;
-        }
-        if (!res.ok) {
-          throw new Error(`Failed to load admin queue (HTTP ${res.status})`);
-        }
-        const data = await res.json();
-        if (!data.success) {
-          throw new Error(data.message || 'Failed to load provider queue');
-        }
-        state.adminProviders = data.data || [];
-        renderAdminProviders(state.adminProviders);
-      } catch (err) {
-        elements.adminProvidersTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #f87171;">${escapeHtml(err.message)}</td></tr>`;
-      }
-    }
-
-    function renderAdminProviders(providers) {
-      if (!elements.adminProvidersTbody) return;
-      if (providers.length === 0) {
-        elements.adminProvidersTbody.innerHTML = '<tr><td colspan="8" class="empty-state">No provider applications in this queue.</td></tr>';
-        return;
-      }
-      elements.adminProvidersTbody.innerHTML = providers.map(p => {
-        let badgeClass = 'badge-neutral';
-        if (p.status === 'PENDING') badgeClass = 'badge-amber';
-        else if (p.status === 'APPROVED') badgeClass = 'badge-green';
-        else if (p.status === 'SUSPENDED' || p.status === 'REJECTED') badgeClass = 'badge-danger';
-
-        let auditNotes = '-';
-        if (p.rejectionReason) auditNotes = `<small style="color: #f87171;">Rejected: ${escapeHtml(p.rejectionReason)}</small>`;
-        else if (p.suspensionReason) auditNotes = `<small style="color: #f87171;">Suspended: ${escapeHtml(p.suspensionReason)}</small>`;
-        else if (p.reviewedBy) auditNotes = `<small style="color: #94a3b8;">Approved by ${escapeHtml(p.reviewedBy)}</small>`;
-
-        let actionButtons = '';
-        if (p.status === 'PENDING') {
-          actionButtons = `
-            <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="approve" style="color: #4ade80;">Approve</button>
-            <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="reject" style="color: #f87171;">Reject</button>
-          `;
-        } else if (p.status === 'APPROVED') {
-          actionButtons = `
-            <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="suspend" style="color: #f87171;">Suspend</button>
-          `;
-        } else if (p.status === 'SUSPENDED') {
-          actionButtons = `
-            <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="reinstate" style="color: #4ade80;">Reinstate</button>
-          `;
-        } else if (p.status === 'REJECTED') {
-          actionButtons = `
-            <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="approve" style="color: #4ade80;">Approve</button>
-          `;
-        }
-
-        return `
-          <tr>
-            <td><strong style="color: #f8fafc;">${escapeHtml(p.businessName)}</strong></td>
-            <td><span class="badge badge-neutral">${escapeHtml(p.businessType)}</span></td>
-            <td>${escapeHtml(p.city)}</td>
-            <td>${escapeHtml(p.contactEmail)}<br><small style="color: #94a3b8;">${escapeHtml(p.contactPhone)}</small></td>
-            <td>
-              <small style="color: #cbd5e1; font-size: 0.78rem;">
-                Vehicles: <strong>${p.vehicleCount || 0}</strong><br>
-                Hotels: <strong>${p.hotelCount || 0}</strong><br>
-                Cabs: <strong>${p.cabServiceCount || 0}</strong><br>
-                Bookings: <strong>${p.bookingCount || 0}</strong>
-              </small>
-            </td>
-            <td><span class="badge ${badgeClass}">${escapeHtml(p.status)}</span></td>
-            <td>${auditNotes}</td>
-            <td>
-              <div style="display: flex; gap: 0.35rem;">
-                ${actionButtons}
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
-      elements.adminProvidersTbody.querySelectorAll('.btn-admin-act').forEach(btn => {
-        btn.addEventListener('click', () => handleAdminActionClick(btn.getAttribute('data-id'), btn.getAttribute('data-action')));
-      });
-    }
-
-    async function handleAdminActionClick(provId, action) {
-      if (action === 'approve') {
-        if (!confirm('Approve this provider? Their schedules and departures will immediately become visible to travellers.')) return;
-        try {
-          const res = await fetch(`/api/admin/providers/${provId}/approve`, { method: 'POST' });
-          const data = await res.json();
-          if (!res.ok || !data.success) throw new Error(data.message || 'Approval failed');
-          showToast('Provider APPROVED successfully!', 'success');
-          await loadAdminProviders(activeAdminFilter);
-        } catch (err) {
-          showToast(err.message, 'danger');
-        }
-      } else if (action === 'reinstate') {
-        if (!confirm('Reinstate this provider? Their listings will be restored to traveller search.')) return;
-        try {
-          const res = await fetch(`/api/admin/providers/${provId}/reinstate`, { method: 'POST' });
-          const data = await res.json();
-          if (!res.ok || !data.success) throw new Error(data.message || 'Reinstatement failed');
-          showToast('Provider REINSTATED successfully!', 'success');
-          await loadAdminProviders(activeAdminFilter);
-        } catch (err) {
-          showToast(err.message, 'danger');
-        }
-      } else if (action === 'reject' || action === 'suspend') {
-        if (elements.adminActionProvId) elements.adminActionProvId.value = provId;
-        if (elements.adminActionType) elements.adminActionType.value = action;
-        if (elements.adminActionPrompt) {
-          elements.adminActionPrompt.textContent = action === 'reject'
-            ? 'Please provide a clear reason for rejecting this provider registration:'
-            : 'Please provide a reason for suspending this provider account (listings will be hidden from search):';
-        }
-        if (elements.adminActionReason) elements.adminActionReason.value = '';
-        if (elements.modalAdminAction) {
-          elements.modalAdminAction.classList.remove('hidden');
-          elements.modalAdminAction.classList.add('is-open');
-        }
-      }
-    }
-
-    function closeAdminActionModal() {
-      if (elements.modalAdminAction) {
-        elements.modalAdminAction.classList.add('hidden');
-        elements.modalAdminAction.classList.remove('is-open');
-      }
-    }
-
-    async function handleAdminActionSubmit(e) {
-      e.preventDefault();
-      const submitBtn = document.getElementById('btn-submit-admin-action');
-      setButtonLoading(submitBtn, true);
-
-      const provId = elements.adminActionProvId.value.trim();
-      const action = elements.adminActionType.value.trim();
-      const reason = elements.adminActionReason.value.trim();
-
-      try {
-        const res = await fetch(`/api/admin/providers/${provId}/${action}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || `Failed to ${action} provider`);
-        }
-
-        closeAdminActionModal();
-        showToast(`Provider marked ${action.toUpperCase()}!`, 'info');
-        await loadAdminProviders(activeAdminFilter);
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(submitBtn, false);
-      }
-    }
-
-    // ==========================================
-    // Phase 18B: Provider Hotels, Room Types & Cab Services
-    // ==========================================
-
-    let activeSelectedHotelId = null;
-    let activeSelectedHotelName = '';
-    let activeSelectedRoomType = null;
-    let activeCannotHonourHotelId = null;
-
-    // --- Provider Hotels Logic ---
-
-    async function loadProviderHotels() {
-      if (!elements.provHotelsTbody) return;
-      try {
-        const res = await fetch('/api/provider/hotels');
-        if (!res.ok) {
-          if (res.status === 404) return;
-          throw new Error(`Failed to load hotels (HTTP ${res.status})`);
-        }
-        const data = await res.json();
-        const hotels = (data && data.success && data.data) ? data.data : [];
-        if (elements.provHotelsCount) elements.provHotelsCount.textContent = hotels.length;
-        renderProviderHotels(hotels);
-      } catch (err) {
-        console.warn('Error loading provider hotels:', err);
-        if (elements.provHotelsTbody) {
-          elements.provHotelsTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #f87171;">Unable to load hotel listings: ${escapeHtml(err.message)}</td></tr>`;
-        }
-      }
-    }
-
-    function renderProviderHotels(hotels) {
-      if (!elements.provHotelsTbody) return;
-      if (hotels.length === 0) {
-        elements.provHotelsTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hotels registered. Click "+ Add Hotel" to create a hotel listing.</td></tr>';
-        return;
-      }
-
-      elements.provHotelsTbody.innerHTML = hotels.map(h => {
-        const badgeClass = h.active ? 'badge-green' : 'badge-neutral';
-        const statusText = h.active ? 'ACTIVE' : 'INACTIVE';
-        const checkInOut = `${escapeHtml(h.checkInTime || '14:00')} / ${escapeHtml(h.checkOutTime || '11:00')}`;
-
-        return `
-          <tr>
-            <td><strong style="color: #f8fafc;">${escapeHtml(h.name)}</strong></td>
-            <td>${escapeHtml(h.city)}<br><small style="color: #94a3b8;">${escapeHtml(h.address)}</small></td>
-            <td>${checkInOut}</td>
-            <td><span class="mono-tag" style="font-size: 0.75rem;">${escapeHtml(h.contactEmail || '-')}</span></td>
-            <td><span class="badge badge-purple">${h.roomTypesCount || 0} room type(s)</span></td>
-            <td><span class="badge ${badgeClass}">${statusText}</span></td>
-            <td>
-              <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
-                <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-rooms" data-id="${escapeHtml(h.id)}" data-name="${escapeHtml(h.name)}" style="color: #38bdf8;">Rooms</button>
-                <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-manifest" data-id="${escapeHtml(h.id)}" data-name="${escapeHtml(h.name)}" style="color: #fde047;">Bookings</button>
-                <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-toggle" data-id="${escapeHtml(h.id)}" data-active="${h.active}">
-                  ${h.active ? 'Deactivate' : 'Activate'}
-                </button>
-                <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-delete" data-id="${escapeHtml(h.id)}" style="color: #f87171;">&times;</button>
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
-      // Bind hotel row actions
-      elements.provHotelsTbody.querySelectorAll('.btn-prov-hotel-rooms').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.getAttribute('data-id');
-          const name = btn.getAttribute('data-name');
-          loadProviderHotelRooms(id, name);
-        });
-      });
-
-      elements.provHotelsTbody.querySelectorAll('.btn-prov-hotel-manifest').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.getAttribute('data-id');
-          const name = btn.getAttribute('data-name');
-          openHotelBookingsManifest(id, name);
-        });
-      });
-
-      elements.provHotelsTbody.querySelectorAll('.btn-prov-hotel-toggle').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const id = btn.getAttribute('data-id');
-          const curActive = btn.getAttribute('data-active') === 'true';
-          try {
-            const res = await fetch(`/api/provider/hotels/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ active: !curActive })
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.message || 'Update failed');
-            showToast(`Hotel ${!curActive ? 'activated' : 'deactivated'}`, 'info');
-            await loadProviderHotels();
-          } catch (err) {
-            showToast(err.message, 'danger');
-          }
-        });
-      });
-
-      elements.provHotelsTbody.querySelectorAll('.btn-prov-hotel-delete').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const id = btn.getAttribute('data-id');
-          if (!confirm('Are you sure you want to delete this hotel? Note: Hotels with active bookings cannot be deleted.')) return;
-          try {
-            const res = await fetch(`/api/provider/hotels/${id}`, { method: 'DELETE' });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.message || 'Deletion failed');
-            showToast('Hotel deleted successfully', 'success');
-            if (activeSelectedHotelId === id && elements.provHotelRoomsSection) {
-              elements.provHotelRoomsSection.classList.add('hidden');
-              activeSelectedHotelId = null;
-            }
-            await loadProviderHotels();
-          } catch (err) {
-            showToast(err.message, 'danger');
-          }
-        });
-      });
-    }
-
-    function openAddHotelModal() {
-      const form = elements.formProvHotel;
-      if (!form) return;
-      form.reset();
-      document.getElementById('prov-hotel-id').value = '';
-      document.getElementById('prov-hotel-checkin').value = '14:00';
-      document.getElementById('prov-hotel-checkout').value = '11:00';
-      if (elements.modalProvHotel) {
-        elements.modalProvHotel.classList.remove('hidden');
-        elements.modalProvHotel.classList.add('is-open');
-      }
-    }
-
-    function closeHotelModal() {
-      if (elements.modalProvHotel) {
-        elements.modalProvHotel.classList.add('hidden');
-        elements.modalProvHotel.classList.remove('is-open');
-      }
-    }
-
-    async function handleSaveHotelSubmit(e) {
-      e.preventDefault();
-      const btn = document.getElementById('btn-submit-prov-hotel');
-      setButtonLoading(btn, true);
-
-      const id = document.getElementById('prov-hotel-id').value.trim();
-      const payload = {
-        name: document.getElementById('prov-hotel-name').value.trim(),
-        city: document.getElementById('prov-hotel-city').value.trim(),
-        address: document.getElementById('prov-hotel-address').value.trim(),
-        description: document.getElementById('prov-hotel-desc').value.trim(),
-        contactEmail: document.getElementById('prov-hotel-email').value.trim(),
-        checkInTime: document.getElementById('prov-hotel-checkin').value.trim() || '14:00',
-        checkOutTime: document.getElementById('prov-hotel-checkout').value.trim() || '11:00'
-      };
-
-      try {
-        const url = id ? `/api/provider/hotels/${id}` : '/api/provider/hotels';
-        const method = id ? 'PUT' : 'POST';
-        const res = await fetch(url, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.message || 'Failed to save hotel');
-
-        closeHotelModal();
-        showToast('Hotel property saved successfully!', 'success');
-        await loadProviderHotels();
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(btn, false);
-      }
-    }
-
-    // --- Provider Hotel Room Types Logic ---
-
-    async function loadProviderHotelRooms(hotelId, hotelName) {
-      activeSelectedHotelId = hotelId;
-      activeSelectedHotelName = hotelName;
-
-      if (elements.provHotelRoomsSection) elements.provHotelRoomsSection.classList.remove('hidden');
-      if (elements.provSelectedHotelTitle) {
-        elements.provSelectedHotelTitle.textContent = `Room Types for: ${hotelName}`;
-      }
-      if (elements.provRoomTypesTbody) {
-        elements.provRoomTypesTbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading room types...</td></tr>';
-      }
-
-      try {
-        const res = await fetch(`/api/provider/hotels/${hotelId}/rooms`);
-        if (!res.ok) throw new Error(`Failed to load room types (HTTP ${res.status})`);
-        const data = await res.json();
-        const rooms = (data && data.success && data.data) ? data.data : [];
-        renderProviderRoomTypes(rooms, hotelId);
-      } catch (err) {
-        if (elements.provRoomTypesTbody) {
-          elements.provRoomTypesTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #f87171;">${escapeHtml(err.message)}</td></tr>`;
-        }
-      }
-    }
-
-    function renderProviderRoomTypes(rooms, hotelId) {
-      if (!elements.provRoomTypesTbody) return;
-      if (rooms.length === 0) {
-        elements.provRoomTypesTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No room types configured. Click "+ Add Room Type" to create one.</td></tr>';
-        return;
-      }
-
-      elements.provRoomTypesTbody.innerHTML = rooms.map(r => {
-        const badgeClass = r.active ? 'badge-green' : 'badge-neutral';
-        const statusText = r.active ? 'ACTIVE' : 'INACTIVE';
-        const amenities = r.amenities ? escapeHtml(r.amenities) : '-';
-
-        return `
-          <tr>
-            <td><strong style="color: #f8fafc;">${escapeHtml(r.name)}</strong></td>
-            <td>${r.maxGuests} guests</td>
-            <td><strong style="color: #4ade80;">&#8377;${Number(r.pricePerNight).toLocaleString('en-IN')}</strong></td>
-            <td>${r.roomsTotal} rooms</td>
-            <td><small style="color: #94a3b8;">${amenities}</small></td>
-            <td><span class="badge ${badgeClass}">${statusText}</span></td>
-            <td>
-              <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
-                <button type="button" class="btn btn-outline btn-sm btn-prov-room-avail" data-room-id="${escapeHtml(r.id)}" data-room-name="${escapeHtml(r.name)}" data-rooms-total="${r.roomsTotal}" style="color: #38bdf8;">14-Day Calendar</button>
-                <button type="button" class="btn btn-outline btn-sm btn-prov-room-edit" data-room-id="${escapeHtml(r.id)}">Edit</button>
-                <button type="button" class="btn btn-outline btn-sm btn-prov-room-toggle" data-room-id="${escapeHtml(r.id)}" data-active="${r.active}">
-                  ${r.active ? 'Deactivate' : 'Activate'}
-                </button>
-                <button type="button" class="btn btn-outline btn-sm btn-prov-room-delete" data-room-id="${escapeHtml(r.id)}" style="color: #f87171;">&times;</button>
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
-      // Bind room actions
-      elements.provRoomTypesTbody.querySelectorAll('.btn-prov-room-avail').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const roomId = btn.getAttribute('data-room-id');
-          const roomName = btn.getAttribute('data-room-name');
-          const total = parseInt(btn.getAttribute('data-rooms-total'), 10) || 1;
-          openRoomAvailabilityModal(hotelId, { id: roomId, name: roomName, roomsTotal: total });
-        });
-      });
-
-      elements.provRoomTypesTbody.querySelectorAll('.btn-prov-room-edit').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const roomId = btn.getAttribute('data-room-id');
-          const r = rooms.find(item => item.id === roomId);
-          if (r) openEditRoomTypeModal(hotelId, r);
-        });
-      });
-
-      elements.provRoomTypesTbody.querySelectorAll('.btn-prov-room-toggle').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const roomId = btn.getAttribute('data-room-id');
-          const curActive = btn.getAttribute('data-active') === 'true';
-          try {
-            const res = await fetch(`/api/provider/hotels/${hotelId}/rooms/${roomId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ active: !curActive })
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.message || 'Update failed');
-            showToast(`Room type ${!curActive ? 'activated' : 'deactivated'}`, 'info');
-            await loadProviderHotelRooms(hotelId, activeSelectedHotelName);
-          } catch (err) {
-            showToast(err.message, 'danger');
-          }
-        });
-      });
-
-      elements.provRoomTypesTbody.querySelectorAll('.btn-prov-room-delete').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const roomId = btn.getAttribute('data-room-id');
-          if (!confirm('Are you sure you want to delete this room type? Note: Room types with active future bookings cannot be deleted.')) return;
-          try {
-            const res = await fetch(`/api/provider/hotels/${hotelId}/rooms/${roomId}`, { method: 'DELETE' });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.message || 'Deletion failed');
-            showToast('Room type deleted successfully', 'success');
-            await loadProviderHotelRooms(hotelId, activeSelectedHotelName);
-            await loadProviderHotels();
-          } catch (err) {
-            showToast(err.message, 'danger');
-          }
-        });
-      });
-    }
-
-    function openAddRoomTypeModal(hotelId) {
-      if (!hotelId) {
-        showToast('Please select a hotel first.', 'warning');
-        return;
-      }
-      const form = elements.formProvRoomType;
-      if (!form) return;
-      form.reset();
-      document.getElementById('prov-room-hotel-id').value = hotelId;
-      document.getElementById('prov-room-type-id').value = '';
-      document.getElementById('prov-room-max-guests').value = '2';
-      document.getElementById('prov-room-total').value = '10';
-      if (elements.modalProvRoomType) {
-        elements.modalProvRoomType.classList.remove('hidden');
-        elements.modalProvRoomType.classList.add('is-open');
-      }
-    }
-
-    function openEditRoomTypeModal(hotelId, room) {
-      document.getElementById('prov-room-hotel-id').value = hotelId;
-      document.getElementById('prov-room-type-id').value = room.id;
-      document.getElementById('prov-room-name').value = room.name || '';
-      document.getElementById('prov-room-price').value = room.pricePerNight || '';
-      document.getElementById('prov-room-total').value = room.roomsTotal || '';
-      document.getElementById('prov-room-max-guests').value = room.maxGuests || 2;
-      document.getElementById('prov-room-amenities').value = room.amenities || '';
-      if (elements.modalProvRoomType) {
-        elements.modalProvRoomType.classList.remove('hidden');
-        elements.modalProvRoomType.classList.add('is-open');
-      }
-    }
-
-    function closeRoomTypeModal() {
-      if (elements.modalProvRoomType) {
-        elements.modalProvRoomType.classList.add('hidden');
-        elements.modalProvRoomType.classList.remove('is-open');
-      }
-    }
-
-    async function handleSaveRoomTypeSubmit(e) {
-      e.preventDefault();
-      const btn = document.getElementById('btn-submit-prov-room');
-      setButtonLoading(btn, true);
-
-      const hotelId = document.getElementById('prov-room-hotel-id').value.trim();
-      const roomId = document.getElementById('prov-room-type-id').value.trim();
-      const payload = {
-        name: document.getElementById('prov-room-name').value.trim(),
-        pricePerNight: parseFloat(document.getElementById('prov-room-price').value),
-        roomsTotal: parseInt(document.getElementById('prov-room-total').value, 10),
-        maxGuests: parseInt(document.getElementById('prov-room-max-guests').value, 10),
-        amenities: document.getElementById('prov-room-amenities').value.trim()
-      };
-
-      try {
-        const url = roomId ? `/api/provider/hotels/${hotelId}/rooms/${roomId}` : `/api/provider/hotels/${hotelId}/rooms`;
-        const method = roomId ? 'PUT' : 'POST';
-        const res = await fetch(url, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.message || 'Failed to save room type');
-
-        closeRoomTypeModal();
-        showToast('Room type saved successfully and 14-day availability materialised!', 'success');
-        await loadProviderHotelRooms(hotelId, activeSelectedHotelName);
-        await loadProviderHotels();
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(btn, false);
-      }
-    }
-
-    // --- Provider Date Availability Calendar Logic ---
-
-    async function openRoomAvailabilityModal(hotelId, roomType) {
-      activeSelectedRoomType = roomType;
-      if (elements.provAvailRoomSummary) {
-        elements.provAvailRoomSummary.innerHTML = `Managing 14-day availability for: <strong>${escapeHtml(roomType.name)}</strong> (${roomType.roomsTotal} total rooms). You may close specific dates to prevent bookings.`;
-      }
-      if (elements.modalProvAvailability) {
-        elements.modalProvAvailability.classList.remove('hidden');
-        elements.modalProvAvailability.classList.add('is-open');
-      }
-      await loadRoomAvailability(hotelId, roomType.id);
-    }
-
-    function closeRoomAvailabilityModal() {
-      if (elements.modalProvAvailability) {
-        elements.modalProvAvailability.classList.add('hidden');
-        elements.modalProvAvailability.classList.remove('is-open');
-      }
-      activeSelectedRoomType = null;
-    }
-
-    async function loadRoomAvailability(hotelId, roomTypeId) {
-      if (!elements.provAvailTbody) return;
-      elements.provAvailTbody.innerHTML = '<tr><td colspan="6" class="empty-state">Loading date availability...</td></tr>';
-      try {
-        const res = await fetch(`/api/provider/hotels/${hotelId}/rooms/${roomTypeId}/availability`);
-        if (!res.ok) throw new Error(`Failed to load availability (HTTP ${res.status})`);
-        const data = await res.json();
-        const list = (data && data.success && data.data) ? data.data : [];
-        renderRoomAvailability(list, hotelId, roomTypeId);
-      } catch (err) {
-        elements.provAvailTbody.innerHTML = `<tr><td colspan="6" class="empty-state" style="color: #f87171;">${escapeHtml(err.message)}</td></tr>`;
-      }
-    }
-
-    function renderRoomAvailability(availList, hotelId, roomTypeId) {
-      if (!elements.provAvailTbody) return;
-      if (availList.length === 0) {
-        elements.provAvailTbody.innerHTML = '<tr><td colspan="6" class="empty-state">No availability records materialized.</td></tr>';
-        return;
-      }
-
-      elements.provAvailTbody.innerHTML = availList.map(a => {
-        const left = Math.max(0, (a.roomsTotal || 0) - (a.roomsBooked || 0));
-        const isClosed = Boolean(a.isClosed);
-        const statusBadge = isClosed ? '<span class="badge badge-danger">CLOSED</span>' : '<span class="badge badge-green">OPEN</span>';
-        const actionText = isClosed ? 'Reopen Date' : 'Close Date';
-        const actionColor = isClosed ? '#4ade80' : '#f87171';
-
-        return `
-          <tr>
-            <td><strong style="color: #f8fafc;">${a.stayDate}</strong></td>
-            <td>${a.roomsTotal}</td>
-            <td><span class="badge ${a.roomsBooked > 0 ? 'badge-amber' : 'badge-neutral'}">${a.roomsBooked} booked</span></td>
-            <td><strong style="color: ${left > 0 ? '#38bdf8' : '#f87171'};">${left} left</strong></td>
-            <td>${statusBadge}</td>
-            <td>
-              <button type="button" class="btn btn-outline btn-sm btn-prov-toggle-date" data-date="${a.stayDate}" data-closed="${isClosed}" style="color: ${actionColor};">
-                ${actionText}
-              </button>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
-      elements.provAvailTbody.querySelectorAll('.btn-prov-toggle-date').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const stayDate = btn.getAttribute('data-date');
-          const isClosed = btn.getAttribute('data-closed') === 'true';
-          try {
-            const res = await fetch(`/api/provider/hotels/${hotelId}/rooms/${roomTypeId}/availability`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ stayDate, isClosed: !isClosed })
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.message || 'Availability update failed');
-            showToast(`Stay date ${stayDate} is now ${!isClosed ? 'CLOSED' : 'OPEN'}`, 'info');
-            await loadRoomAvailability(hotelId, roomTypeId);
-          } catch (err) {
-            showToast(err.message, 'danger');
-          }
-        });
-      });
-    }
-
-    // --- Provider Cab Services Logic ---
-
-    async function loadProviderCabs() {
-      if (!elements.provCabsTbody) return;
-      try {
-        const res = await fetch('/api/provider/cabs');
-        if (!res.ok) {
-          if (res.status === 404) return;
-          throw new Error(`Failed to load cab services (HTTP ${res.status})`);
-        }
-        const data = await res.json();
-        const cabs = (data && data.success && data.data) ? data.data : [];
-        if (elements.provCabsCount) elements.provCabsCount.textContent = cabs.length;
-        renderProviderCabs(cabs);
-      } catch (err) {
-        console.warn('Error loading provider cabs:', err);
-        if (elements.provCabsTbody) {
-          elements.provCabsTbody.innerHTML = `<tr><td colspan="9" class="empty-state" style="color: #f87171;">Unable to load cab services: ${escapeHtml(err.message)}</td></tr>`;
-        }
-      }
-    }
-
-    function renderProviderCabs(cabs) {
-      if (!elements.provCabsTbody) return;
-      if (cabs.length === 0) {
-        elements.provCabsTbody.innerHTML = '<tr><td colspan="9" class="empty-state">No cab services registered. Click "+ Add Cab Service" to create one.</td></tr>';
-        return;
-      }
-
-      elements.provCabsTbody.innerHTML = cabs.map(c => {
-        const badgeClass = c.active ? 'badge-green' : 'badge-neutral';
-        const statusText = c.active ? 'ACTIVE' : 'INACTIVE';
-        const vehNum = c.vehicleNumber ? escapeHtml(c.vehicleNumber) : '-';
-
-        return `
-          <tr>
-            <td><strong style="color: #f8fafc;">${escapeHtml(c.city)}</strong></td>
-            <td><span class="badge badge-gold">${escapeHtml(c.vehicleCategory)}</span></td>
-            <td><span class="mono-tag" style="font-size: 0.75rem;">${vehNum}</span></td>
-            <td>&#8377;${c.baseFare}</td>
-            <td>&#8377;${c.perKmRate} / km</td>
-            <td>${c.seats} seats</td>
-            <td>${escapeHtml(c.operatingHours || '-')}</td>
-            <td><span class="badge ${badgeClass}">${statusText}</span></td>
-            <td>
-              <div style="display: flex; gap: 0.35rem;">
-                <button type="button" class="btn btn-outline btn-sm btn-prov-cab-toggle" data-id="${escapeHtml(c.id)}" data-active="${c.active}">
-                  ${c.active ? 'Deactivate' : 'Activate'}
-                </button>
-                <button type="button" class="btn btn-outline btn-sm btn-prov-cab-delete" data-id="${escapeHtml(c.id)}" style="color: #f87171;">&times;</button>
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
-      elements.provCabsTbody.querySelectorAll('.btn-prov-cab-toggle').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const id = btn.getAttribute('data-id');
-          const curActive = btn.getAttribute('data-active') === 'true';
-          try {
-            const res = await fetch(`/api/provider/cabs/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ active: !curActive })
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.message || 'Update failed');
-            showToast(`Cab service ${!curActive ? 'activated' : 'deactivated'}`, 'info');
-            await loadProviderCabs();
-          } catch (err) {
-            showToast(err.message, 'danger');
-          }
-        });
-      });
-
-      elements.provCabsTbody.querySelectorAll('.btn-prov-cab-delete').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const id = btn.getAttribute('data-id');
-          if (!confirm('Are you sure you want to delete this cab service?')) return;
-          try {
-            const res = await fetch(`/api/provider/cabs/${id}`, { method: 'DELETE' });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.message || 'Deletion failed');
-            showToast('Cab service deleted successfully', 'success');
-            await loadProviderCabs();
-          } catch (err) {
-            showToast(err.message, 'danger');
-          }
-        });
-      });
-    }
-
-    function openAddCabModal() {
-      const form = elements.formProvCab;
-      if (!form) return;
-      form.reset();
-      document.getElementById('prov-cab-id').value = '';
-      document.getElementById('prov-cab-base-fare').value = '100';
-      document.getElementById('prov-cab-per-km').value = '15';
-      document.getElementById('prov-cab-seats').value = '4';
-      document.getElementById('prov-cab-hours').value = '06:00 - 23:00';
-      if (elements.modalProvCab) {
-        elements.modalProvCab.classList.remove('hidden');
-        elements.modalProvCab.classList.add('is-open');
-      }
-    }
-
-    function closeCabModal() {
-      if (elements.modalProvCab) {
-        elements.modalProvCab.classList.add('hidden');
-        elements.modalProvCab.classList.remove('is-open');
-      }
-    }
-
-    async function handleSaveCabSubmit(e) {
-      e.preventDefault();
-      const btn = document.getElementById('btn-submit-prov-cab');
-      setButtonLoading(btn, true);
-
-      const id = document.getElementById('prov-cab-id').value.trim();
-      const payload = {
-        city: document.getElementById('prov-cab-city').value.trim(),
-        vehicleCategory: document.getElementById('prov-cab-category').value,
-        baseFare: parseFloat(document.getElementById('prov-cab-base-fare').value),
-        perKmRate: parseFloat(document.getElementById('prov-cab-per-km').value),
-        seats: parseInt(document.getElementById('prov-cab-seats').value, 10),
-        operatingHours: document.getElementById('prov-cab-hours').value.trim(),
-        vehicleNumber: document.getElementById('prov-cab-vehicle-num').value.trim() || null
-      };
-
-      try {
-        const url = id ? `/api/provider/cabs/${id}` : '/api/provider/cabs';
-        const method = id ? 'PUT' : 'POST';
-        const res = await fetch(url, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.message || 'Failed to save cab service');
-
-        closeCabModal();
-        showToast('Cab service registered successfully!', 'success');
-        await loadProviderCabs();
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(btn, false);
-      }
-    }
-
-    // --- Provider Hotel Bookings Manifest & Cannot Honour Logic ---
-
-    async function openHotelBookingsManifest(hotelId, hotelName) {
-      if (elements.provHotelBookingsTbody) {
-        elements.provHotelBookingsTbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading hotel bookings manifest...</td></tr>';
-      }
-      if (elements.modalProvHotelBookings) {
-        elements.modalProvHotelBookings.classList.remove('hidden');
-        elements.modalProvHotelBookings.classList.add('is-open');
-      }
-
-      try {
-        const res = await fetch(`/api/provider/hotels/${hotelId}/bookings`);
-        if (!res.ok) throw new Error(`Failed to load manifest (HTTP ${res.status})`);
-        const data = await res.json();
-        const bookings = (data && data.success && data.data) ? data.data : [];
-        renderHotelBookingsManifest(bookings, hotelId);
-      } catch (err) {
-        if (elements.provHotelBookingsTbody) {
-          elements.provHotelBookingsTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #f87171;">${escapeHtml(err.message)}</td></tr>`;
-        }
-      }
-    }
-
-    function renderHotelBookingsManifest(bookings, hotelId) {
-      if (!elements.provHotelBookingsTbody) return;
-      if (bookings.length === 0) {
-        elements.provHotelBookingsTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No confirmed bookings for this hotel yet.</td></tr>';
-        return;
-      }
-
-      elements.provHotelBookingsTbody.innerHTML = bookings.map(b => {
-        const stayDates = `${b.checkInDate || '-'} &rarr; ${b.checkOutDate || '-'}`;
-        const isCannotHonour = Boolean(b.cannotHonour);
-
-        let actionHtml = '';
-        if (isCannotHonour) {
-          actionHtml = `<span class="badge badge-warning" title="${escapeHtml(b.cannotHonourReason || '')}">Reported Cannot Honour</span>`;
-        } else {
-          actionHtml = `<button type="button" class="btn btn-outline btn-sm btn-prov-mark-honour" data-bkg-id="${escapeHtml(b.bookingId)}" style="color: #f87171;">Cannot Honour</button>`;
-        }
-
-        return `
-          <tr>
-            <td><span class="mono-tag">${escapeHtml(b.bookingReference || '-')}</span></td>
-            <td><strong>${escapeHtml(b.guestName || 'Guest')}</strong></td>
-            <td>${escapeHtml(b.roomTypeName || 'Standard Room')}</td>
-            <td>${stayDates}</td>
-            <td>${b.rooms} room(s)</td>
-            <td><span class="badge ${getStatusBadgeClass(b.status)}">${escapeHtml(formatStatus(b.status))}</span></td>
-            <td>${actionHtml}</td>
-          </tr>
-        `;
-      }).join('');
-
-      elements.provHotelBookingsTbody.querySelectorAll('.btn-prov-mark-honour').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const bkgId = btn.getAttribute('data-bkg-id');
-          openCannotHonourModal(bkgId, hotelId);
-        });
-      });
-    }
-
-    function closeHotelBookingsModal() {
-      if (elements.modalProvHotelBookings) {
-        elements.modalProvHotelBookings.classList.add('hidden');
-        elements.modalProvHotelBookings.classList.remove('is-open');
-      }
-    }
-
-    function openCannotHonourModal(bookingId, hotelId) {
-      activeCannotHonourHotelId = hotelId;
-      document.getElementById('prov-cannot-honour-bkg-id').value = bookingId;
-      document.getElementById('prov-cannot-honour-reason').value = '';
-      if (elements.modalProvCannotHonour) {
-        elements.modalProvCannotHonour.classList.remove('hidden');
-        elements.modalProvCannotHonour.classList.add('is-open');
-      }
-    }
-
-    function closeCannotHonourModal() {
-      if (elements.modalProvCannotHonour) {
-        elements.modalProvCannotHonour.classList.add('hidden');
-        elements.modalProvCannotHonour.classList.remove('is-open');
-      }
-    }
-
-    async function handleCannotHonourSubmit(e) {
-      e.preventDefault();
-      const btn = document.getElementById('btn-submit-prov-honour');
-      setButtonLoading(btn, true);
-
-      const bkgId = document.getElementById('prov-cannot-honour-bkg-id').value.trim();
-      const reason = document.getElementById('prov-cannot-honour-reason').value.trim();
-
-      try {
-        const res = await fetch(`/api/provider/bookings/${bkgId}/cannot-honour`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.message || 'Action failed');
-
-        closeCannotHonourModal();
-        showToast('Report submitted! Booking flagged as Cannot Honour and disruption alert created for traveller.', 'warning');
-        if (activeCannotHonourHotelId) {
-          await openHotelBookingsManifest(activeCannotHonourHotelId, activeSelectedHotelName);
-        }
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(btn, false);
-      }
-    }
-
-    // ==========================================
-    // Initialization
-    // ==========================================
-
-    function init() {
-      initEventListeners();
-      setupMarketplaceEventListeners();
-      setupProviderEventListeners();
-      initMarketplaceDates();
-      fetchCsrfToken();
-      checkCurrentUser();
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', init);
-    } else {
-      init();
-    }
-  }) ();
+    } catch (err) {
+      if (elements.provBookingsTbody) {
+... [truncated for diff preview]

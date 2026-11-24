@@ -1843,6 +1843,7 @@ public class MarketplaceService {
             throw new AccessDeniedException("Authentication required");
         }
         BookingEntity booking = bookingRepo.findById(id)
+                .or(() -> bookingRepo.findByBookingReference(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + id));
 
         if (booking.getUser() == null || !booking.getUser().getId().equals(currentUser.getId())) {
@@ -1862,6 +1863,7 @@ public class MarketplaceService {
             throw new AccessDeniedException("Authentication required");
         }
         BookingEntity booking = bookingRepo.findById(id)
+                .or(() -> bookingRepo.findByBookingReference(id))
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + id));
 
         if (booking.getUser() == null || !booking.getUser().getId().equals(currentUser.getId())) {

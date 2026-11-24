@@ -327,6 +327,10 @@
           <div class="header-badges">
             <span id="trip-id-display" class="mono-tag">No Trip Loaded</span>
             <span id="trip-overview-status-badge" class="badge badge-neutral">UNLOADED</span>
+            <button type="button" id="btn-check-status-top" class="btn btn-outline-cyan btn-sm" aria-label="Check transit status now">
+              <span class="btn-text">Check status now</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
             <button type="button" id="btn-view-wallet" class="btn btn-secondary btn-sm">Trip Wallet</button>
             <button type="button" id="btn-edit-trip" class="btn btn-outline btn-sm">Edit Trip</button>
           </div>
@@ -371,6 +375,48 @@
           <div id="overview-emergency-contact" class="summary-field hidden">
             <span class="field-label">Emergency Contact</span>
             <span id="trip-emergency-contact" class="field-value">-</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Live Status & Monitoring Section -->
+      <section id="section-live-status" class="card status-monitoring-card" aria-labelledby="heading-status-monitoring">
+        <div class="card-header">
+          <div class="header-left">
+            <h2 id="heading-status-monitoring" class="section-title">Transit Status &amp; Monitoring</h2>
+            <span id="status-mode-badge" class="badge badge-purple">Simulated</span>
+            <span id="status-disclaimer-tag" class="status-disclaimer-tag">Simulated data, not a real tracking source</span>
+          </div>
+          <div class="header-actions">
+            <span id="last-checked-label" class="status-checked-time">Last checked at: Never</span>
+            <button type="button" id="btn-check-status-now" class="btn btn-outline-cyan btn-sm"
+              aria-label="Check transit status now">
+              <span class="btn-text">Check status now</span>
+              <span class="spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+        <div id="status-window-note" class="status-note-banner hidden"></div>
+
+        <div class="card-body" style="padding-top: 0.5rem;">
+          <div id="live-status-bookings-wrap" class="table-responsive">
+            <table class="data-table" aria-label="Monitored Bookings Table" style="margin-top: 0.5rem;">
+              <thead>
+                <tr>
+                  <th scope="col" style="width: 100px;">Type</th>
+                  <th scope="col">Service / Provider</th>
+                  <th scope="col">Route / Schedule</th>
+                  <th scope="col" style="width: 170px;">Transit Status</th>
+                  <th scope="col" style="width: 140px;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="live-status-bookings-tbody">
+                <tr>
+                  <td colspan="5" class="empty-state">No booked transit or lodging loaded yet.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -455,28 +501,6 @@
           <span>View Recovery Options &darr;</span>
         </button>
       </div>
-
-      <!-- Live Status & Monitoring Section -->
-      <section id="section-live-status" class="card status-monitoring-card" aria-labelledby="heading-status-monitoring">
-        <div class="card-header">
-          <div class="header-left">
-            <h2 id="heading-status-monitoring" class="section-title">Transit Status & Monitoring</h2>
-            <span id="status-mode-badge" class="badge badge-purple">Simulated</span>
-            <span id="status-disclaimer-tag" class="status-disclaimer-tag">Simulated data, not a real tracking
-              source</span>
-          </div>
-          <div class="header-actions">
-            <span id="last-checked-label" class="status-checked-time">Last checked at: Never</span>
-            <button type="button" id="btn-check-status-now" class="btn btn-outline-cyan btn-sm"
-              aria-label="Check transit status now">
-              <span class="btn-text">Check status now</span>
-              <span class="spinner" aria-hidden="true"></span>
-            </button>
-          </div>
-        </div>
-
-        <div id="status-window-note" class="status-note-banner hidden"></div>
-      </section>
 
       <!-- 3. Vertical Timeline Section -->
       <section id="section-timeline" class="card" aria-labelledby="heading-timeline">
@@ -1089,31 +1113,6 @@
         <div id="wallet-ledger-summary-line" class="notice-bar hidden" style="margin-bottom: 12px;"></div>
         <div id="wallet-bookings-container" class="wallet-bookings-grid">
           <p class="empty-state">Select or load a trip to view its wallet.</p>
-        </div>
-      </section>
-
-      <!-- 8. Real-time Audit Log Section -->
-      <section id="section-audit" class="card" aria-labelledby="heading-audit">
-        <div class="card-header">
-          <h2 id="heading-audit" class="section-title">Audit Trail</h2>
-          <span id="audit-count" class="badge badge-neutral">0 entries</span>
-        </div>
-        <div class="table-responsive">
-          <table class="data-table audit-table" aria-label="Audit log trail table">
-            <thead>
-              <tr>
-                <th scope="col" style="width: 170px;">Logged at</th>
-                <th scope="col" style="width: 100px;">Actor</th>
-                <th scope="col" style="width: 230px;">Action</th>
-                <th scope="col">Details</th>
-              </tr>
-            </thead>
-            <tbody id="audit-table-body">
-              <tr>
-                <td colspan="4" class="empty-state">No audit records logged yet.</td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </section>
     </div> <!-- /workspace-container -->
