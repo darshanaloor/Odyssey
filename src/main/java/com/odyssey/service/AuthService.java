@@ -51,6 +51,7 @@ public class AuthService {
     private final ProviderJpaRepository providerJpaRepository;
     private final AuditEntryJpaRepository auditEntryJpaRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.odyssey.security.TokenAuthService tokenAuthService;
 
     // Rate limiting: 5 failed attempts per 15 minutes per email
     private final ConcurrentMap<String, List<Instant>> failedAttempts = new ConcurrentHashMap<>();
@@ -80,7 +81,13 @@ public class AuthService {
 
         UserEntity saved = userJpaRepository.save(user);
         log.info("Registered new user: id={}, email={}", saved.getId(), NotificationMasker.maskEmail(saved.getEmail()));
-        return toResponse(saved);
+
+        List<org.springframework.security.core.GrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+        authorities.add(new SimpleGrantedAuthority("ROLE_TRAVELLER"));
+        String token = tokenAuthService.createToken(saved, authorities);
+
+        return toResponse(saved, token);
     }
 
     @Transactional
@@ -156,11 +163,11 @@ public class AuthService {
                 savedUser.getId(), savedProvider.getId(), savedProvider.getBusinessName(), NotificationMasker.maskEmail(savedUser.getEmail()));
 
         // Set up Spring Security session so user is logged in
-        if (httpRequest != null) {
-            List<SimpleGrantedAuthority> authorities = new ArrayList<>();
-            authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
-            authorities.add(new SimpleGrantedAuthority("ROLE_PROVIDER"));
+        List<org.springframework.security.core.GrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+        authorities.add(new SimpleGrantedAuthority("ROLE_PROVIDER"));
 
+        if (httpRequest != null) {
             Authentication authentication = new UsernamePasswordAuthenticationToken(savedUser.getEmail(), null, authorities);
             SecurityContext context = SecurityContextHolder.createEmptyContext();
             context.setAuthentication(authentication);
@@ -170,7 +177,8 @@ public class AuthService {
             session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
         }
 
-        return toResponse(savedUser);
+        String token = tokenAuthService.createToken(savedUser, authorities);
+        return toResponse(savedUser, token);
     }
 
     public UserResponse login(LoginRequest request, HttpServletRequest httpRequest) {
@@ -204,14 +212,21 @@ public class AuthService {
         HttpSession session = httpRequest.getSession(true);
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
 
+        String token = tokenAuthService.createToken(user, new ArrayList<>(authorities));
         log.info("User logged in successfully: email={}", NotificationMasker.maskEmail(user.getEmail()));
-        return toResponse(user);
+        return toResponse(user, token);
     }
 
     public void logout(HttpServletRequest httpRequest) {
-        HttpSession session = httpRequest.getSession(false);
-        if (session != null) {
-            session.invalidate();
+        if (httpRequest != null) {
+            String token = com.odyssey.security.TokenAuthenticationFilter.resolveToken(httpRequest);
+            if (token != null) {
+                tokenAuthService.invalidateToken(token);
+            }
+            HttpSession session = httpRequest.getSession(false);
+            if (session != null) {
+                session.invalidate();
+            }
         }
         SecurityContextHolder.clearContext();
     }
@@ -230,11 +245,22 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public UserResponse getCurrentUser() {
+        return getCurrentUser(null);
+    }
+
+    @Transactional(readOnly = true)
+    public UserResponse getCurrentUser(String token) {
+        if (token != null && !token.isBlank()) {
+            UserEntity user = tokenAuthService.getUser(token);
+            if (user != null) {
+                return toResponse(user, token);
+            }
+        }
         UserEntity user = getCurrentUserEntity();
         if (user == null) {
             return null;
         }
-        return toResponse(user);
+        return toResponse(user, token);
     }
 
     @Transactional
@@ -328,6 +354,10 @@ public class AuthService {
     }
 
     public UserResponse toResponse(UserEntity entity) {
+        return toResponse(entity, null);
+    }
+
+    public UserResponse toResponse(UserEntity entity, String token) {
         if (entity == null) return null;
         return UserResponse.builder()
                 .id(entity.getId())
@@ -335,6 +365,7 @@ public class AuthService {
                 .email(entity.getEmail())
                 .phone(entity.getPhone())
                 .role(entity.getRole() != null ? entity.getRole().name() : "TRAVELLER")
+                .token(token)
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

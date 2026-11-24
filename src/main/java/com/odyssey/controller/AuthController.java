@@ -54,8 +54,9 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserResponse>> getMe() {
-        UserResponse user = authService.getCurrentUser();
+    public ResponseEntity<ApiResponse<UserResponse>> getMe(HttpServletRequest httpRequest) {
+        String token = com.odyssey.security.TokenAuthenticationFilter.resolveToken(httpRequest);
+        UserResponse user = authService.getCurrentUser(token);
         if (user == null) {
             return ResponseEntity.ok(ApiResponse.<UserResponse>builder()
                     .success(false)

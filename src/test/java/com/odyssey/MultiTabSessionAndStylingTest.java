@@ -198,4 +198,112 @@ public class MultiTabSessionAndStylingTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.businessName").value("Isolated Logistics"));
     }
+
+    @Test
+    @DisplayName("Verify token-based tab isolation on the SAME host (localhost:8085) prevents session overwrites across tabs")
+    void testTokenBasedTabIsolationOnSameHost() throws Exception {
+        String travellerEmail = "traveller.token." + System.currentTimeMillis() + "@test.com";
+        String providerEmail = "provider.token." + System.currentTimeMillis() + "@test.com";
+
+        // Tab 1: Traveller registers and logs in on localhost:8085
+        RegisterRequest regTraveller = RegisterRequest.builder()
+                .name("Token Traveller")
+                .email(travellerEmail)
+                .password("Password123!")
+                .build();
+        mockMvc.perform(post("/api/auth/register")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(regTraveller)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.token").isNotEmpty());
+
+        LoginRequest loginTraveller = LoginRequest.builder()
+                .email(travellerEmail)
+                .password("Password123!")
+                .build();
+        MvcResult res1 = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginTraveller)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.token").isNotEmpty())
+                .andExpect(jsonPath("$.data.role").value("TRAVELLER"))
+                .andReturn();
+
+        String tokenTraveller = objectMapper.readTree(res1.getResponse().getContentAsString())
+                .path("data").path("token").asText();
+        assertNotNull(tokenTraveller);
+        assertFalse(tokenTraveller.isBlank());
+
+        // Tab 2: Provider registers and logs in on the SAME host localhost:8085
+        ProviderSignupRequest regProvider = ProviderSignupRequest.builder()
+                .name("Token Provider")
+                .email(providerEmail)
+                .password("Password123!")
+                .businessName("Token Express Logistics")
+                .businessType(BusinessType.TRANSPORT)
+                .city("Sirsi")
+                .contactPhone("+919876500000")
+                .build();
+        MvcResult res2 = mockMvc.perform(post("/api/auth/provider-register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(regProvider)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.token").isNotEmpty())
+                .andExpect(jsonPath("$.data.role").value("PROVIDER"))
+                .andReturn();
+
+        String tokenProvider = objectMapper.readTree(res2.getResponse().getContentAsString())
+                .path("data").path("token").asText();
+        assertNotNull(tokenProvider);
+        assertFalse(tokenProvider.isBlank());
+        assertNotEquals(tokenTraveller, tokenProvider);
+
+        // Tab 1 refresh check: /api/auth/me with X-Auth-Token = tokenTraveller MUST return Traveller!
+        mockMvc.perform(get("/api/auth/me")
+                        .header("X-Auth-Token", tokenTraveller))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.email").value(travellerEmail))
+                .andExpect(jsonPath("$.data.role").value("TRAVELLER"));
+
+        // Tab 2 refresh check: /api/auth/me with X-Auth-Token = tokenProvider MUST return Provider!
+        mockMvc.perform(get("/api/auth/me")
+                        .header("X-Auth-Token", tokenProvider))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.email").value(providerEmail))
+                .andExpect(jsonPath("$.data.role").value("PROVIDER"));
+
+        // Tab 2 accessing provider dashboard succeeds with tokenProvider
+        mockMvc.perform(get("/api/provider/dashboard")
+                        .header("X-Auth-Token", tokenProvider))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.businessName").value("Token Express Logistics"));
+
+        // Tab 1 attempting provider dashboard with tokenTraveller receives 403 Forbidden
+        mockMvc.perform(get("/api/provider/dashboard")
+                        .header("X-Auth-Token", tokenTraveller))
+                .andExpect(status().isForbidden());
+
+        // Tab 1 logout invalidates tokenTraveller
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("X-Auth-Token", tokenTraveller)
+                        .with(csrf()))
+                .andExpect(status().isOk());
+
+        // Tab 1 is now logged out
+        mockMvc.perform(get("/api/auth/me")
+                        .header("X-Auth-Token", tokenTraveller))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(false));
+
+        // Tab 2 remains active and unaffected
+        mockMvc.perform(get("/api/auth/me")
+                        .header("X-Auth-Token", tokenProvider))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.email").value(providerEmail))
+                .andExpect(jsonPath("$.data.role").value("PROVIDER"));
+    }
 }
