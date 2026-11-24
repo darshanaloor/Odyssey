@@ -84,6 +84,9 @@ public class Phase19DailyOperationsAndTieredRefundTest {
     private CabServiceJpaRepository cabRepo;
 
     @Autowired
+    private ProviderVehicleJpaRepository vehicleRepo;
+
+    @Autowired
     private OperatorJpaRepository operatorRepo;
 
     @Autowired
@@ -542,6 +545,133 @@ public class Phase19DailyOperationsAndTieredRefundTest {
                                 .build())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Alternative vehicle re-routing is only available for scheduled transport (Bus, Train, Flight)."));
+    }
+
+    @Test
+    @DisplayName("2c. Offer Alternative Vehicle: deploy from existing fleet vehicle")
+    void testOfferAlternativeVehicle_DeployFromFleetVehicle() throws Exception {
+        LocalDate travelDate = LocalDate.now().plusDays(4);
+
+        ServiceEntity s1 = serviceRepo.save(ServiceEntity.builder()
+                .id(IdGenerator.generate("SVC"))
+                .operator(defaultOperator)
+                .mode("BUS")
+                .vehicleNumber("KA31RK1000")
+                .originCity("Sirsi")
+                .destinationCity("Mysuru")
+                .originStop("Sirsi Old Bus Stand")
+                .destinationStop("Mysuru Suburban Stand")
+                .departureTime(LocalTime.of(8, 0))
+                .arrivalTime(LocalTime.of(14, 0))
+                .seatsTotal(40)
+                .price(BigDecimal.valueOf(550.00))
+                .reliabilityScore(90)
+                .arrivesNextDay(false)
+                .active(true)
+                .source("PROVIDER")
+                .providerId(provider1.getId())
+                .build());
+
+        ServiceDepartureEntity problemDep = departureRepo.save(ServiceDepartureEntity.builder()
+                .id(IdGenerator.generate("DEP"))
+                .service(s1)
+                .travelDate(travelDate)
+                .seatsAvailable(40)
+                .status("SCHEDULED")
+                .providerId(provider1.getId())
+                .build());
+
+        // Registered spare fleet vehicle
+        ProviderVehicleEntity spareBus = vehicleRepo.save(ProviderVehicleEntity.builder()
+                .id(IdGenerator.generate("VEH"))
+                .provider(provider1)
+                .mode(BookingType.BUS)
+                .vehicleNumber("KA31RK7777")
+                .vehicleType("Volvo B11R")
+                .seatsTotal(45)
+                .active(true)
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        mockMvc.perform(post("/api/provider/departures/" + problemDep.getId() + "/offer-alternative")
+                        .with(user(providerUser1.getEmail()).roles("PROVIDER"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ProviderOfferAlternativeRequest.builder()
+                                .alternativeDepartureId("VEHICLE:" + spareBus.getId())
+                                .reason("Deployed spare Volvo B11R from fleet")
+                                .build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+
+        ServiceDepartureEntity reloaded = departureRepo.findById(problemDep.getId()).orElseThrow();
+        assertEquals("CANCELLED", reloaded.getStatus());
+        assertNotNull(reloaded.getAlternativeDepartureId());
+
+        ServiceDepartureEntity createdAlt = departureRepo.findById(reloaded.getAlternativeDepartureId()).orElseThrow();
+        assertEquals("SCHEDULED", createdAlt.getStatus());
+        assertEquals("KA31RK7777", createdAlt.getService().getVehicleNumber());
+        assertEquals(45, createdAlt.getSeatsAvailable());
+    }
+
+    @Test
+    @DisplayName("2d. Offer Alternative Vehicle: register and deploy new backup bus directly")
+    void testOfferAlternativeVehicle_DeployNewBackupBus() throws Exception {
+        LocalDate travelDate = LocalDate.now().plusDays(5);
+
+        ServiceEntity s1 = serviceRepo.save(ServiceEntity.builder()
+                .id(IdGenerator.generate("SVC"))
+                .operator(defaultOperator)
+                .mode("BUS")
+                .vehicleNumber("KA31RK2000")
+                .originCity("Sirsi")
+                .destinationCity("Mysuru")
+                .originStop("Sirsi")
+                .destinationStop("Mysuru")
+                .departureTime(LocalTime.of(8, 0))
+                .arrivalTime(LocalTime.of(14, 0))
+                .seatsTotal(36)
+                .price(BigDecimal.valueOf(500.00))
+                .reliabilityScore(90)
+                .arrivesNextDay(false)
+                .active(true)
+                .source("PROVIDER")
+                .providerId(provider1.getId())
+                .build());
+
+        ServiceDepartureEntity problemDep = departureRepo.save(ServiceDepartureEntity.builder()
+                .id(IdGenerator.generate("DEP"))
+                .service(s1)
+                .travelDate(travelDate)
+                .seatsAvailable(36)
+                .status("SCHEDULED")
+                .providerId(provider1.getId())
+                .build());
+
+        mockMvc.perform(post("/api/provider/departures/" + problemDep.getId() + "/offer-alternative")
+                        .with(user(providerUser1.getEmail()).roles("PROVIDER"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ProviderOfferAlternativeRequest.builder()
+                                .alternativeDepartureId("NEW_VEHICLE")
+                                .replacementVehicleNumber("KA31RK8888")
+                                .replacementSeatsTotal(40)
+                                .replacementVehicleType("AC Semi-Sleeper")
+                                .reason("Deployed emergency backup bus")
+                                .build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+
+        ServiceDepartureEntity reloaded = departureRepo.findById(problemDep.getId()).orElseThrow();
+        assertEquals("CANCELLED", reloaded.getStatus());
+        assertNotNull(reloaded.getAlternativeDepartureId());
+
+        ServiceDepartureEntity createdAlt = departureRepo.findById(reloaded.getAlternativeDepartureId()).orElseThrow();
+        assertEquals("SCHEDULED", createdAlt.getStatus());
+        assertEquals("KA31RK8888", createdAlt.getService().getVehicleNumber());
+        assertEquals(40, createdAlt.getSeatsAvailable());
     }
 
     // =========================================================================

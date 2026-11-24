@@ -120,6 +120,10 @@
     provOfferAltDepId: document.getElementById('prov-offer-alt-dep-id'),
     provOfferAltDepSummary: document.getElementById('prov-offer-alt-dep-summary'),
     provOfferAltSelect: document.getElementById('prov-offer-alt-select'),
+    provOfferAltNewVehicleSection: document.getElementById('prov-offer-alt-new-vehicle-section'),
+    provOfferAltNewNumber: document.getElementById('prov-offer-alt-new-number'),
+    provOfferAltNewSeats: document.getElementById('prov-offer-alt-new-seats'),
+    provOfferAltNewType: document.getElementById('prov-offer-alt-new-type'),
     provOfferAltReason: document.getElementById('prov-offer-alt-reason'),
     btnSubmitProvOfferAlt: document.getElementById('btn-submit-prov-offer-alt'),
 
@@ -9167,6 +9171,17 @@
       if (elements.formProvOfferAlt) {
         elements.formProvOfferAlt.addEventListener('submit', handleOfferAlternativeSubmit);
       }
+      if (elements.provOfferAltSelect) {
+        elements.provOfferAltSelect.addEventListener('change', () => {
+          if (elements.provOfferAltNewVehicleSection) {
+            if (elements.provOfferAltSelect.value === 'NEW_VEHICLE') {
+              elements.provOfferAltNewVehicleSection.classList.remove('hidden');
+            } else {
+              elements.provOfferAltNewVehicleSection.classList.add('hidden');
+            }
+          }
+        });
+      }
 
       // Phase 18B: Hotel Actions
       if (elements.btnProvAddHotel) {
@@ -10233,7 +10248,9 @@
 
       if (elements.provOfferAltSelect) {
         elements.provOfferAltSelect.innerHTML = '<option value="">-- Choose replacement vehicle --</option>';
-        const matches = (state.providerDepartures || []).filter(other =>
+
+        // 1. Existing departures on the same route & date with available seats
+        const existingDepartures = (state.providerDepartures || []).filter(other =>
           other.id !== dep.id &&
           other.travelDate === dep.travelDate &&
           String(other.originCity).toLowerCase() === String(dep.originCity).toLowerCase() &&
@@ -10242,18 +10259,69 @@
           other.status !== 'CANCELLED'
         );
 
-        if (matches.length === 0) {
-          elements.provOfferAltSelect.innerHTML = '<option value="" disabled>No other available departures on this route and date</option>';
-          if (elements.btnSubmitProvOfferAlt) elements.btnSubmitProvOfferAlt.disabled = true;
-        } else {
-          if (elements.btnSubmitProvOfferAlt) elements.btnSubmitProvOfferAlt.disabled = false;
-          matches.forEach(m => {
+        // 2. Active fleet vehicles (spare / backup buses) registered to this provider
+        const fleetVehicles = (state.providerVehicles || []).filter(v =>
+          v.active !== false &&
+          String(v.vehicleNumber).toLowerCase() !== String(dep.vehicleNumber).toLowerCase()
+        );
+
+        let optionCount = 0;
+
+        if (existingDepartures.length > 0) {
+          const groupDep = document.createElement('optgroup');
+          groupDep.label = `Existing Departures on Same Route (${dep.travelDate})`;
+          existingDepartures.forEach(m => {
             const opt = document.createElement('option');
             opt.value = m.id;
             opt.textContent = `${m.vehicleNumber} (${String(m.departureTime).substring(0, 5)} - ${String(m.arrivalTime).substring(0, 5)}) — ${m.seatsAvailable} seats available`;
-            elements.provOfferAltSelect.appendChild(opt);
+            groupDep.appendChild(opt);
+            optionCount++;
           });
+          elements.provOfferAltSelect.appendChild(groupDep);
         }
+
+        if (fleetVehicles.length > 0) {
+          const groupFleet = document.createElement('optgroup');
+          groupFleet.label = 'Deploy Replacement Vehicle from Fleet';
+          fleetVehicles.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = `VEHICLE:${v.id}`;
+            opt.textContent = `${v.vehicleNumber} (${v.vehicleType || 'Bus'}, ${v.seatsTotal} seats) — Deploy on this route`;
+            groupFleet.appendChild(opt);
+            optionCount++;
+          });
+          elements.provOfferAltSelect.appendChild(groupFleet);
+        }
+
+        // 3. Option to deploy a new backup bus right here
+        const groupNew = document.createElement('optgroup');
+        groupNew.label = 'Deploy Other / New Backup Bus';
+        const optNew = document.createElement('option');
+        optNew.value = 'NEW_VEHICLE';
+        optNew.textContent = '+ Deploy New Backup Bus to Route...';
+        groupNew.appendChild(optNew);
+        elements.provOfferAltSelect.appendChild(groupNew);
+
+        // Pre-fill default seats for new backup bus
+        if (elements.provOfferAltNewSeats) {
+          elements.provOfferAltNewSeats.value = dep.seatsTotal || 40;
+        }
+        if (elements.provOfferAltNewNumber) {
+          elements.provOfferAltNewNumber.value = '';
+        }
+        if (elements.provOfferAltNewType) {
+          elements.provOfferAltNewType.value = `${dep.mode || 'Bus'} Backup Vehicle`;
+        }
+
+        // If no existing departures and no fleet vehicles, auto-select NEW_VEHICLE and show the input fields
+        if (optionCount === 0) {
+          elements.provOfferAltSelect.value = 'NEW_VEHICLE';
+          if (elements.provOfferAltNewVehicleSection) elements.provOfferAltNewVehicleSection.classList.remove('hidden');
+        } else {
+          if (elements.provOfferAltNewVehicleSection) elements.provOfferAltNewVehicleSection.classList.add('hidden');
+        }
+
+        if (elements.btnSubmitProvOfferAlt) elements.btnSubmitProvOfferAlt.disabled = false;
       }
 
       if (elements.provOfferAltReason) elements.provOfferAltReason.value = '';
@@ -10277,14 +10345,44 @@
       setButtonLoading(submitBtn, true);
 
       const depId = elements.provOfferAltDepId.value.trim();
-      const altDepId = elements.provOfferAltSelect.value.trim();
+      const altValue = elements.provOfferAltSelect.value.trim();
       const reason = elements.provOfferAltReason ? elements.provOfferAltReason.value.trim() : '';
+
+      if (!altValue) {
+        showToast('Please select an alternative departure or backup vehicle', 'danger');
+        setButtonLoading(submitBtn, false);
+        return;
+      }
+
+      const payload = {
+        reason: reason
+      };
+
+      if (altValue === 'NEW_VEHICLE') {
+        const newNum = elements.provOfferAltNewNumber ? elements.provOfferAltNewNumber.value.trim() : '';
+        const newSeats = elements.provOfferAltNewSeats ? parseInt(elements.provOfferAltNewSeats.value, 10) : 40;
+        const newType = elements.provOfferAltNewType ? elements.provOfferAltNewType.value.trim() : 'Bus';
+        if (!newNum) {
+          showToast('Please enter the replacement vehicle number', 'danger');
+          setButtonLoading(submitBtn, false);
+          return;
+        }
+        payload.alternativeDepartureId = 'NEW_VEHICLE';
+        payload.replacementVehicleNumber = newNum;
+        payload.replacementSeatsTotal = newSeats;
+        payload.replacementVehicleType = newType;
+      } else if (altValue.startsWith('VEHICLE:')) {
+        payload.alternativeDepartureId = altValue;
+        payload.alternativeVehicleId = altValue.substring(8);
+      } else {
+        payload.alternativeDepartureId = altValue;
+      }
 
       try {
         const res = await fetch(`/api/provider/departures/${encodeURIComponent(depId)}/offer-alternative`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ alternativeDepartureId: altDepId, reason: reason })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
@@ -10293,7 +10391,10 @@
 
         closeOfferAlternativeModal();
         showToast('Alternative vehicle offered successfully! Injected into recovery pipeline for affected travellers.', 'success');
-        await loadProviderDepartures();
+        await Promise.all([
+          loadProviderDepartures(),
+          loadProviderVehicles()
+        ]);
       } catch (err) {
         showToast(err.message, 'danger');
       } finally {

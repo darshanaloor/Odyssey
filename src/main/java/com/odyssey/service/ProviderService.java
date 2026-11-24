@@ -690,35 +690,87 @@ public class ProviderService {
             throw new IllegalArgumentException("Alternative vehicle re-routing is only available for scheduled transport (Bus, Train, Flight).");
         }
 
-        if (req.getAlternativeDepartureId() == null || req.getAlternativeDepartureId().isBlank()) {
-            throw new IllegalArgumentException("Alternative departure ID is required");
-        }
+        ServiceDepartureEntity altDep;
 
-        ServiceDepartureEntity altDep = departureRepo.findById(req.getAlternativeDepartureId())
-                .orElseThrow(() -> new ResourceNotFoundException("Alternative departure not found with ID: " + req.getAlternativeDepartureId()));
+        String rawAltId = req.getAlternativeDepartureId() != null ? req.getAlternativeDepartureId().trim() : "";
+        final String targetVehicleId = rawAltId.startsWith("VEHICLE:")
+                ? rawAltId.substring(8).trim()
+                : (req.getAlternativeVehicleId() != null ? req.getAlternativeVehicleId().trim() : "");
 
-        boolean isAltOwner = (altDep.getProviderId() != null && provider.getId().equals(altDep.getProviderId()))
-                || (altDep.getService() != null && provider.getId().equals(altDep.getService().getProviderId()))
-                || (altDep.getScheduleId() != null && scheduleRepo.findById(altDep.getScheduleId())
-                .map(s -> provider.getId().equals(s.getProvider().getId())).orElse(false));
-
-        if (!isAltOwner) {
-            throw new org.springframework.security.access.AccessDeniedException("Cannot offer another provider's vehicle as an alternative");
-        }
-
-        ServiceEntity altService = altDep.getService();
-        if (altService != null && problemService != null) {
-            if (!problemDep.getTravelDate().equals(altDep.getTravelDate())) {
-                throw new IllegalArgumentException("Alternative departure must be on the same date as the problem departure.");
+        if (!targetVehicleId.isBlank()) {
+            // Option B: Deploy from existing registered fleet vehicle
+            ProviderVehicleEntity vehicle = vehicleRepo.findByIdAndProviderId(targetVehicleId, provider.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Fleet vehicle not found with ID: " + targetVehicleId));
+            if (Boolean.FALSE.equals(vehicle.getActive())) {
+                throw new IllegalArgumentException("Selected fleet vehicle is inactive.");
             }
-            if (!problemService.getOriginCity().equalsIgnoreCase(altService.getOriginCity())
-                    || !problemService.getDestinationCity().equalsIgnoreCase(altService.getDestinationCity())) {
-                throw new IllegalArgumentException("Alternative departure must be on the same route as the problem departure.");
+            if (problemService != null && vehicle.getVehicleNumber().equalsIgnoreCase(problemService.getVehicleNumber())) {
+                throw new IllegalArgumentException("Cannot offer the same problem vehicle as its own alternative.");
             }
-        }
+            altDep = createReplacementDepartureForVehicle(provider, problemDep, problemService, vehicle);
+        } else if ("NEW_VEHICLE".equalsIgnoreCase(rawAltId) || (req.getReplacementVehicleNumber() != null && !req.getReplacementVehicleNumber().isBlank())) {
+            // Option C: Register & deploy a backup vehicle on-demand
+            String vNum = req.getReplacementVehicleNumber() != null ? req.getReplacementVehicleNumber().trim().toUpperCase() : "";
+            if (vNum.isBlank()) {
+                throw new IllegalArgumentException("Replacement vehicle number is required.");
+            }
+            if (problemService != null && vNum.equalsIgnoreCase(problemService.getVehicleNumber())) {
+                throw new IllegalArgumentException("Replacement vehicle number cannot be the same as the problem vehicle.");
+            }
+            int seats = (req.getReplacementSeatsTotal() != null && req.getReplacementSeatsTotal() > 0)
+                    ? req.getReplacementSeatsTotal()
+                    : (problemService != null ? problemService.getSeatsTotal() : 40);
+            String vType = (req.getReplacementVehicleType() != null && !req.getReplacementVehicleType().isBlank())
+                    ? req.getReplacementVehicleType().trim()
+                    : (problemService != null ? (problemService.getMode() + " Replacement") : "Bus");
 
-        if (altDep.getSeatsAvailable() == null || altDep.getSeatsAvailable() <= 0) {
-            throw new IllegalArgumentException("Selected alternative vehicle has no available seats.");
+            ProviderVehicleEntity vehicle = vehicleRepo.findByProviderIdOrderByCreatedAtDesc(provider.getId()).stream()
+                    .filter(v -> vNum.equalsIgnoreCase(v.getVehicleNumber()))
+                    .findFirst()
+                    .orElseGet(() -> vehicleRepo.save(ProviderVehicleEntity.builder()
+                            .id(IdGenerator.generate("VEH"))
+                            .provider(provider)
+                            .mode(problemService != null ? BookingType.valueOf(problemService.getMode()) : BookingType.BUS)
+                            .vehicleNumber(vNum)
+                            .vehicleType(vType)
+                            .seatsTotal(seats)
+                            .active(true)
+                            .createdAt(LocalDateTime.now())
+                            .build()));
+
+            altDep = createReplacementDepartureForVehicle(provider, problemDep, problemService, vehicle);
+        } else {
+            // Option A: Existing departure ID
+            if (rawAltId.isBlank()) {
+                throw new IllegalArgumentException("Alternative departure ID or fleet vehicle is required");
+            }
+
+            altDep = departureRepo.findById(rawAltId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Alternative departure not found with ID: " + rawAltId));
+
+            boolean isAltOwner = (altDep.getProviderId() != null && provider.getId().equals(altDep.getProviderId()))
+                    || (altDep.getService() != null && provider.getId().equals(altDep.getService().getProviderId()))
+                    || (altDep.getScheduleId() != null && scheduleRepo.findById(altDep.getScheduleId())
+                    .map(s -> provider.getId().equals(s.getProvider().getId())).orElse(false));
+
+            if (!isAltOwner) {
+                throw new org.springframework.security.access.AccessDeniedException("Cannot offer another provider's vehicle as an alternative");
+            }
+
+            ServiceEntity altService = altDep.getService();
+            if (altService != null && problemService != null) {
+                if (!problemDep.getTravelDate().equals(altDep.getTravelDate())) {
+                    throw new IllegalArgumentException("Alternative departure must be on the same date as the problem departure.");
+                }
+                if (!problemService.getOriginCity().equalsIgnoreCase(altService.getOriginCity())
+                        || !problemService.getDestinationCity().equalsIgnoreCase(altService.getDestinationCity())) {
+                    throw new IllegalArgumentException("Alternative departure must be on the same route as the problem departure.");
+                }
+            }
+
+            if (altDep.getSeatsAvailable() == null || altDep.getSeatsAvailable() <= 0) {
+                throw new IllegalArgumentException("Selected alternative vehicle has no available seats.");
+            }
         }
 
         // Mark problem departure as CANCELLED (affects ONLY this specific date departure)
@@ -768,6 +820,51 @@ public class ProviderService {
                 .delayMinutes(saved.getDelayMinutes() != null ? saved.getDelayMinutes() : 0)
                 .statusSource(saved.getStatusSource())
                 .build();
+    }
+
+    private ServiceDepartureEntity createReplacementDepartureForVehicle(
+            ProviderEntity provider,
+            ServiceDepartureEntity problemDep,
+            ServiceEntity problemService,
+            ProviderVehicleEntity vehicle) {
+
+        int seats = vehicle.getSeatsTotal() != null ? vehicle.getSeatsTotal()
+                : (problemService != null ? problemService.getSeatsTotal() : 40);
+        String srvId = IdGenerator.generate("SVC");
+        String depId = IdGenerator.generate("DEP");
+
+        ServiceEntity altService = ServiceEntity.builder()
+                .id(srvId)
+                .operator(problemService != null ? problemService.getOperator() : null)
+                .mode(problemService != null ? problemService.getMode() : "BUS")
+                .vehicleNumber(vehicle.getVehicleNumber())
+                .originCity(problemService != null ? problemService.getOriginCity() : "-")
+                .destinationCity(problemService != null ? problemService.getDestinationCity() : "-")
+                .originStop(problemService != null ? problemService.getOriginStop() : "-")
+                .destinationStop(problemService != null ? problemService.getDestinationStop() : "-")
+                .departureTime(problemService != null ? problemService.getDepartureTime() : LocalTime.of(8, 0))
+                .arrivalTime(problemService != null ? problemService.getArrivalTime() : LocalTime.of(14, 0))
+                .arrivesNextDay(problemService != null && Boolean.TRUE.equals(problemService.getArrivesNextDay()))
+                .price(problemService != null ? problemService.getPrice() : BigDecimal.valueOf(500))
+                .seatsTotal(seats)
+                .reliabilityScore(problemService != null && problemService.getReliabilityScore() != null ? problemService.getReliabilityScore() : 92)
+                .active(true)
+                .source("PROVIDER")
+                .providerId(provider.getId())
+                .build();
+        serviceRepo.save(altService);
+
+        ServiceDepartureEntity altDep = ServiceDepartureEntity.builder()
+                .id(depId)
+                .service(altService)
+                .scheduleId(problemDep.getScheduleId())
+                .travelDate(problemDep.getTravelDate())
+                .seatsAvailable(seats)
+                .status("SCHEDULED")
+                .statusSource("PROVIDER_REPORTED")
+                .providerId(provider.getId())
+                .build();
+        return departureRepo.saveAndFlush(altDep);
     }
 
     // =========================================================================
