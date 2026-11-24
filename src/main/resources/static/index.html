@@ -459,7 +459,7 @@
 
           <!-- Review and inline editing area (hidden until extraction) -->
           <div id="import-review-container" class="hidden"
-            style="margin-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1.5rem;">
+            style="margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem;">
             <div
               style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
               <h3 class="subsection-title" style="margin: 0;">Extracted Bookings Review</h3>
@@ -1334,7 +1334,7 @@
             style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
               <div>
-                <h4 id="prov-selected-hotel-title" style="margin: 0; font-size: 1rem; color: #f8fafc;">Room Types</h4>
+                <h4 id="prov-selected-hotel-title" style="margin: 0; font-size: 1rem; color: #0f172a;">Room Types</h4>
                 <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: #94a3b8;">Max 10 room types per hotel. Pricing
                   and rooms inventory.</p>
               </div>
@@ -2369,7 +2369,7 @@
           </button>
         </form>
 
-        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 1rem 0;">
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 1rem 0;">
 
         <!-- Change Password -->
         <form id="form-account-password">
@@ -2392,9 +2392,9 @@
 
         <!-- Secondary Upgrade to Provider for Existing Travellers -->
         <div id="account-provider-upgrade-section" class="hidden"
-          style="margin: 1.25rem 0 1rem 0; padding: 1rem; background: rgba(212, 160, 23, 0.06); border: 1px dashed var(--gold-dark); border-radius: 6px;">
+          style="margin: 1.25rem 0 1rem 0; padding: 1rem; background: #eef2ff; border: 1px dashed #6366f1; border-radius: 6px;">
           <h4
-            style="font-size: 0.95rem; color: var(--gold-light); margin: 0 0 0.25rem 0; font-family: 'Cinzel', serif;">
+            style="font-size: 0.95rem; color: var(--gold-light); margin: 0 0 0.25rem 0; font-family: 'Inter', system-ui, sans-serif; font-weight: 700;">
             Business &amp; Operator Access</h4>
           <p style="font-size: 0.8rem; color: #94a3b8; margin: 0 0 0.75rem 0;">Are you a transport operator or hotel
             owner? Apply to list services on the Odyssey marketplace.</p>
@@ -2403,7 +2403,7 @@
           </button>
         </div>
 
-        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 1.5rem 0 1rem 0;">
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 1.5rem 0 1rem 0;">
 
         <div style="display: flex; justify-content: flex-end;">
           <button type="button" id="btn-logout" class="btn btn-outline-danger btn-sm">
@@ -2721,7 +2721,7 @@
         <button id="btn-close-prov-bookings-modal" class="btn-close" aria-label="Close modal">&times;</button>
       </div>
       <div class="modal-body">
-        <div id="prov-bookings-dep-summary" style="margin-bottom: 0.75rem; font-size: 0.9rem; color: #cbd5e1;"></div>
+        <div id="prov-bookings-dep-summary" style="margin-bottom: 0.75rem; font-size: 0.9rem; color: #334155;"></div>
         <div class="banner banner-info" style="margin-bottom: 1rem; font-size: 0.8rem;">
           <span>&#128274; <strong>Privacy Guaranteed:</strong> Sensitive traveller personal details (contact phone,
             email, and payment methods) are never shown to protect customer privacy.</span>
@@ -2785,32 +2785,32 @@
         <form id="form-prov-offer-alt">
           <input type="hidden" id="prov-offer-alt-dep-id">
           <div class="form-group" style="margin-bottom: 1rem;">
-            <label for="prov-offer-alt-select" style="display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: #cbd5e1;">Select Alternative Vehicle Departure <span style="color: #ef4444;">*</span></label>
-            <select id="prov-offer-alt-select" class="form-control" style="width: 100%; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px; color: #f8fafc;" required>
+            <label for="prov-offer-alt-select" style="display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: #334155; font-weight: 600;">Select Alternative Vehicle Departure <span style="color: #ef4444;">*</span></label>
+            <select id="prov-offer-alt-select" class="form-control" style="width: 100%; padding: 0.5rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;" required>
               <option value="">-- Choose replacement vehicle --</option>
             </select>
-            <small class="form-text" style="color: #94a3b8; font-size: 0.75rem; display: block; margin-top: 0.25rem;">Select another scheduled departure, deploy an active fleet vehicle, or register a backup bus.</small>
+            <small class="form-text" style="color: #64748b; font-size: 0.75rem; display: block; margin-top: 0.25rem;">Select another scheduled departure, deploy an active fleet vehicle, or register a backup bus.</small>
           </div>
-          <div id="prov-offer-alt-new-vehicle-section" class="hidden" style="margin-bottom: 1rem; padding: 0.75rem; background: rgba(30, 41, 59, 0.7); border: 1px dashed #38bdf8; border-radius: 6px;">
-            <div style="font-size: 0.82rem; font-weight: 600; color: #38bdf8; margin-bottom: 0.5rem;">Deploy Backup Vehicle to Route</div>
+          <div id="prov-offer-alt-new-vehicle-section" class="hidden" style="margin-bottom: 1rem; padding: 0.75rem; background: #f8fafc; border: 1px dashed #6366f1; border-radius: 6px;">
+            <div style="font-size: 0.82rem; font-weight: 600; color: #4f46e5; margin-bottom: 0.5rem;">Deploy Backup Vehicle to Route</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
               <div>
-                <label for="prov-offer-alt-new-number" style="display: block; font-size: 0.75rem; color: #cbd5e1; margin-bottom: 0.2rem;">Replacement Vehicle Number *</label>
-                <input type="text" id="prov-offer-alt-new-number" class="form-control" placeholder="e.g. KA31RK9999" style="width: 100%; padding: 0.4rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px; color: #f8fafc; font-size: 0.85rem;">
+                <label for="prov-offer-alt-new-number" style="display: block; font-size: 0.75rem; color: #334155; margin-bottom: 0.2rem; font-weight: 500;">Replacement Vehicle Number *</label>
+                <input type="text" id="prov-offer-alt-new-number" class="form-control" placeholder="e.g. KA31RK9999" style="width: 100%; padding: 0.4rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a; font-size: 0.85rem;">
               </div>
               <div>
-                <label for="prov-offer-alt-new-seats" style="display: block; font-size: 0.75rem; color: #cbd5e1; margin-bottom: 0.2rem;">Total Seats Capacity *</label>
-                <input type="number" id="prov-offer-alt-new-seats" class="form-control" min="1" max="120" value="40" style="width: 100%; padding: 0.4rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px; color: #f8fafc; font-size: 0.85rem;">
+                <label for="prov-offer-alt-new-seats" style="display: block; font-size: 0.75rem; color: #334155; margin-bottom: 0.2rem; font-weight: 500;">Total Seats Capacity *</label>
+                <input type="number" id="prov-offer-alt-new-seats" class="form-control" min="1" max="120" value="40" style="width: 100%; padding: 0.4rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a; font-size: 0.85rem;">
               </div>
             </div>
             <div>
-              <label for="prov-offer-alt-new-type" style="display: block; font-size: 0.75rem; color: #cbd5e1; margin-bottom: 0.2rem;">Vehicle Model / Type (Optional)</label>
-              <input type="text" id="prov-offer-alt-new-type" class="form-control" placeholder="e.g. AC Sleeper Coach / Replacement Bus" style="width: 100%; padding: 0.4rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px; color: #f8fafc; font-size: 0.85rem;">
+              <label for="prov-offer-alt-new-type" style="display: block; font-size: 0.75rem; color: #334155; margin-bottom: 0.2rem; font-weight: 500;">Vehicle Model / Type (Optional)</label>
+              <input type="text" id="prov-offer-alt-new-type" class="form-control" placeholder="e.g. AC Sleeper Coach / Replacement Bus" style="width: 100%; padding: 0.4rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a; font-size: 0.85rem;">
             </div>
           </div>
           <div class="form-group" style="margin-bottom: 1rem;">
-            <label for="prov-offer-alt-reason" style="display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: #cbd5e1;">Reason / Note to Traveller (Optional)</label>
-            <textarea id="prov-offer-alt-reason" class="form-control" rows="2" style="width: 100%; padding: 0.5rem; background: #0f172a; border: 1px solid #334155; border-radius: 4px; color: #f8fafc;" placeholder="e.g. Mechanical issue with primary vehicle; offering luxury replacement departure"></textarea>
+            <label for="prov-offer-alt-reason" style="display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: #334155; font-weight: 600;">Reason / Note to Traveller (Optional)</label>
+            <textarea id="prov-offer-alt-reason" class="form-control" rows="2" style="width: 100%; padding: 0.5rem; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; color: #0f172a;" placeholder="e.g. Mechanical issue with primary vehicle; offering luxury replacement departure"></textarea>
           </div>
           <div class="modal-footer" style="padding-top: 1rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
             <button type="button" id="btn-cancel-prov-offer-alt" class="btn btn-outline">Cancel</button>
@@ -2975,7 +2975,7 @@
         <button id="btn-close-prov-avail-modal" class="btn-close" aria-label="Close modal">&times;</button>
       </div>
       <div class="modal-body">
-        <p id="prov-avail-room-summary" style="font-size: 0.9rem; margin-bottom: 1rem; color: #cbd5e1;"></p>
+        <p id="prov-avail-room-summary" style="font-size: 0.9rem; margin-bottom: 1rem; color: #334155;"></p>
         <div class="table-responsive">
           <table class="table audit-table">
             <thead>
@@ -3156,7 +3156,7 @@
         <button id="btn-close-seat-modal" class="btn-close" aria-label="Close modal">&times;</button>
       </div>
       <div class="modal-body">
-        <div id="seat-modal-service-summary" style="margin-bottom: 1rem; font-size: 0.9rem; color: #cbd5e1;"></div>
+        <div id="seat-modal-service-summary" style="margin-bottom: 1rem; font-size: 0.9rem; color: #334155;"></div>
         <div id="flight-seat-selector" class="form-group hidden" style="margin-bottom: 1rem;">
           <label for="flight-passenger-count">Number of Passengers (1-6)</label>
           <input type="number" id="flight-passenger-count" class="form-control" min="1" max="6" value="1">
@@ -3184,12 +3184,12 @@
         <form id="form-mock-payment">
           <!-- Order Summary -->
           <div id="checkout-order-summary" class="card"
-            style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(212, 175, 55, 0.2); padding: 1rem; margin-bottom: 1rem;">
+            style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem; margin-bottom: 1rem;">
           </div>
 
           <!-- Trip Assignment -->
           <div class="form-group" style="margin-bottom: 1rem;">
-            <label style="font-weight: 600; color: #cbd5e1;">Itinerary Integration</label>
+            <label style="font-weight: 600; color: #334155;">Itinerary Integration</label>
             <div style="display: flex; gap: 1.5rem; margin-top: 0.25rem;">
               <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                 <input type="radio" id="choice-create-trip" name="checkoutTripChoice" value="new" checked>
@@ -3209,7 +3209,7 @@
 
           <!-- Cab & Hotel Add-ons (Restored from Phase 10A) -->
           <div id="checkout-addons-section" class="card"
-            style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); padding: 1rem; margin-bottom: 1rem;">
+            style="background: #ffffff; border: 1px solid #e2e8f0; padding: 1rem; margin-bottom: 1rem;">
             <h4 style="margin: 0 0 0.5rem; font-size: 0.95rem; color: var(--gold-color);">Optional Journey Add-ons</h4>
 
             <!-- Cab Add-on -->
@@ -3219,7 +3219,7 @@
                 <span>Add Cab Transfer at Destination (+&#8377;350 est.)</span>
               </label>
               <div id="checkout-addon-cab-container" class="hidden"
-                style="margin-top: 0.5rem; padding: 0.75rem; background: rgba(15, 23, 42, 0.5); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                style="margin-top: 0.5rem; padding: 0.75rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
                   <div>
                     <label style="font-size: 0.8rem; color: #94a3b8;">Pickup Location</label>
@@ -3250,7 +3250,7 @@
                 <span>Add Hotel Stay at Destination</span>
               </label>
               <div id="checkout-addon-hotel-container" class="hidden"
-                style="margin-top: 0.5rem; padding: 0.75rem; background: rgba(15, 23, 42, 0.5); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                style="margin-top: 0.5rem; padding: 0.75rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
                   <div>
                     <label style="font-size: 0.8rem; color: #94a3b8;">Nights</label>
@@ -3276,7 +3276,7 @@
 
           <!-- Payment Mode Selection (CARD, UPI, NETBANKING) -->
           <div class="form-group" style="margin-bottom: 1rem;">
-            <label style="font-weight: 600; color: #cbd5e1; margin-bottom: 0.5rem; display: block;">Payment
+            <label style="font-weight: 600; color: #334155; margin-bottom: 0.5rem; display: block;">Payment
               Method</label>
             <div style="display: flex; gap: 1.5rem; margin-bottom: 0.75rem;">
               <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
@@ -3376,7 +3376,7 @@
           <div style="background: rgba(255,255,255,0.1); border-radius: 999px; height: 8px; margin: 1rem 0; overflow: hidden;">
             <div id="pending-progress-bar" style="background: #38bdf8; width: 100%; height: 100%; transition: width 1s linear;"></div>
           </div>
-          <p id="pending-provider-message" style="color: #cbd5e1; font-size: 1rem; line-height: 1.5;">Waiting for provider to confirm your request...</p>
+          <p id="pending-provider-message" style="color: #334155; font-size: 1rem; line-height: 1.5;">Waiting for provider to confirm your request...</p>
           <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.5rem;">No payment has been charged. You will only proceed to payment once confirmed.</p>
         </div>
         <div id="pending-action-feedback" class="hidden" style="margin-top: 1rem; padding: 0.75rem; border-radius: 6px; font-weight: 500;"></div>
@@ -3398,18 +3398,18 @@
       <div class="modal-body">
         <div style="text-align: center; margin-bottom: 1.5rem;">
           <div style="font-size: 2.5rem; color: #4ade80; margin-bottom: 0.5rem;">&#10003;</div>
-          <h3 style="margin: 0; color: #f8fafc; font-size: 1.25rem;">Reservation Sealed</h3>
+          <h3 style="margin: 0; color: #0f172a; font-size: 1.25rem;">Reservation Sealed</h3>
           <p style="color: #94a3b8; margin: 0.25rem 0 0;">Reference: <strong id="confirmed-booking-ref"
               style="color: var(--gold-color); font-family: monospace; font-size: 1.1rem;"></strong></p>
         </div>
 
         <div id="confirmed-booking-details" class="card"
-          style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); padding: 1rem; margin-bottom: 1rem;">
+          style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem; margin-bottom: 1rem;">
         </div>
 
         <div id="confirmed-trip-info" class="hidden" style="margin-bottom: 1rem; text-align: center;">
           <span style="color: #94a3b8; font-size: 0.85rem;">Linked to Expedition: </span>
-          <strong id="confirmed-trip-title" style="color: #f8fafc;"></strong>
+          <strong id="confirmed-trip-title" style="color: #0f172a;"></strong>
         </div>
 
         <!-- Spot 2: Confirmation Disclaimer -->
@@ -3438,7 +3438,7 @@
         <button id="btn-close-cancel-modal" class="btn-close" aria-label="Close modal">&times;</button>
       </div>
       <div class="modal-body">
-        <p style="color: #cbd5e1; margin-bottom: 1rem;">
+        <p style="color: #334155; margin-bottom: 1rem;">
           Are you sure you want to cancel booking <strong id="cancel-modal-ref"
             style="color: var(--gold-color);"></strong>?
         </p>
@@ -3470,7 +3470,7 @@
             traveller's Costs &amp; Refunds ledger as <em>PROVIDER_REPORTED</em>.
           </div>
           <div
-            style="background: rgba(15, 23, 42, 0.6); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem;">
+            style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
               <span style="color: #94a3b8;">Booking Reference:</span>
               <strong id="prov-refund-booking-ref" style="color: var(--gold-color); font-family: monospace;"></strong>

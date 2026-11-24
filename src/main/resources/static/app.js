@@ -7711,10 +7711,10 @@
         const isSelected = (elements.checkoutSelectedCabId && elements.checkoutSelectedCabId.value === cab.id);
 
         return `
-            <div class="addon-option-card ${isAvailable ? '' : 'disabled'}" data-cab-id="${escapeHtml(cab.id)}" data-cab-provider="${escapeHtml(cab.provider)}" style="padding: 0.6rem; border: 1px solid ${isSelected ? '#38bdf8' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; background: rgba(30, 41, 59, 0.4); opacity: ${isAvailable ? '1' : '0.5'}; margin-bottom: 0.4rem;">
+            <div class="addon-option-card ${isAvailable ? '' : 'disabled'}" data-cab-id="${escapeHtml(cab.id)}" data-cab-provider="${escapeHtml(cab.provider)}" style="padding: 0.6rem; border: 1px solid ${isSelected ? '#4f46e5' : '#e2e8f0'}; border-radius: 8px; background: ${isSelected ? '#eef2ff' : '#ffffff'}; opacity: ${isAvailable ? '1' : '0.5'}; margin-bottom: 0.4rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="flex: 1;">
-                  <div style="font-weight: 600; font-size: 0.9rem; color: #f8fafc;">${escapeHtml(cab.provider)} <small style="color: #94a3b8;">(${escapeHtml(cab.vehicleCategory || 'SEDAN')})</small></div>
+                  <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a;">${escapeHtml(cab.provider)} <small style="color: #94a3b8;">(${escapeHtml(cab.vehicleCategory || 'SEDAN')})</small></div>
                   <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">${escapeHtml(cab.listingLabel || '')} &bull; ${cab.seats || 4} seats</div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.6rem;">
@@ -7837,11 +7837,11 @@
         const isSelected = (elements.checkoutSelectedHotelId && elements.checkoutSelectedHotelId.value === h.id);
 
         return `
-            <div class="addon-option-card ${isAvailable ? '' : 'disabled'}" data-hotel-id="${escapeHtml(h.id)}" data-room-type-id="${escapeHtml(h.roomTypeId || '')}" data-hotel-name="${escapeHtml(h.name)}" style="padding: 0.6rem; border: 1px solid ${isSelected ? '#38bdf8' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; background: rgba(30, 41, 59, 0.4); opacity: ${isAvailable ? '1' : '0.5'}; margin-bottom: 0.4rem;">
+            <div class="addon-option-card ${isAvailable ? '' : 'disabled'}" data-hotel-id="${escapeHtml(h.id)}" data-room-type-id="${escapeHtml(h.roomTypeId || '')}" data-hotel-name="${escapeHtml(h.name)}" style="padding: 0.6rem; border: 1px solid ${isSelected ? '#4f46e5' : '#e2e8f0'}; border-radius: 8px; background: ${isSelected ? '#eef2ff' : '#ffffff'}; opacity: ${isAvailable ? '1' : '0.5'}; margin-bottom: 0.4rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="flex: 1;">
                   <div style="display: flex; align-items: center; gap: 0.3rem;">
-                    <span style="font-weight: 600; font-size: 0.9rem; color: #f8fafc;">${escapeHtml(h.name)}</span>
+                    <span style="font-weight: 600; font-size: 0.9rem; color: #0f172a;">${escapeHtml(h.name)}</span>
                     ${ratingHtml}
                   </div>
                   <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">${escapeHtml(h.roomTypeName || 'Standard Room')} &bull; ${escapeHtml(h.listingLabel || '')}</div>
