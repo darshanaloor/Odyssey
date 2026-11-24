@@ -35,6 +35,14 @@ public class ProviderPortalProperties {
         maxJourneyMinutes.put("BUS", 2160); // 36 hours
         maxJourneyMinutes.put("TRAIN", 4320); // 72 hours
         maxJourneyMinutes.put("FLIGHT", 360); // 6 hours
+        maxJourneyMinutes.put("CAB", 1440); // 24 hours
+
+        ModePricingRule cabRule = new ModePricingRule();
+        cabRule.setMinPerKm(new BigDecimal("1.0"));
+        cabRule.setMaxPerKm(new BigDecimal("30.0"));
+        cabRule.setMinPrice(new BigDecimal("50.0"));
+        cabRule.setMaxPrice(new BigDecimal("25000.0"));
+        pricingRules.put("CAB", cabRule);
 
         ModePricingRule busRule = new ModePricingRule();
         busRule.setMinPerKm(new BigDecimal("0.5"));

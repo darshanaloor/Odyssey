@@ -9164,6 +9164,55 @@
       if (elements.formProvVehicle) {
         elements.formProvVehicle.addEventListener('submit', handleSaveVehicleSubmit);
       }
+      const provVehMode = document.getElementById('prov-veh-mode');
+      if (provVehMode) {
+        provVehMode.addEventListener('change', () => {
+          const modeVal = provVehMode.value;
+          const typeEl = document.getElementById('prov-veh-type');
+          const seatsEl = document.getElementById('prov-veh-seats');
+          if (modeVal === 'CAB') {
+            if (typeEl) {
+              typeEl.placeholder = 'e.g. Sedan (Dzire, Etios) or SUV (Innova)';
+              if (!typeEl.value || typeEl.value.includes('Sleeper') || typeEl.value.includes('Coach') || typeEl.value.includes('Airbus')) {
+                typeEl.value = 'Sedan (4 Seats)';
+              }
+            }
+            if (seatsEl && (parseInt(seatsEl.value, 10) === 40 || parseInt(seatsEl.value, 10) === 72 || parseInt(seatsEl.value, 10) === 180)) {
+              seatsEl.value = 4;
+            }
+          } else if (modeVal === 'BUS') {
+            if (typeEl) {
+              typeEl.placeholder = 'e.g. AC Multi-Axle Sleeper';
+              if (!typeEl.value || typeEl.value.includes('Sedan') || typeEl.value.includes('SUV')) {
+                typeEl.value = 'AC Multi-Axle Sleeper';
+              }
+            }
+            if (seatsEl && parseInt(seatsEl.value, 10) === 4) {
+              seatsEl.value = 40;
+            }
+          } else if (modeVal === 'TRAIN') {
+            if (typeEl) {
+              typeEl.placeholder = 'e.g. Express AC Chair Car';
+              if (!typeEl.value || typeEl.value.includes('Sedan') || typeEl.value.includes('Sleeper')) {
+                typeEl.value = 'Express Coach';
+              }
+            }
+            if (seatsEl && (parseInt(seatsEl.value, 10) === 4 || parseInt(seatsEl.value, 10) === 40)) {
+              seatsEl.value = 72;
+            }
+          } else if (modeVal === 'FLIGHT') {
+            if (typeEl) {
+              typeEl.placeholder = 'e.g. Airbus A320 / Boeing 737';
+              if (!typeEl.value || typeEl.value.includes('Sedan') || typeEl.value.includes('Coach')) {
+                typeEl.value = 'Airbus A320';
+              }
+            }
+            if (seatsEl && (parseInt(seatsEl.value, 10) === 4 || parseInt(seatsEl.value, 10) === 40)) {
+              seatsEl.value = 180;
+            }
+          }
+        });
+      }
 
       // Schedule Actions
       if (elements.btnProvAddSchedule) {
@@ -9748,7 +9797,7 @@
       elements.provVehiclesTbody.innerHTML = vehicles.map(v => `
         <tr>
           <td><strong style="color: #f8fafc;">${escapeHtml(v.vehicleNumber)}</strong><br><small style="color: #94a3b8;">${escapeHtml(v.vehicleType || '')}</small></td>
-          <td><span class="badge ${v.mode === 'BUS' ? 'badge-amber' : (v.mode === 'TRAIN' ? 'badge-blue' : 'badge-purple')}">${escapeHtml(v.mode)}</span></td>
+          <td><span class="badge ${v.mode === 'BUS' ? 'badge-amber' : (v.mode === 'TRAIN' ? 'badge-blue' : (v.mode === 'CAB' ? 'badge-cyan' : 'badge-purple'))}">${escapeHtml(v.mode)}</span></td>
           <td>${v.seatsTotal} seats</td>
           <td>
             <button type="button" class="btn btn-outline btn-sm btn-prov-toggle-veh" data-id="${escapeHtml(v.id)}" data-active="${v.active}">
@@ -9776,11 +9825,31 @@
     }
 
     function openAddVehicleModal() {
+      const bizName = (state.providerProfile && state.providerProfile.businessName) || '';
+      const isCabBiz = /cab|taxi|car/i.test(bizName);
+      const modeSelect = document.getElementById('prov-veh-mode');
+      const typeInput = document.getElementById('prov-veh-type');
+      const seatsInput = document.getElementById('prov-veh-seats');
+
       document.getElementById('prov-veh-id').value = '';
       document.getElementById('modal-prov-vehicle-title').textContent = 'Add Vehicle';
       document.getElementById('prov-veh-number').value = '';
-      document.getElementById('prov-veh-type').value = 'AC Multi-Axle Sleeper';
-      document.getElementById('prov-veh-seats').value = 40;
+
+      if (isCabBiz) {
+        if (modeSelect) modeSelect.value = 'CAB';
+        if (typeInput) {
+          typeInput.placeholder = 'e.g. Sedan (Dzire, Etios) or SUV (Innova)';
+          typeInput.value = 'Sedan (4 Seats)';
+        }
+        if (seatsInput) seatsInput.value = 4;
+      } else {
+        if (modeSelect) modeSelect.value = 'BUS';
+        if (typeInput) {
+          typeInput.placeholder = 'e.g. AC Multi-Axle Sleeper';
+          typeInput.value = 'AC Multi-Axle Sleeper';
+        }
+        if (seatsInput) seatsInput.value = 40;
+      }
       document.getElementById('prov-veh-active').checked = true;
       if (elements.modalProvVehicle) {
         elements.modalProvVehicle.classList.remove('hidden');
