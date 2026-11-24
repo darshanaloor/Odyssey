@@ -1237,6 +1237,9 @@
 
         <!-- Sub-tab 2: Schedules -->
         <div id="prov-tab-content-schedules" class="hidden">
+          <div id="prov-cabs-schedule-notice" class="hidden" style="margin-bottom: 1rem; padding: 0.75rem 1rem; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); border-radius: 6px; color: #38bdf8; font-size: 0.85rem;">
+            🚗 <strong>Cabs / Cars operate on-demand.</strong> No scheduled intercity timetables needed. Once you add your cab to Fleet Vehicles, travellers can book on-demand transfers at your city directly.
+          </div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <h3 style="margin: 0; font-size: 1.1rem; color: var(--gold-color);">Transport Schedules</h3>
             <button type="button" id="btn-prov-add-schedule" class="btn btn-gold btn-sm">+ Add Schedule</button>
@@ -2532,6 +2535,9 @@
               <option value="TRAIN">TRAIN</option>
               <option value="FLIGHT">FLIGHT</option>
             </select>
+            <div id="prov-veh-cab-info" class="alert alert-info hidden" style="font-size: 0.82rem; margin-top: 0.5rem; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); color: #38bdf8; border-radius: 6px; padding: 0.5rem 0.75rem;">
+              ℹ️ <strong>Cabs / Cars operate on-demand.</strong> Adding a cab vehicle to your fleet automatically makes it available for traveller transfers in your city without needing fixed intercity schedules or timetables.
+            </div>
           </div>
           <div class="form-group">
             <label for="prov-veh-type">Vehicle Type / Model <span class="required">*</span></label>

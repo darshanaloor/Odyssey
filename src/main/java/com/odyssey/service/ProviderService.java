@@ -184,6 +184,9 @@ public class ProviderService {
 
         ProviderVehicleEntity saved = vehicleRepo.save(vehicle);
         log.info("Created vehicle: id={}, providerId={}, vehicleNumber={}", saved.getId(), provider.getId(), vehNum);
+        if (saved.getMode() == BookingType.CAB) {
+            syncCabServiceForVehicle(provider, saved);
+        }
         return toVehicleDto(saved, 0);
     }
 
@@ -221,6 +224,9 @@ public class ProviderService {
 
         ProviderVehicleEntity saved = vehicleRepo.save(vehicle);
         log.info("Updated vehicle: id={}, vehicleNumber={}", saved.getId(), vehNum);
+        if (saved.getMode() == BookingType.CAB) {
+            syncCabServiceForVehicle(provider, saved);
+        }
         return toVehicleDto(saved, maxBooked);
     }
 
@@ -239,6 +245,16 @@ public class ProviderService {
         if (maxBooked > 0) {
             throw new ConflictException("Cannot delete vehicle with active future bookings (" + maxBooked +
                     " seats booked). You may deactivate it instead.");
+        }
+
+        if (vehicle.getMode() == BookingType.CAB) {
+            List<CabServiceEntity> existing = cabRepo.findByProviderIdOrderByCreatedAtDesc(provider.getId());
+            for (CabServiceEntity cs : existing) {
+                if (vehicle.getVehicleNumber() != null && vehicle.getVehicleNumber().equalsIgnoreCase(cs.getVehicleNumber())) {
+                    cabRepo.delete(cs);
+                    log.info("Deleted associated CabServiceEntity {} for vehicle {}", cs.getId(), vehicle.getVehicleNumber());
+                }
+            }
         }
 
         vehicleRepo.delete(vehicle);
@@ -270,6 +286,10 @@ public class ProviderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + req.getVehicleId()));
         if (!vehicle.getProvider().getId().equals(provider.getId())) {
             throw new org.springframework.security.access.AccessDeniedException("Vehicle does not belong to provider");
+        }
+
+        if (vehicle.getMode() == BookingType.CAB) {
+            throw new IllegalArgumentException("Cabs operate on on-demand availability without fixed timetables. Adding a cab to your Fleet Vehicles is enough.");
         }
 
         if (!Boolean.TRUE.equals(vehicle.getActive())) {
@@ -379,6 +399,10 @@ public class ProviderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found: " + req.getVehicleId()));
         if (!vehicle.getProvider().getId().equals(provider.getId())) {
             throw new org.springframework.security.access.AccessDeniedException("Vehicle does not belong to provider");
+        }
+
+        if (vehicle.getMode() == BookingType.CAB) {
+            throw new IllegalArgumentException("Cabs operate on on-demand availability without fixed timetables. Adding a cab to your Fleet Vehicles is enough.");
         }
 
         Integer seatsOffered = req.getSeatsOffered() != null ? req.getSeatsOffered() : vehicle.getSeatsTotal();
@@ -1227,6 +1251,53 @@ public class ProviderService {
                 .createdAt(v.getCreatedAt())
                 .maxBookedSeatsInFuture(maxBooked)
                 .build();
+    }
+
+    private void syncCabServiceForVehicle(ProviderEntity provider, ProviderVehicleEntity vehicle) {
+        if (provider == null || vehicle == null || vehicle.getMode() != BookingType.CAB) {
+            return;
+        }
+        try {
+            String vehicleNumber = vehicle.getVehicleNumber();
+            String city = provider.getCity();
+            CityInfo c = InventoryService.findCity(city);
+            String normCity = c != null ? c.getName() : (city != null ? city.trim() : "Unknown");
+
+            List<CabServiceEntity> existing = cabRepo.findByProviderIdOrderByCreatedAtDesc(provider.getId());
+            CabServiceEntity cab = existing.stream()
+                    .filter(cs -> vehicleNumber != null && vehicleNumber.equalsIgnoreCase(cs.getVehicleNumber()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (cab == null) {
+                cab = CabServiceEntity.builder()
+                        .id(IdGenerator.generate("CAB-"))
+                        .provider(provider.getBusinessName() != null ? provider.getBusinessName() : "Local Cab")
+                        .city(normCity)
+                        .baseFare(new BigDecimal("50.00"))
+                        .perKm(new BigDecimal("14.00"))
+                        .source("PROVIDER")
+                        .providerId(provider.getId())
+                        .vehicleCategory(vehicle.getVehicleType() != null && vehicle.getVehicleType().equalsIgnoreCase("SUV") ? VehicleCategory.SUV : ((vehicle.getSeatsTotal() != null && vehicle.getSeatsTotal() > 4) ? VehicleCategory.SUV : VehicleCategory.SEDAN))
+                        .seats(vehicle.getSeatsTotal() != null ? vehicle.getSeatsTotal() : 4)
+                        .operatingHours("24x7 On-Demand")
+                        .vehicleNumber(vehicle.getVehicleNumber())
+                        .active(Boolean.TRUE.equals(vehicle.getActive()))
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+            } else {
+                cab.setProvider(provider.getBusinessName() != null ? provider.getBusinessName() : cab.getProvider());
+                cab.setCity(normCity);
+                cab.setSeats(vehicle.getSeatsTotal() != null ? vehicle.getSeatsTotal() : cab.getSeats());
+                cab.setActive(Boolean.TRUE.equals(vehicle.getActive()));
+                cab.setUpdatedAt(LocalDateTime.now());
+            }
+            cabRepo.save(cab);
+            log.info("Synced CabServiceEntity for provider {} and vehicle {}: cabId={}", provider.getId(), vehicle.getVehicleNumber(), cab.getId());
+        } catch (Exception ex) {
+            log.warn("Failed to sync cab service for vehicle {}: {}", vehicle.getVehicleNumber(), ex.getMessage());
+        }
     }
 
     private ProviderScheduleDto toScheduleDto(ProviderScheduleEntity s) {

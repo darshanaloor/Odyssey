@@ -33,6 +33,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import com.odyssey.model.CostBreakdown;
 import com.odyssey.model.CostBreakdownLine;
+import com.odyssey.model.enums.BookingType;
+import com.odyssey.model.enums.ProviderStatus;
+import com.odyssey.model.enums.VehicleCategory;
 import com.odyssey.service.status.StatusCheckService;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -89,6 +92,9 @@ public class MarketplaceService {
 
     @Autowired(required = false)
     private com.odyssey.repository.jpa.TripLedgerEntryJpaRepository tripLedgerEntryJpaRepository;
+
+    @Autowired(required = false)
+    private ProviderVehicleJpaRepository vehicleRepo;
 
     private static final String REF_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -720,9 +726,22 @@ public class MarketplaceService {
         }
 
         String normCity = c != null ? c.getKey() : InventoryService.normalizeCityKey(city);
-        List<CabServiceEntity> cabs = cabRepo.findByCityIgnoreCase(normCity);
-        if (cabs.isEmpty() && c != null) {
-            cabs = cabRepo.findByCityIgnoreCase(c.getName());
+        syncProviderCabVehiclesToCabRepo(normCity, c != null ? c.getName() : city);
+
+        List<CabServiceEntity> cabs = new ArrayList<>(cabRepo.findByCityIgnoreCase(normCity));
+        if (c != null && !c.getName().equalsIgnoreCase(normCity)) {
+            for (CabServiceEntity cs : cabRepo.findByCityIgnoreCase(c.getName())) {
+                if (cabs.stream().noneMatch(x -> x.getId().equals(cs.getId()))) {
+                    cabs.add(cs);
+                }
+            }
+        }
+        if (city != null && !city.equalsIgnoreCase(normCity) && (c == null || !city.equalsIgnoreCase(c.getName()))) {
+            for (CabServiceEntity cs : cabRepo.findByCityIgnoreCase(city)) {
+                if (cabs.stream().noneMatch(x -> x.getId().equals(cs.getId()))) {
+                    cabs.add(cs);
+                }
+            }
         }
 
         double distanceKm = estimateCabDistance(pickup, dropoff, normCity);
@@ -779,6 +798,57 @@ public class MarketplaceService {
                         .comparing((CabQuoteResponse cabQuote) -> (cabQuote.getSeats() != null && cabQuote.getSeats() > 0) ? 0 : 1)
                         .thenComparing(cabQuote -> cabQuote.getEstimatedFare() != null ? cabQuote.getEstimatedFare() : BigDecimal.ZERO))
                 .collect(Collectors.toList());
+    }
+
+    private void syncProviderCabVehiclesToCabRepo(String normCity, String cityName) {
+        if (vehicleRepo == null || providerRepo == null || cabRepo == null) {
+            return;
+        }
+        try {
+            List<ProviderEntity> providers = providerRepo.findAll().stream()
+                    .filter(p -> {
+                        if (p.getStatus() == ProviderStatus.SUSPENDED || p.getStatus() == ProviderStatus.REJECTED) return false;
+                        if (p.getCity() == null) return false;
+                        CityInfo pi = InventoryService.findCity(p.getCity());
+                        if (pi != null) {
+                            return pi.getKey().equalsIgnoreCase(normCity) || (cityName != null && pi.getName().equalsIgnoreCase(cityName));
+                        }
+                        return p.getCity().equalsIgnoreCase(normCity) || (cityName != null && p.getCity().equalsIgnoreCase(cityName));
+                    })
+                    .collect(Collectors.toList());
+
+            for (ProviderEntity prov : providers) {
+                List<ProviderVehicleEntity> vehicles = vehicleRepo.findByProviderIdOrderByCreatedAtDesc(prov.getId());
+                for (ProviderVehicleEntity v : vehicles) {
+                    if (v.getMode() == BookingType.CAB && Boolean.TRUE.equals(v.getActive())) {
+                        List<CabServiceEntity> existing = cabRepo.findByProviderIdOrderByCreatedAtDesc(prov.getId());
+                        boolean exists = existing.stream().anyMatch(cs -> v.getVehicleNumber() != null && v.getVehicleNumber().equalsIgnoreCase(cs.getVehicleNumber()));
+                        if (!exists) {
+                            CabServiceEntity cab = CabServiceEntity.builder()
+                                    .id(IdGenerator.generate("CAB-"))
+                                    .provider(prov.getBusinessName() != null ? prov.getBusinessName() : "Local Cab")
+                                    .city(cityName != null ? cityName : normCity)
+                                    .baseFare(new BigDecimal("50.00"))
+                                    .perKm(new BigDecimal("14.00"))
+                                    .source("PROVIDER")
+                                    .providerId(prov.getId())
+                                    .vehicleCategory(v.getVehicleType() != null && v.getVehicleType().equalsIgnoreCase("SUV") ? VehicleCategory.SUV : ((v.getSeatsTotal() != null && v.getSeatsTotal() > 4) ? VehicleCategory.SUV : VehicleCategory.SEDAN))
+                                    .seats(v.getSeatsTotal() != null ? v.getSeatsTotal() : 4)
+                                    .operatingHours("24x7 On-Demand")
+                                    .vehicleNumber(v.getVehicleNumber())
+                                    .active(true)
+                                    .createdAt(LocalDateTime.now())
+                                    .updatedAt(LocalDateTime.now())
+                                    .build();
+                            cabRepo.save(cab);
+                            log.info("Auto-synced provider cab vehicle {} to cabRepo for city {}", v.getVehicleNumber(), cityName);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Error syncing provider cab vehicles to cabRepo: {}", ex.getMessage());
+        }
     }
 
     @Transactional

@@ -1889,7 +1889,7 @@
       if (booking.bookingReference) {
         try {
           await fetch(`/api/market/bookings/${encodeURIComponent(booking.bookingReference)}/cancel`, { method: 'POST' });
-        } catch (_) {}
+        } catch (_) { }
       }
 
       const res = await fetch(`/api/trips/${encodeURIComponent(state.currentTripId)}/bookings/${encodeURIComponent(booking.id)}/report-problem`, {
@@ -2439,7 +2439,6 @@
             ` : ''}
             <div class="option-route-info">
               <span class="option-provider">${escapeHtml(provider)}${operatorName && operatorName !== provider ? ' (' + escapeHtml(operatorName) + ')' : ''} ${vehicleNum ? '<span class="badge badge-neutral">' + escapeHtml(vehicleNum) + '</span>' : ''}</span>
-              ${seatsLeft != null ? `<span class="badge ${seatsLeft > 5 ? 'badge-neutral' : 'badge-amber'}" style="font-size: 0.75rem;">${seatsLeft} seat${seatsLeft === 1 ? '' : 's'} left</span>` : ''}
               ${schedLabel ? `<span class="badge badge-warning" style="font-size: 0.72rem;">${escapeHtml(schedLabel)}</span>` : ''}
               <span class="option-route">${route}</span>
               <span class="option-schedule">${schedule}</span>
@@ -7124,7 +7123,6 @@
             <div class="service-badges">
               <span class="badge ${sourceBadgeClass}">${escapeHtml(sourceBadgeText)}</span>
               <span class="badge badge-green">${s.reliabilityScore}% Reliability</span>
-              <span class="badge ${s.seatsLeft > 5 ? 'badge-neutral' : 'badge-amber'}">${s.seatsLeft} seat${s.seatsLeft === 1 ? '' : 's'} left</span>
             </div>
           </div>
 
@@ -7427,9 +7425,10 @@
     if (addonsSec) addonsSec.classList.remove('hidden');
     if (elements.checkoutAddonCabToggle) elements.checkoutAddonCabToggle.checked = false;
     if (elements.checkoutAddonCabContainer) elements.checkoutAddonCabContainer.classList.add('hidden');
+    const destCity = (service.destinationCity || service.to || service.toLocation || '');
     const destStop = getDestinationBusStopOrLandmark(service);
     if (elements.checkoutCabPickup) elements.checkoutCabPickup.value = destStop;
-    if (elements.checkoutCabDropoff) elements.checkoutCabDropoff.value = `${service.destinationCity} Center`;
+    if (elements.checkoutCabDropoff) elements.checkoutCabDropoff.value = destCity ? `${destCity} Center` : 'City Center';
     if (elements.checkoutSelectedCabId) elements.checkoutSelectedCabId.value = '';
     if (elements.checkoutCabOptionsList) elements.checkoutCabOptionsList.innerHTML = '<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available cabs...</div>';
 
@@ -7850,7 +7849,7 @@
                 <div style="display: flex; align-items: center; gap: 0.6rem;">
                   <div style="text-align: right;">
                     <div style="font-weight: 700; color: #4ade80;">₹${total}</div>
-                    ${isAvailable ? `<span class="badge badge-success" style="font-size: 0.7rem;">${h.roomsAvailable} left</span>` : '<span class="badge badge-danger" style="font-size: 0.7rem;">Sold out</span>'}
+                    ${isAvailable ? '' : '<span class="badge badge-danger" style="font-size: 0.7rem;">Sold out</span>'}
                   </div>
                   <button type="button" class="btn btn-sm ${isSelected ? 'btn-gold' : 'btn-outline-gold'} btn-select-hotel" data-hotel-id="${escapeHtml(h.id)}" ${isAvailable ? '' : 'disabled'} style="min-width: 80px; padding: 0.3rem 0.5rem; font-size: 0.8rem; font-weight: 600;">
                     ${isSelected ? 'Selected &check;' : 'Select'}
@@ -7895,7 +7894,7 @@
 
           // If cab transfer is enabled, refresh cab quotes for the selected hotel destination
           if (elements.checkoutAddonCabToggle && elements.checkoutAddonCabToggle.checked && marketState.currentService) {
-            const destCity = marketState.currentService.destinationCity || '';
+            const destCity = marketState.currentService.destinationCity || marketState.currentService.to || marketState.currentService.toLocation || '';
             const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value : '';
             loadCheckoutCabOptions(destCity, pickup, card.dataset.hotelName);
           }
@@ -8422,31 +8421,31 @@
         throw new Error(data.message || 'Failed to cancel booking');
       }
 
-        closeCancelBookingModal();
-        const tierMsg = (data.data && data.data.refundTierApplied) ? data.data.refundTierApplied : 'Booking cancelled.';
-        showToast('Booking cancelled! ' + tierMsg, 'success');
-        if (state.currentTripId && state.trip && state.trip.bookings) {
-          const tripB = state.trip.bookings.find(b => b.id === id || (b.bookingReference && b.bookingReference === marketState.bookingToCancelRef));
-          if (tripB && tripB.status !== 'CANCELLED') {
-            try {
-              await fetch(`/api/trips/${encodeURIComponent(state.currentTripId)}/bookings/${encodeURIComponent(tripB.id)}/report-problem`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'CANCELLED', delayMinutes: 0, note: `Cancelled by traveller (${tripB.type})` })
-              });
-            } catch (_) {}
-          }
+      closeCancelBookingModal();
+      const tierMsg = (data.data && data.data.refundTierApplied) ? data.data.refundTierApplied : 'Booking cancelled.';
+      showToast('Booking cancelled! ' + tierMsg, 'success');
+      if (state.currentTripId && state.trip && state.trip.bookings) {
+        const tripB = state.trip.bookings.find(b => b.id === id || (b.bookingReference && b.bookingReference === marketState.bookingToCancelRef));
+        if (tripB && tripB.status !== 'CANCELLED') {
+          try {
+            await fetch(`/api/trips/${encodeURIComponent(state.currentTripId)}/bookings/${encodeURIComponent(tripB.id)}/report-problem`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'CANCELLED', delayMinutes: 0, note: `Cancelled by traveller (${tripB.type})` })
+            });
+          } catch (_) { }
         }
-        await loadMyMarketBookings();
-        if (state.currentTripId) {
-          await loadTripById(state.currentTripId);
-        }
-      } catch (err) {
-        showToast(err.message, 'danger');
-      } finally {
-        setButtonLoading(elements.btnExecuteCancelBooking, false);
       }
+      await loadMyMarketBookings();
+      if (state.currentTripId) {
+        await loadTripById(state.currentTripId);
+      }
+    } catch (err) {
+      showToast(err.message, 'danger');
+    } finally {
+      setButtonLoading(elements.btnExecuteCancelBooking, false);
     }
+  }
 
   // Hotel & Cab Search Handlers
   async function handleMarketHotelsSearch(e) {
@@ -8482,7 +8481,7 @@
           ? `<span class="badge badge-info" style="margin-left: 0.35rem;">${escapeHtml(h.listingLabel || 'Provider-listed')}</span>`
           : '';
         const roomInfo = h.roomTypeName
-          ? `<div style="font-size: 0.82rem; color: var(--gold-color); margin-top: 0.2rem;">Room: <strong>${escapeHtml(h.roomTypeName)}</strong> (Max ${h.maxGuests || 2} guests) &bull; <span style="color: #38bdf8;">${h.roomsAvailable} room(s) left</span></div>`
+          ? `<div style="font-size: 0.82rem; color: var(--gold-color); margin-top: 0.2rem;">Room: <strong>${escapeHtml(h.roomTypeName)}</strong> (Max ${h.maxGuests || 2} guests)</div>`
           : '';
         const amenitiesInfo = h.amenities
           ? `<div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.15rem;">Amenities: ${escapeHtml(h.amenities)}</div>`
@@ -8859,7 +8858,7 @@
           const isChecked = elements.checkoutAddonCabToggle.checked;
           elements.checkoutAddonCabContainer.classList.toggle('hidden', !isChecked);
           if (isChecked) {
-            const destCity = (marketState.currentService && marketState.currentService.destinationCity) || '';
+            const destCity = (marketState.currentService && (marketState.currentService.destinationCity || marketState.currentService.to || marketState.currentService.toLocation)) || '';
             const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value : '';
             const dropoff = elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value : '';
             loadCheckoutCabOptions(destCity, pickup, dropoff);
@@ -8872,7 +8871,7 @@
         if (elements.checkoutAddonHotelContainer) {
           const isChecked = elements.checkoutAddonHotelToggle.checked;
           elements.checkoutAddonHotelContainer.classList.toggle('hidden', !isChecked);
-          const destCity = (marketState.currentService && marketState.currentService.destinationCity) || '';
+          const destCity = (marketState.currentService && (marketState.currentService.destinationCity || marketState.currentService.to || marketState.currentService.toLocation)) || '';
           if (isChecked) {
             const nights = elements.checkoutHotelNights ? parseInt(elements.checkoutHotelNights.value, 10) || 1 : 1;
             const rooms = elements.checkoutHotelRooms ? parseInt(elements.checkoutHotelRooms.value, 10) || 1 : 1;
@@ -8899,7 +8898,7 @@
       clearTimeout(checkoutCabDebounceTimer);
       checkoutCabDebounceTimer = setTimeout(() => {
         if (elements.checkoutAddonCabToggle && elements.checkoutAddonCabToggle.checked && marketState.currentService) {
-          const destCity = marketState.currentService.destinationCity || '';
+          const destCity = marketState.currentService.destinationCity || marketState.currentService.to || marketState.currentService.toLocation || '';
           const pickup = elements.checkoutCabPickup ? elements.checkoutCabPickup.value.trim() : '';
           const dropoff = elements.checkoutCabDropoff ? elements.checkoutCabDropoff.value.trim() : '';
           loadCheckoutCabOptions(destCity, pickup, dropoff);
@@ -9190,7 +9189,7 @@
               <strong style="color: #4ade80;">${escapeHtml((p.assignedSeats || []).join(', '))} (${p.passengerCount} passenger${p.passengerCount === 1 ? '' : 's'})</strong>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-              <span style="color: #94a3b8;">Seats Left on Departure:</span>
+              <span style="color: #94a3b8;">Seats Available:</span>
               <span class="badge ${p.seatsLeft > 5 ? 'badge-neutral' : 'badge-amber'}">${p.seatsLeft} available</span>
             </div>
             <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px;">
@@ -9330,6 +9329,10 @@
     if (provVehMode) {
       provVehMode.addEventListener('change', () => {
         const modeVal = provVehMode.value;
+        const cabInfoEl = document.getElementById('prov-veh-cab-info');
+        if (cabInfoEl) {
+          cabInfoEl.classList.toggle('hidden', modeVal !== 'CAB');
+        }
         const typeEl = document.getElementById('prov-veh-type');
         const seatsEl = document.getElementById('prov-veh-seats');
         if (modeVal === 'CAB') {
@@ -10012,6 +10015,10 @@
       }
       if (seatsInput) seatsInput.value = 40;
     }
+    const cabInfoEl = document.getElementById('prov-veh-cab-info');
+    if (cabInfoEl) {
+      cabInfoEl.classList.toggle('hidden', (modeSelect && modeSelect.value) !== 'CAB');
+    }
     document.getElementById('prov-veh-active').checked = true;
     if (elements.modalProvVehicle) {
       elements.modalProvVehicle.classList.remove('hidden');
@@ -10029,6 +10036,10 @@
     document.getElementById('prov-veh-type').value = v.vehicleType || '';
     document.getElementById('prov-veh-seats').value = v.seatsTotal;
     document.getElementById('prov-veh-active').checked = v.active;
+    const cabInfoEl = document.getElementById('prov-veh-cab-info');
+    if (cabInfoEl) {
+      cabInfoEl.classList.toggle('hidden', v.mode !== 'CAB');
+    }
     if (elements.modalProvVehicle) {
       elements.modalProvVehicle.classList.remove('hidden');
       elements.modalProvVehicle.classList.add('is-open');
@@ -10140,8 +10151,23 @@
 
   function renderProviderSchedules(schedules) {
     if (!elements.provSchedulesTbody) return;
+    const allCabs = state.providerVehicles.length > 0 && state.providerVehicles.every(v => v.mode === 'CAB');
+    const notice = document.getElementById('prov-cabs-schedule-notice');
+    if (notice) {
+      notice.classList.toggle('hidden', !allCabs);
+    }
+    if (elements.btnProvAddSchedule) {
+      elements.btnProvAddSchedule.style.display = allCabs ? 'none' : '';
+    }
     if (schedules.length === 0) {
-      elements.provSchedulesTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No schedules configured. Click "+ Add Schedule" to create one.</td></tr>';
+      if (allCabs) {
+        elements.provSchedulesTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #38bdf8; text-align: center; padding: 1.5rem;">
+          🚗 <strong>On-Demand Cab Fleet Active:</strong> Cabs / Cars operate on-demand and do not require fixed timetables or schedules.<br>
+          Your fleet cab (${state.providerVehicles.map(v => escapeHtml(v.vehicleNumber)).join(', ')}) is automatically available on-demand for traveller transfers in ${escapeHtml((state.currentProvider && state.currentProvider.city) || 'your base city')}.
+        </td></tr>`;
+      } else {
+        elements.provSchedulesTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No schedules configured. Click "+ Add Schedule" to create one.</td></tr>';
+      }
       return;
     }
     elements.provSchedulesTbody.innerHTML = schedules.map(s => `
@@ -10179,15 +10205,21 @@
   function openAddScheduleModal() {
     const schErr = document.getElementById('prov-sch-error');
     if (schErr) { schErr.textContent = ''; schErr.classList.add('hidden'); }
-    if (state.providerVehicles.length === 0) {
-      showToast('Please add at least one vehicle before creating a schedule.', 'warning');
+    const schedulableVehicles = state.providerVehicles.filter(v => v.active && v.mode !== 'CAB');
+    if (schedulableVehicles.length === 0) {
+      const hasCabs = state.providerVehicles.some(v => v.mode === 'CAB');
+      if (hasCabs) {
+        showToast('Cabs / Cars operate on-demand without fixed timetables. Adding a cab to Fleet Vehicles is already enough to receive bookings.', 'info');
+      } else {
+        showToast('Please add at least one active intercity vehicle (e.g. Bus, Train, Flight) before creating a schedule.', 'warning');
+      }
       return;
     }
     document.getElementById('prov-sch-id').value = '';
     document.getElementById('modal-prov-schedule-title').textContent = 'Add Schedule';
 
     const vehSelect = document.getElementById('prov-sch-vehicle');
-    vehSelect.innerHTML = state.providerVehicles.filter(v => v.active).map(v => `
+    vehSelect.innerHTML = schedulableVehicles.map(v => `
         <option value="${escapeHtml(v.id)}">${escapeHtml(v.vehicleNumber)} (${escapeHtml(v.mode)}, ${v.seatsTotal} seats)</option>
       `).join('');
 
@@ -10229,7 +10261,8 @@
     document.getElementById('modal-prov-schedule-title').textContent = 'Edit Schedule';
 
     const vehSelect = document.getElementById('prov-sch-vehicle');
-    vehSelect.innerHTML = state.providerVehicles.map(v => `
+    const nonCabVehicles = state.providerVehicles.filter(v => v.mode !== 'CAB' || v.id === s.vehicleId);
+    vehSelect.innerHTML = nonCabVehicles.map(v => `
         <option value="${escapeHtml(v.id)}" ${v.id === s.vehicleId ? 'selected' : ''}>${escapeHtml(v.vehicleNumber)} (${escapeHtml(v.mode)}, ${v.seatsTotal} seats)</option>
       `).join('');
 
@@ -11351,7 +11384,7 @@
       }
 
       elements.provAvailTbody.innerHTML = availList.map(a => {
-        const left = Math.max(0, (a.roomsTotal || 0) - (a.roomsBooked || 0));
+        const available = Math.max(0, (a.roomsTotal || 0) - (a.roomsBooked || 0));
         const isClosed = Boolean(a.isClosed);
         const statusBadge = isClosed ? '<span class="badge badge-danger">CLOSED</span>' : '<span class="badge badge-green">OPEN</span>';
         const actionText = isClosed ? 'Reopen Date' : 'Close Date';
@@ -11362,7 +11395,7 @@
             <td><strong style="color: #f8fafc;">${a.stayDate}</strong></td>
             <td>${a.roomsTotal}</td>
             <td><span class="badge ${a.roomsBooked > 0 ? 'badge-amber' : 'badge-neutral'}">${a.roomsBooked} booked</span></td>
-            <td><strong style="color: ${left > 0 ? '#38bdf8' : '#f87171'};">${left} left</strong></td>
+            <td><strong style="color: ${left > 0 ? '#38bdf8' : '#f87171'};">${left} available</strong></td>
             <td>${statusBadge}</td>
             <td>
               <button type="button" class="btn btn-outline btn-sm btn-prov-toggle-date" data-date="${a.stayDate}" data-closed="${isClosed}" style="color: ${actionColor};">
