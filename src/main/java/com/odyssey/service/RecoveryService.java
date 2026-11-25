@@ -137,8 +137,10 @@ public class RecoveryService {
         if (plan.getReplacementCab() != null) {
             boolean alreadyHasVerifiedCab = trip.getBookings().stream().anyMatch(b ->
                     b.getType() == BookingType.CAB
-                            && (b.getStatus() == BookingStatus.CONFIRMED || b.getStatus() == BookingStatus.REBOOKED)
-                            && ("ACCEPTED".equalsIgnoreCase(b.getProviderConfirmationStatus())
+                            && b.getStatus() != BookingStatus.CANCELLED
+                            && (b.getStatus() == BookingStatus.CONFIRMED
+                                || b.getStatus() == BookingStatus.REBOOKED
+                                || "ACCEPTED".equalsIgnoreCase(b.getProviderConfirmationStatus())
                                 || (b.getStartTime() != null && b.getStartTime().equals(plan.getReplacementCab().getStartTime()))));
             if (!alreadyHasVerifiedCab) {
                 Booking replacementCab = plan.getReplacementCab();
@@ -299,9 +301,9 @@ public class RecoveryService {
 
         boolean hasVerifiedNewCab = trip.getBookings().stream().anyMatch(b ->
                 b.getType() == BookingType.CAB
-                        && (oldCabBooking == null || !b.getId().equals(oldCabBooking.getId()))
-                        && ("ACCEPTED".equalsIgnoreCase(b.getProviderConfirmationStatus())
-                            || "PENDING".equalsIgnoreCase(b.getProviderConfirmationStatus())));
+                        && b.getStatus() != BookingStatus.CANCELLED
+                        && ((oldCabBooking == null || !b.getId().equals(oldCabBooking.getId()))
+                            || "ACCEPTED".equalsIgnoreCase(b.getProviderConfirmationStatus())));
 
         boolean oldCabDependedOnDisruption = oldCabBooking != null && !reuseOldCab && (
                 disruptedBooking == null

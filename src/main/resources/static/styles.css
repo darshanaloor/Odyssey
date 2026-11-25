@@ -360,7 +360,7 @@ body {
 
 .btn-outline-danger {
   background: transparent;
-  color: #fca5a5;
+  color: #dc2626;
   border: 1px solid #ef4444;
 }
 .btn-outline-danger:hover:not(:disabled) {
@@ -681,7 +681,7 @@ body {
   padding: 12px 16px;
   border-radius: 0 6px 6px 0;
   font-size: 0.92rem;
-  color: #fca5a5;
+  color: #dc2626;
   line-height: 1.5;
 }
 
@@ -774,13 +774,13 @@ body {
 .banner-warning {
   background: rgba(245, 158, 11, 0.12);
   border: 1px solid var(--status-amber);
-  color: #fde68a;
+  color: #b45309;
 }
 
 .banner-success {
   background: rgba(16, 185, 129, 0.12);
   border: 1px solid var(--status-green);
-  color: #a7f3d0;
+  color: #065f46;
 }
 
 .banner-icon {
@@ -904,8 +904,8 @@ body {
   gap: 6px;
 }
 
-.constraint-item.met { color: #6ee7b7; }
-.constraint-item.violated { color: #fca5a5; }
+.constraint-item.met { color: #059669; }
+.constraint-item.violated { color: #dc2626; }
 
 .check-icon { font-weight: bold; }
 
@@ -1219,7 +1219,7 @@ body {
 
 .actor-system { background: rgba(148, 163, 184, 0.2); color: #1e293b; }
 .actor-agent { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; }
-.actor-user { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+.actor-user { background: rgba(59, 130, 246, 0.2); color: #1d4ed8; }
 
 /* Toast Notifications */
 .toast-container {
@@ -1674,7 +1674,7 @@ body {
   display: block;
   background: rgba(239, 68, 68, 0.15);
   border: 1px solid rgba(239, 68, 68, 0.45);
-  color: #fca5a5;
+  color: #dc2626;
   padding: 0.65rem 0.85rem;
   border-radius: 6px;
   font-size: 0.85rem;
@@ -1845,7 +1845,7 @@ body {
 }
 
 .btn-icon-sm.danger:hover {
-  color: #fca5a5;
+  color: #dc2626;
   border-color: var(--status-red);
   background: var(--status-red-bg);
 }
@@ -1872,7 +1872,7 @@ body {
 
 .estimated-note {
   font-style: italic;
-  color: #fde68a;
+  color: #b45309;
   font-size: 0.82rem;
 }
 
@@ -1976,7 +1976,7 @@ body {
 
 .btn-remove-commitment:hover {
   background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
+  color: #dc2626;
   border-color: #ef4444;
 }
 
@@ -2114,7 +2114,7 @@ body {
 
 .btn-remove-builder-row:hover {
   background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
+  color: #dc2626;
   border-color: #ef4444;
 }
 
@@ -2161,7 +2161,7 @@ body {
 .unparsed-line-alert {
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #fca5a5;
+  color: #dc2626;
   border-radius: 4px;
   padding: 6px 10px;
   font-size: 0.78rem;
@@ -2278,7 +2278,7 @@ body {
 .option-broken-badge {
   display: inline-block;
   background: rgba(239, 68, 68, 0.15);
-  color: #fca5a5;
+  color: #dc2626;
   border: 1px solid rgba(239, 68, 68, 0.35);
   padding: 4px 8px;
   border-radius: 4px;
@@ -2319,7 +2319,7 @@ body {
 .banner-auto-disrupt strong {
   display: block;
   font-size: 0.95rem;
-  color: #fca5a5;
+  color: #dc2626;
   margin-bottom: 2px;
 }
 
@@ -4479,4 +4479,15 @@ label {
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+.banner-success, #section-resolved-banner, #handoff-completed-banner {
+  background: #ecfdf5 !important;
+  border-color: #6ee7b7 !important;
+  color: #065f46 !important;
+}
+.banner-success h2, .banner-success h3, .banner-success h4, .banner-success strong,
+#section-resolved-banner h2, #section-resolved-banner h3, #section-resolved-banner p,
+#handoff-completed-banner h2, #handoff-completed-banner h3, #handoff-completed-banner p {
+  color: #065f46 !important;
 }
