@@ -1756,26 +1756,85 @@ public class MarketplaceService {
             bookingRepo.save(booking);
 
         } else if ("CAB".equals(type)) {
-            CabServiceEntity cab = cabRepo.findById(req.getTargetId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Cab service not found: " + req.getTargetId()));
-            if (targetName == null || targetName.isBlank()) {
-                targetName = cab.getProvider();
+            CabServiceEntity cab = null;
+            if (req.getTargetId() != null && !req.getTargetId().isBlank()) {
+                cab = cabRepo.findById(req.getTargetId()).orElse(null);
+            }
+            BookingEntity existingCab = null;
+            if (req.getExistingCabBookingId() != null && !req.getExistingCabBookingId().isBlank()) {
+                existingCab = bookingRepo.findById(req.getExistingCabBookingId()).orElse(null);
+                if (cab == null && existingCab != null && existingCab.getServiceId() != null) {
+                    cab = cabRepo.findById(existingCab.getServiceId()).orElse(null);
+                }
+                if (cab == null && existingCab != null && existingCab.getProvider() != null) {
+                    String existingProvName = existingCab.getProvider().trim();
+                    cab = cabRepo.findAll().stream()
+                            .filter(c -> c.getProvider() != null && c.getProvider().equalsIgnoreCase(existingProvName))
+                            .findFirst()
+                            .orElse(null);
+                }
+            }
+            if (cab == null && req.getTargetName() != null && !req.getTargetName().isBlank()) {
+                String tName = req.getTargetName().trim();
+                cab = cabRepo.findAll().stream()
+                        .filter(c -> c.getProvider() != null && c.getProvider().equalsIgnoreCase(tName))
+                        .findFirst()
+                        .orElse(null);
+            }
+            if (cab == null && existingCab == null) {
+                throw new ResourceNotFoundException("Cab service not found: " + req.getTargetId());
             }
 
-            String providerId = cab.getProviderId();
+            if (targetName == null || targetName.isBlank()) {
+                targetName = cab != null ? cab.getProvider() : existingCab.getProvider();
+            }
+
+            String providerId = cab != null ? cab.getProviderId() : existingCab.getProviderId();
+            if (providerId == null && targetName != null && providerRepo != null) {
+                String finalTargetName = targetName;
+                providerId = providerRepo.findAll().stream()
+                        .filter(p -> p.getBusinessName() != null && p.getBusinessName().equalsIgnoreCase(finalTargetName))
+                        .map(ProviderEntity::getId)
+                        .findFirst()
+                        .orElse(null);
+            }
+
             if (providerId != null) {
                 ProviderEntity prov = providerRepo.findById(providerId).orElse(null);
                 if (prov != null && prov.getContactEmail() != null) {
                     providerEmail = prov.getContactEmail();
                 }
             } else {
-                providerEmail = "dispatch@" + (cab.getProvider() != null ? cab.getProvider().toLowerCase().replaceAll("\\s+", "") : "cab") + ".com";
+                providerEmail = "dispatch@" + (targetName != null ? targetName.toLowerCase().replaceAll("\\s+", "") : "cab") + ".com";
             }
 
-            String pickup = req.getPickup() != null ? req.getPickup() : (cab.getCity() + " Bus Stand");
-            String dropoff = req.getDropoff() != null ? req.getDropoff() : (cab.getCity() + " Center");
-            double dist = estimateCabDistance(pickup, dropoff, cab.getCity());
-            BigDecimal fare = cab.getBaseFare().add(cab.getPerKm().multiply(BigDecimal.valueOf(dist))).setScale(2, RoundingMode.HALF_UP);
+            String cityFallback = cab != null ? cab.getCity() : (req.getCity() != null ? req.getCity() : "Destination");
+            String pickup = req.getPickup() != null && !req.getPickup().isBlank()
+                    ? req.getPickup()
+                    : (existingCab != null && existingCab.getFromLocation() != null ? existingCab.getFromLocation() : cityFallback + " Bus Stand");
+            String dropoff = req.getDropoff() != null && !req.getDropoff().isBlank()
+                    ? req.getDropoff()
+                    : (existingCab != null && existingCab.getToLocation() != null ? existingCab.getToLocation() : cityFallback + " Center");
+
+            BigDecimal fare;
+            long tripDurationMinutes;
+            if (cab != null) {
+                double dist = estimateCabDistance(pickup, dropoff, cab.getCity());
+                fare = cab.getBaseFare().add(cab.getPerKm().multiply(BigDecimal.valueOf(dist))).setScale(2, RoundingMode.HALF_UP);
+                tripDurationMinutes = Math.max(15L, (long) (dist * 3));
+            } else {
+                fare = existingCab.getCost() != null ? existingCab.getCost() : BigDecimal.valueOf(350);
+                tripDurationMinutes = 45L;
+            }
+
+            LocalDateTime pickupTime = req.getPickupTime() != null ? req.getPickupTime() : LocalDateTime.now().plusHours(1);
+            LocalDateTime endTime = pickupTime.plusMinutes(tripDurationMinutes);
+            String note = (req.getVerificationNote() != null && !req.getVerificationNote().isBlank())
+                    ? req.getVerificationNote().trim()
+                    : (req.getPickupTime() != null
+                        ? "Traveller arriving late — calculated arrival/pickup time: "
+                            + pickupTime.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM, HH:mm"))
+                        : null);
 
             booking = BookingEntity.builder()
                     .id(bookingId)
@@ -1784,11 +1843,11 @@ public class MarketplaceService {
                     .type("CAB")
                     .provider(targetName)
                     .providerId(providerId)
-                    .serviceId(cab.getId())
+                    .serviceId(cab != null ? cab.getId() : existingCab.getServiceId())
                     .fromLocation(pickup)
                     .toLocation(dropoff)
-                    .startTime(LocalDateTime.now().plusHours(1))
-                    .endTime(LocalDateTime.now().plusHours(1).plusMinutes((long) (dist * 3)))
+                    .startTime(pickupTime)
+                    .endTime(endTime)
                     .cost(fare)
                     .status("PENDING_PROVIDER_CONFIRMATION")
                     .paymentStatus("UNPAID")
@@ -1802,12 +1861,17 @@ public class MarketplaceService {
                     .lastCheckedAt(LocalDateTime.now())
                     .confirmationExpiresAt(expiresAt)
                     .providerConfirmationStatus("PENDING")
+                    .verificationNote(note)
                     .build();
 
             bookingRepo.save(booking);
         } else {
             throw new IllegalArgumentException("Unsupported verification type: " + type);
         }
+
+        String noteSuffix = (booking.getVerificationNote() != null && !booking.getVerificationNote().isBlank())
+                ? " Note: " + booking.getVerificationNote()
+                : "";
 
         // Record audit entry
         AuditEntryEntity audit = AuditEntryEntity.builder()
@@ -1818,8 +1882,8 @@ public class MarketplaceService {
                 .timestamp(LocalDateTime.now())
                 .actor("USER")
                 .action("BOOKING_PENDING_PROVIDER_CONFIRMATION")
-                .details(String.format("Verification request sent to provider %s (%s). Expires in %ds.",
-                        providerEmail, type, confirmationTimeoutSeconds))
+                .details(String.format("Verification request sent to provider %s (%s). Expires in %ds.%s",
+                        providerEmail, type, confirmationTimeoutSeconds, noteSuffix))
                 .build();
         auditRepo.save(audit);
 
@@ -1832,9 +1896,9 @@ public class MarketplaceService {
                     .channel("EMAIL")
                     .recipientMasked(providerEmail)
                     .subject("Urgent: " + type + " Booking Verification Request - " + bookingRef)
-                    .body(String.format("Traveller %s has selected your %s (%s). Please verify and accept this booking within %d seconds.",
+                    .body(String.format("Traveller %s has selected your %s (%s). Please verify and accept this booking within %d seconds.%s",
                             currentUser.getName() != null ? currentUser.getName() : "Traveller",
-                            targetName, type, confirmationTimeoutSeconds))
+                            targetName, type, confirmationTimeoutSeconds, noteSuffix))
                     .status("SENT")
                     .createdAt(LocalDateTime.now())
                     .build());
@@ -2298,6 +2362,7 @@ public class MarketplaceService {
                 .cabServiceContact(cabContact)
                 .cancelledAt(b.getCancelledAt())
                 .cancelledBy(b.getCancelledBy())
+                .verificationNote(b.getVerificationNote())
                 .build();
     }
 

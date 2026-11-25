@@ -52,4 +52,5 @@ public class MarketplaceBookingDto {
     private String refundTierApplied;
     private BigDecimal refundAmount;
     private BigDecimal deductionAmount;
+    private String verificationNote;
 }

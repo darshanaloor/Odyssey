@@ -2345,6 +2345,7 @@ public class ProviderService {
                 .cabServiceContact(cabContact)
                 .cancelledAt(b.getCancelledAt())
                 .cancelledBy(b.getCancelledBy())
+                .verificationNote(b.getVerificationNote())
                 .build();
     }
 }

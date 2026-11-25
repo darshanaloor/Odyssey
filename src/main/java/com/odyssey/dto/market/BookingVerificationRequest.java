@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
@@ -19,8 +20,7 @@ public class BookingVerificationRequest {
     @NotBlank(message = "Type must be HOTEL or CAB")
     private String type; // "HOTEL" or "CAB"
 
-    @NotBlank(message = "Target ID is required")
-    private String targetId; // hotel ID or cab service ID
+    private String targetId; // hotel ID or cab service ID (optional if existingCabBookingId is provided)
 
     private String roomTypeId;
     private String targetName;
@@ -33,4 +33,7 @@ public class BookingVerificationRequest {
     private Integer nights;
     private String guestName;
     private String tripId;
+    private LocalDateTime pickupTime;
+    private String verificationNote;
+    private String existingCabBookingId;
 }

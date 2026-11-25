@@ -143,4 +143,7 @@ public class BookingEntity {
 
     @Column(name = "alternative_departure_id", length = 64)
     private String alternativeDepartureId;
+
+    @Column(name = "verification_note", length = 500)
+    private String verificationNote;
 }
