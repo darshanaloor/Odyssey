@@ -1358,10 +1358,10 @@ public class MarketplaceService {
                 "HOTEL");
 
         String providerName = hotel.getName() + (roomType != null ? " - " + roomType.getName() : "");
-        boolean isProviderBooking = hotel.getProviderId() != null;
-        String initialStatus = isProviderBooking ? "PENDING_PROVIDER_CONFIRMATION" : "CONFIRMED";
-        String initialPaymentStatus = isProviderBooking ? "UNPAID" : "DEMO_PAID";
-        LocalDateTime expiresAt = isProviderBooking ? LocalDateTime.now().plusSeconds(confirmationTimeoutSeconds) : null;
+        String initialStatus = "CONFIRMED";
+        String initialPaymentStatus = "DEMO_PAID";
+        LocalDateTime expiresAt = null;
+        boolean isProviderBooking = false;
 
         BookingEntity booking = BookingEntity.builder()
                 .id(bookingId)
@@ -1471,10 +1471,10 @@ public class MarketplaceService {
                 request.getPickupTime().plusMinutes(45),
                 "CAB");
 
-        boolean isProviderBooking = cab.getProviderId() != null;
-        String initialStatus = isProviderBooking ? "PENDING_PROVIDER_CONFIRMATION" : "CONFIRMED";
-        String initialPaymentStatus = isProviderBooking ? "UNPAID" : "DEMO_PAID";
-        LocalDateTime expiresAt = isProviderBooking ? LocalDateTime.now().plusSeconds(confirmationTimeoutSeconds) : null;
+        boolean isProviderBooking = false;
+        String initialStatus = "CONFIRMED";
+        String initialPaymentStatus = "DEMO_PAID";
+        LocalDateTime expiresAt = null;
 
         BookingEntity booking = BookingEntity.builder()
                 .id(bookingId)

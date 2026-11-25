@@ -2581,7 +2581,7 @@
       const row = document.createElement('div');
       row.className = `cost-line-row ${line.isDeduction ? 'deduction' : ''}`;
       const timingHtml = line.timingNote
-        ? `<div class="cost-line-timing-note" style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">ℹ ${escapeHtml(line.timingNote)}</div>`
+        ? `<div class="cost-line-timing-note" style="font-size: 0.75rem; color: #475569; margin-top: 2px;">ℹ ${escapeHtml(line.timingNote)}</div>`
         : '';
       row.innerHTML = `
         <div class="cost-line-info">
@@ -2631,8 +2631,8 @@
             <div style="background: rgba(35, 134, 54, 0.15); border: 1px solid rgba(46, 160, 67, 0.4); border-radius: 8px; padding: 14px; margin: 16px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
               <div>
                 <span class="badge badge-green" style="margin-bottom: 4px;">DEMO MARKETPLACE REPLACEMENT</span>
-                <div style="font-weight: 600; font-size: 1rem; color: #f0f6fc;">${escapeHtml(repLeg.operator || repLeg.provider)} (${escapeHtml(repLeg.vehicleNumber || 'Transit')})</div>
-                <div style="font-size: 0.85rem; color: #8b949e;">${escapeHtml(repLeg.from)} &rarr; ${escapeHtml(repLeg.to)} &bull; Departure: ${formatDateTime(repLeg.startTime)}</div>
+                <div style="font-weight: 600; font-size: 1rem; color: #0f172a;">${escapeHtml(repLeg.operator || repLeg.provider)} (${escapeHtml(repLeg.vehicleNumber || 'Transit')})</div>
+                <div style="font-size: 0.85rem; color: #475569;">${escapeHtml(repLeg.from)} &rarr; ${escapeHtml(repLeg.to)} &bull; Departure: ${formatDateTime(repLeg.startTime)}</div>
               </div>
               <div>
                 <button type="button" class="btn btn-gold btn-book-replacement-trigger" data-trip-id="${escapeHtml(state.trip.id)}" data-departure-id="${escapeHtml(repLeg.departureId)}" data-old-booking-id="${escapeHtml(oldDisruptedBookingId)}">
@@ -3514,7 +3514,7 @@
       const noteParts = [];
       if (e.note) noteParts.push(escapeHtml(e.note));
       if (e.reference) noteParts.push(`<span class="tracker-meta-chip">Ref: ${escapeHtml(e.reference)}</span>`);
-      if (e.receivedOn) noteParts.push(`<span style="font-size:0.75rem; color:#94a3b8;">(${escapeHtml(e.receivedOn)})</span>`);
+      if (e.receivedOn) noteParts.push(`<span style="font-size:0.75rem; color:#475569;">(${escapeHtml(e.receivedOn)})</span>`);
       const notesHtml = noteParts.join(' ') || '—';
 
       const isRefundRow = (e.type === 'REFUND' || e.type === 'REFUND_RECORDED');
@@ -4423,7 +4423,7 @@
       } else {
         const knownCount = readiness.factors ? readiness.factors.filter(f => f.status === 'KNOWN').length : 0;
         elements.readinessReliabilityMsg.textContent = `Verified across ${knownCount} active factor(s)`;
-        elements.readinessReliabilityMsg.style.color = '#94a3b8';
+        elements.readinessReliabilityMsg.style.color = '#475569';
       }
     }
 
@@ -4450,8 +4450,8 @@
             <tr>
               <td><strong>${escapeHtml(f.name || f.id)}</strong></td>
               <td>${pointsDisplay}</td>
-              <td style="font-size: 0.85rem; color: #cbd5e1;">${escapeHtml(f.explanation || '')}</td>
-              <td style="font-size: 0.8rem; color: #94a3b8;">${dataDetails}</td>
+              <td style="font-size: 0.85rem; color: #1e293b;">${escapeHtml(f.explanation || '')}</td>
+              <td style="font-size: 0.8rem; color: #475569;">${dataDetails}</td>
             </tr>
           `;
         }).join('');
@@ -7502,7 +7502,7 @@
 
           <div class="service-card-bottom">
             <div class="service-price-group">
-              <span style="color: #94a3b8; font-size: 0.85rem;">Fare per seat:</span>
+              <span style="color: #475569; font-size: 0.85rem;">Fare per seat:</span>
               <span class="service-price">&#8377;${priceFormatted}</span>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
@@ -7539,8 +7539,8 @@
     elements.seatModalServiceSummary.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
           <div>
-            <strong style="color: #f8fafc; font-size: 1.1rem;">${escapeHtml(service.operator)} (${escapeHtml(service.vehicleNumber)})</strong>
-            <div style="font-size: 0.85rem; color: #94a3b8; margin-top: 2px;">
+            <strong style="color: #0f172a; font-size: 1.1rem;">${escapeHtml(service.operator)} (${escapeHtml(service.vehicleNumber)})</strong>
+            <div style="font-size: 0.85rem; color: #475569; margin-top: 2px;">
               ${escapeHtml(service.originCity)} &rarr; ${escapeHtml(service.destinationCity)} &bull; ${escapeHtml(String(service.departureTime).substring(0, 5))} &bull; &#8377;${priceFormatted} / seat
             </div>
           </div>
@@ -7758,7 +7758,7 @@
     elements.passengerInputsContainer.innerHTML = '';
 
     if (seatList.length === 0) {
-      elements.passengerInputsContainer.innerHTML = '<p style="color: #94a3b8; font-size: 0.85rem; font-style: italic;">Click seats above to add passenger details.</p>';
+      elements.passengerInputsContainer.innerHTML = '<p style="color: #475569; font-size: 0.85rem; font-style: italic;">Click seats above to add passenger details.</p>';
       return;
     }
 
@@ -7878,24 +7878,24 @@
 
     elements.checkoutOrderSummary.innerHTML = `
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span style="color: #94a3b8;">Service / Route:</span>
+          <span style="color: #475569;">Service / Route:</span>
           <strong>${escapeHtml(service.operator)} (${escapeHtml(service.vehicleNumber)})</strong>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span style="color: #94a3b8;">Route:</span>
+          <span style="color: #475569;">Route:</span>
           <span>${escapeHtml(service.originCity)} &rarr; ${escapeHtml(service.destinationCity)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span style="color: #94a3b8;">Departure:</span>
+          <span style="color: #475569;">Departure:</span>
           <span>${escapeHtml(String(service.departureTime).substring(0, 5))}</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span style="color: #94a3b8;">Passengers:</span>
+          <span style="color: #475569;">Passengers:</span>
           <span>${passengers.map(p => escapeHtml(p.name + ' [' + p.seatNumber + ']')).join(', ')}</span>
         </div>
         <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.5rem; margin-top: 0.5rem; font-size: 1.1rem;">
-          <span style="color: #f8fafc; font-weight: 700;">Total Demo Fare:</span>
-          <span style="color: #4ade80; font-weight: 800;">&#8377;${formattedTotal}</span>
+          <span style="color: #0f172a; font-weight: 700;">Total Demo Fare:</span>
+          <span style="color: #059669; font-weight: 800;">&#8377;${formattedTotal}</span>
         </div>
       `;
 
@@ -7920,7 +7920,7 @@
     if (elements.checkoutCabPickup) elements.checkoutCabPickup.value = destStop;
     if (elements.checkoutCabDropoff) elements.checkoutCabDropoff.value = destCity ? `${destCity} Center` : 'City Center';
     if (elements.checkoutSelectedCabId) elements.checkoutSelectedCabId.value = '';
-    if (elements.checkoutCabOptionsList) elements.checkoutCabOptionsList.innerHTML = '<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available cabs...</div>';
+    if (elements.checkoutCabOptionsList) elements.checkoutCabOptionsList.innerHTML = '<div style="font-size: 0.85rem; color: #475569; text-align: center; padding: 0.5rem;">Loading available cabs...</div>';
 
     if (elements.checkoutAddonHotelToggle) elements.checkoutAddonHotelToggle.checked = false;
     if (elements.checkoutAddonHotelContainer) elements.checkoutAddonHotelContainer.classList.add('hidden');
@@ -7929,7 +7929,7 @@
     if (elements.checkoutHotelRooms) elements.checkoutHotelRooms.value = '1';
     if (elements.checkoutSelectedHotelId) elements.checkoutSelectedHotelId.value = '';
     if (elements.checkoutSelectedRoomTypeId) elements.checkoutSelectedRoomTypeId.value = '';
-    if (elements.checkoutHotelOptionsList) elements.checkoutHotelOptionsList.innerHTML = '<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available hotels...</div>';
+    if (elements.checkoutHotelOptionsList) elements.checkoutHotelOptionsList.innerHTML = '<div style="font-size: 0.85rem; color: #475569; text-align: center; padding: 0.5rem;">Loading available hotels...</div>';
 
     // Reset payment method to CARD
     if (elements.paymentMethodCard) elements.paymentMethodCard.checked = true;
@@ -7969,20 +7969,20 @@
 
     elements.checkoutOrderSummary.innerHTML = `
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span style="color: #94a3b8;">Hotel / Location:</span>
+          <span style="color: #475569;">Hotel / Location:</span>
           <strong>${escapeHtml(hotel.name)} (${escapeHtml(hotel.city)})</strong>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span style="color: #94a3b8;">Dates:</span>
+          <span style="color: #475569;">Dates:</span>
           <span>${escapeHtml(checkIn)} &rarr; ${escapeHtml(checkOut)} (${hotel.nights} night(s))</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span style="color: #94a3b8;">Rooms & Guest:</span>
+          <span style="color: #475569;">Rooms & Guest:</span>
           <span>${escapeHtml(guestName)} (${rooms} room(s))</span>
         </div>
         <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.5rem; margin-top: 0.5rem; font-size: 1.1rem;">
-          <span style="color: #f8fafc; font-weight: 700;">Total Demo Fare:</span>
-          <span style="color: #4ade80; font-weight: 800;">&#8377;${formattedTotal}</span>
+          <span style="color: #0f172a; font-weight: 700;">Total Demo Fare:</span>
+          <span style="color: #059669; font-weight: 800;">&#8377;${formattedTotal}</span>
         </div>
       `;
 
@@ -8020,20 +8020,20 @@
 
     elements.checkoutOrderSummary.innerHTML = `
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span style="color: #94a3b8;">Cab Provider:</span>
+          <span style="color: #475569;">Cab Provider:</span>
           <strong>${escapeHtml(cab.provider)} (${escapeHtml(cab.city)})</strong>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span style="color: #94a3b8;">Route:</span>
+          <span style="color: #475569;">Route:</span>
           <span>${escapeHtml(pickup)} &rarr; ${escapeHtml(dropoff)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <span style="color: #94a3b8;">Est. Distance:</span>
+          <span style="color: #475569;">Est. Distance:</span>
           <span>${cab.estimatedDistanceKm} km</span>
         </div>
         <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.5rem; margin-top: 0.5rem; font-size: 1.1rem;">
-          <span style="color: #f8fafc; font-weight: 700;">Total Demo Fare:</span>
-          <span style="color: #4ade80; font-weight: 800;">&#8377;${formattedTotal}</span>
+          <span style="color: #0f172a; font-weight: 700;">Total Demo Fare:</span>
+          <span style="color: #059669; font-weight: 800;">&#8377;${formattedTotal}</span>
         </div>
       `;
 
@@ -8178,7 +8178,7 @@
 
   async function loadCheckoutCabOptions(city, pickup, dropoff) {
     if (!elements.checkoutCabOptionsList) return;
-    elements.checkoutCabOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available cabs in ${escapeHtml(city || 'destination')}...</div>`;
+    elements.checkoutCabOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #475569; text-align: center; padding: 0.5rem;">Loading available cabs in ${escapeHtml(city || 'destination')}...</div>`;
     try {
       const query = new URLSearchParams({
         city: city || 'Bengaluru',
@@ -8190,7 +8190,7 @@
       const data = await res.json();
       const quotes = (data && data.success && Array.isArray(data.data)) ? data.data : [];
       if (quotes.length === 0) {
-        elements.checkoutCabOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">No cabs available for this route.</div>`;
+        elements.checkoutCabOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #475569; text-align: center; padding: 0.5rem;">No cabs available for this route.</div>`;
         if (elements.checkoutSelectedCabId) elements.checkoutSelectedCabId.value = '';
         return;
       }
@@ -8201,15 +8201,15 @@
         const isSelected = (elements.checkoutSelectedCabId && elements.checkoutSelectedCabId.value === cab.id);
 
         return `
-            <div class="addon-option-card ${isAvailable ? '' : 'disabled'}" data-cab-id="${escapeHtml(cab.id)}" data-cab-provider="${escapeHtml(cab.provider)}" style="padding: 0.6rem; border: 1px solid ${isSelected ? '#38bdf8' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; background: rgba(30, 41, 59, 0.4); opacity: ${isAvailable ? '1' : '0.5'}; margin-bottom: 0.4rem;">
+            <div class="addon-option-card ${isAvailable ? '' : 'disabled'}" data-cab-id="${escapeHtml(cab.id)}" data-cab-provider="${escapeHtml(cab.provider)}" style="padding: 0.6rem; border: 1px solid ${isSelected ? '#4f46e5' : '#e2e8f0'}; border-radius: 8px; background: ${isSelected ? '#eef2ff' : '#ffffff'}; opacity: ${isAvailable ? '1' : '0.5'}; margin-bottom: 0.4rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="flex: 1;">
-                  <div style="font-weight: 600; font-size: 0.9rem; color: #f8fafc;">${escapeHtml(cab.provider)} <small style="color: #94a3b8;">(${escapeHtml(cab.vehicleCategory || 'SEDAN')})</small></div>
-                  <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">${escapeHtml(cab.listingLabel || '')} &bull; ${cab.seats || 4} seats</div>
+                  <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a;">${escapeHtml(cab.provider)} <small style="color: #475569;">(${escapeHtml(cab.vehicleCategory || 'SEDAN')})</small></div>
+                  <div style="font-size: 0.75rem; color: #475569; margin-top: 2px;">${escapeHtml(cab.listingLabel || '')} &bull; ${cab.seats || 4} seats</div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.6rem;">
                   <div style="text-align: right;">
-                    <div style="font-weight: 700; color: #4ade80;">₹${fare}</div>
+                    <div style="font-weight: 700; color: #059669;">₹${fare}</div>
                     ${isAvailable ? '<span class="badge badge-success" style="font-size: 0.7rem;">Available</span>' : '<span class="badge badge-neutral" style="font-size: 0.7rem;">Unavailable</span>'}
                   </div>
                   <button type="button" class="btn btn-sm ${isSelected ? 'btn-gold' : 'btn-outline-gold'} btn-select-cab" data-cab-id="${escapeHtml(cab.id)}" ${isAvailable ? '' : 'disabled'} style="min-width: 80px; padding: 0.3rem 0.5rem; font-size: 0.8rem; font-weight: 600;">
@@ -8227,7 +8227,7 @@
         const btn = card.querySelector('.btn-select-cab');
         const doSelect = async () => {
           cards.forEach(c => {
-            c.style.borderColor = 'rgba(255,255,255,0.1)';
+            c.style.borderColor = '#e2e8f0'; c.style.background = '#ffffff';
             const b = c.querySelector('.btn-select-cab');
             if (b) {
               b.textContent = 'Select';
@@ -8236,12 +8236,12 @@
               b.style.color = 'var(--gold-color)';
             }
           });
-          card.style.borderColor = '#38bdf8';
+          card.style.borderColor = '#4f46e5'; card.style.background = '#eef2ff';
           if (btn) {
             btn.innerHTML = 'Selected &check;';
             btn.className = 'btn btn-sm btn-gold btn-select-cab';
-            btn.style.background = 'var(--gold-color)';
-            btn.style.color = '#0f172a';
+            btn.style.background = 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)';
+            btn.style.color = '#ffffff';
             btn.style.fontWeight = '700';
           }
           if (elements.checkoutSelectedCabId) elements.checkoutSelectedCabId.value = card.dataset.cabId;
@@ -8289,7 +8289,7 @@
 
   async function loadCheckoutHotelOptions(city, checkIn, nights, rooms) {
     if (!elements.checkoutHotelOptionsList) return;
-    elements.checkoutHotelOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">Loading available hotels in ${escapeHtml(city || 'destination')}...</div>`;
+    elements.checkoutHotelOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #475569; text-align: center; padding: 0.5rem;">Loading available hotels in ${escapeHtml(city || 'destination')}...</div>`;
     try {
       const query = new URLSearchParams({
         city: city || 'Bengaluru',
@@ -8301,7 +8301,7 @@
       const data = await res.json();
       const hotels = (data && data.success && Array.isArray(data.data)) ? data.data : [];
       if (hotels.length === 0) {
-        elements.checkoutHotelOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #94a3b8; text-align: center; padding: 0.5rem;">No hotels found for this city.</div>`;
+        elements.checkoutHotelOptionsList.innerHTML = `<div style="font-size: 0.85rem; color: #475569; text-align: center; padding: 0.5rem;">No hotels found for this city.</div>`;
         if (elements.checkoutSelectedHotelId) elements.checkoutSelectedHotelId.value = '';
         if (elements.checkoutSelectedRoomTypeId) elements.checkoutSelectedRoomTypeId.value = '';
         return;
@@ -8322,23 +8322,23 @@
         const total = Number(h.estimatedTotal || (h.pricePerNight * (nights || 1) * (rooms || 1))).toLocaleString('en-IN', { minimumFractionDigits: 2 });
         const ratingHtml = (h.rating != null && Number(h.rating) > 0)
           ? `<span style="color: #f59e0b; font-weight: 700; font-size: 0.82rem; margin-left: 0.35rem;" title="${Number(h.rating).toFixed(1)} Stars">★ ${Number(h.rating).toFixed(1)}</span>`
-          : '<span style="color: #94a3b8; font-size: 0.72rem; margin-left: 0.35rem;">(Provider Listed)</span>';
+          : '<span style="color: #475569; font-size: 0.72rem; margin-left: 0.35rem;">(Provider Listed)</span>';
 
         const isSelected = (elements.checkoutSelectedHotelId && elements.checkoutSelectedHotelId.value === h.id);
 
         return `
-            <div class="addon-option-card ${isAvailable ? '' : 'disabled'}" data-hotel-id="${escapeHtml(h.id)}" data-room-type-id="${escapeHtml(h.roomTypeId || '')}" data-hotel-name="${escapeHtml(h.name)}" style="padding: 0.6rem; border: 1px solid ${isSelected ? '#38bdf8' : 'rgba(255,255,255,0.1)'}; border-radius: 6px; background: rgba(30, 41, 59, 0.4); opacity: ${isAvailable ? '1' : '0.5'}; margin-bottom: 0.4rem;">
+            <div class="addon-option-card ${isAvailable ? '' : 'disabled'}" data-hotel-id="${escapeHtml(h.id)}" data-room-type-id="${escapeHtml(h.roomTypeId || '')}" data-hotel-name="${escapeHtml(h.name)}" style="padding: 0.6rem; border: 1px solid ${isSelected ? '#4f46e5' : '#e2e8f0'}; border-radius: 8px; background: ${isSelected ? '#eef2ff' : '#ffffff'}; opacity: ${isAvailable ? '1' : '0.5'}; margin-bottom: 0.4rem;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="flex: 1;">
                   <div style="display: flex; align-items: center; gap: 0.3rem;">
-                    <span style="font-weight: 600; font-size: 0.9rem; color: #f8fafc;">${escapeHtml(h.name)}</span>
+                    <span style="font-weight: 600; font-size: 0.9rem; color: #0f172a;">${escapeHtml(h.name)}</span>
                     ${ratingHtml}
                   </div>
-                  <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">${escapeHtml(h.roomTypeName || 'Standard Room')} &bull; ${escapeHtml(h.listingLabel || '')}</div>
+                  <div style="font-size: 0.75rem; color: #475569; margin-top: 2px;">${escapeHtml(h.roomTypeName || 'Standard Room')} &bull; ${escapeHtml(h.listingLabel || '')}</div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.6rem;">
                   <div style="text-align: right;">
-                    <div style="font-weight: 700; color: #4ade80;">₹${total}</div>
+                    <div style="font-weight: 700; color: #059669;">₹${total}</div>
                     ${isAvailable ? '' : '<span class="badge badge-danger" style="font-size: 0.7rem;">Sold out</span>'}
                   </div>
                   <button type="button" class="btn btn-sm ${isSelected ? 'btn-gold' : 'btn-outline-gold'} btn-select-hotel" data-hotel-id="${escapeHtml(h.id)}" ${isAvailable ? '' : 'disabled'} style="min-width: 80px; padding: 0.3rem 0.5rem; font-size: 0.8rem; font-weight: 600;">
@@ -8356,7 +8356,7 @@
         const btn = card.querySelector('.btn-select-hotel');
         const doSelect = async () => {
           cards.forEach(c => {
-            c.style.borderColor = 'rgba(255,255,255,0.1)';
+            c.style.borderColor = '#e2e8f0'; c.style.background = '#ffffff';
             const b = c.querySelector('.btn-select-hotel');
             if (b) {
               b.textContent = 'Select';
@@ -8365,12 +8365,12 @@
               b.style.color = 'var(--gold-color)';
             }
           });
-          card.style.borderColor = '#38bdf8';
+          card.style.borderColor = '#4f46e5'; card.style.background = '#eef2ff';
           if (btn) {
             btn.innerHTML = 'Selected &check;';
             btn.className = 'btn btn-sm btn-gold btn-select-hotel';
-            btn.style.background = 'var(--gold-color)';
-            btn.style.color = '#0f172a';
+            btn.style.background = 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)';
+            btn.style.color = '#ffffff';
             btn.style.fontWeight = '700';
           }
           if (elements.checkoutSelectedHotelId) elements.checkoutSelectedHotelId.value = card.dataset.hotelId;
@@ -8691,14 +8691,8 @@
       }
 
       closeCheckoutModal();
-      if (confirmed.status === 'PENDING_PROVIDER_CONFIRMATION') {
-        openPendingConfirmationModal(confirmed);
-      } else if (pendingAddon && pendingAddon.status === 'PENDING_PROVIDER_CONFIRMATION') {
-        openPendingConfirmationModal(pendingAddon);
-      } else {
-        openConfirmationModal(confirmed);
-        showToast('Demo payment succeeded and booking confirmed!', 'success');
-      }
+      openConfirmationModal(confirmed);
+      showToast('Demo payment succeeded and booking confirmed!', 'success');
       await fetchTripsDirectory();
       loadMyMarketBookings();
     } catch (err) {
@@ -8732,12 +8726,12 @@
     const priceFormatted = Number(booking.cost).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     elements.confirmedBookingDetails.innerHTML = `
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.875rem;">
-          <div><span style="color: #94a3b8;">Route:</span> <strong>${escapeHtml(booking.from)} &rarr; ${escapeHtml(booking.to)}</strong></div>
-          <div><span style="color: #94a3b8;">Operator:</span> <strong>${escapeHtml(booking.operator || booking.provider)} (${escapeHtml(booking.vehicleNumber || 'N/A')})</strong></div>
-          <div><span style="color: #94a3b8;">Seat(s):</span> <strong style="color: #4ade80;">${escapeHtml(booking.seatNumbers || 'Assigned')}</strong></div>
-          <div><span style="color: #94a3b8;">Fare Paid:</span> <strong style="color: #fde047;">&#8377;${priceFormatted}</strong></div>
-          <div><span style="color: #94a3b8;">Passenger(s):</span> <span>${escapeHtml(booking.passengerNames || 'Traveller')}</span></div>
-          <div><span style="color: #94a3b8;">Status:</span> <span class="badge badge-green">${escapeHtml(booking.status)}</span></div>
+          <div><span style="color: #475569;">Route:</span> <strong>${escapeHtml(booking.from)} &rarr; ${escapeHtml(booking.to)}</strong></div>
+          <div><span style="color: #475569;">Operator:</span> <strong>${escapeHtml(booking.operator || booking.provider)} (${escapeHtml(booking.vehicleNumber || 'N/A')})</strong></div>
+          <div><span style="color: #475569;">Seat(s):</span> <strong style="color: #059669;">${escapeHtml(booking.seatNumbers || 'Assigned')}</strong></div>
+          <div><span style="color: #475569;">Fare Paid:</span> <strong style="color: #b45309;">&#8377;${priceFormatted}</strong></div>
+          <div><span style="color: #475569;">Passenger(s):</span> <span>${escapeHtml(booking.passengerNames || 'Traveller')}</span></div>
+          <div><span style="color: #475569;">Status:</span> <span class="badge badge-green">${escapeHtml(booking.status)}</span></div>
         </div>
       `;
 
@@ -8804,20 +8798,20 @@
             </div>
 
             <div class="booking-item-body">
-              <div><span style="color: #94a3b8;">Route:</span><br><strong>${escapeHtml(b.from)} &rarr; ${escapeHtml(b.to)}</strong></div>
-              <div><span style="color: #94a3b8;">Carrier:</span><br><strong>${escapeHtml(b.operator || b.provider)} (${escapeHtml(b.vehicleNumber || 'N/A')})</strong></div>
-              <div><span style="color: #94a3b8;">Seats & Passengers:</span><br>${escapeHtml(b.passengerNames || 'Traveller')} [${escapeHtml(b.seatNumbers || 'Auto')}]</div>
-              <div><span style="color: #94a3b8;">Departure Time:</span><br>${escapeHtml(depTime)}</div>
-              <div><span style="color: #94a3b8;">Total Fare:</span><br><strong style="color: #4ade80;">&#8377;${priceFormatted}</strong></div>
+              <div><span style="color: #475569;">Route:</span><br><strong>${escapeHtml(b.from)} &rarr; ${escapeHtml(b.to)}</strong></div>
+              <div><span style="color: #475569;">Carrier:</span><br><strong>${escapeHtml(b.operator || b.provider)} (${escapeHtml(b.vehicleNumber || 'N/A')})</strong></div>
+              <div><span style="color: #475569;">Seats & Passengers:</span><br>${escapeHtml(b.passengerNames || 'Traveller')} [${escapeHtml(b.seatNumbers || 'Auto')}]</div>
+              <div><span style="color: #475569;">Departure Time:</span><br>${escapeHtml(depTime)}</div>
+              <div><span style="color: #475569;">Total Fare:</span><br><strong style="color: #059669;">&#8377;${priceFormatted}</strong></div>
               ${b.cabServiceContact ? `
               <div style="grid-column: 1 / -1; padding: 6px 10px; background: rgba(59, 130, 246, 0.1); border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.25); font-size: 0.85rem; color: #93c5fd;">
                 🚕 <strong>${escapeHtml(b.cabServiceContact)}</strong>
-                ${b.assignedDriverName ? `<br><span style="color: #cbd5e1; font-size: 0.8rem;">Assigned Driver: <strong>${escapeHtml(b.assignedDriverName)}</strong></span>` : ''}
+                ${b.assignedDriverName ? `<br><span style="color: #1e293b; font-size: 0.8rem;">Assigned Driver: <strong>${escapeHtml(b.assignedDriverName)}</strong></span>` : ''}
               </div>
               ` : ''}
               ${b.tripId ? `
               <div style="grid-column: 1 / -1; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 6px;">
-                <span style="color: #94a3b8; font-size: 0.8rem;">Trip:</span>
+                <span style="color: #475569; font-size: 0.8rem;">Trip:</span>
                 <a href="#" class="link-open-trip" data-trip-id="${escapeHtml(b.tripId)}" style="color: #58a6ff; text-decoration: underline; font-weight: 600; font-size: 0.85rem;">
                   ${escapeHtml(b.tripTitle || 'Trip Workspace')} &rarr;
                 </a>
@@ -8966,7 +8960,7 @@
         const isProvider = (h.source === 'PROVIDER');
         const ratingBadge = h.rating != null
           ? `<span class="badge badge-gold">★ ${h.rating}</span>`
-          : `<span class="badge" style="background: rgba(255,255,255,0.1); color: #cbd5e1;">Not rated</span>`;
+          : `<span class="badge" style="background: rgba(255,255,255,0.1); color: #1e293b;">Not rated</span>`;
         const providerBadge = isProvider
           ? `<span class="badge badge-info" style="margin-left: 0.35rem;">${escapeHtml(h.listingLabel || 'Provider-listed')}</span>`
           : '';
@@ -8974,17 +8968,17 @@
           ? `<div style="font-size: 0.82rem; color: var(--gold-color); margin-top: 0.2rem;">Room: <strong>${escapeHtml(h.roomTypeName)}</strong> (Max ${h.maxGuests || 2} guests)</div>`
           : '';
         const amenitiesInfo = h.amenities
-          ? `<div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.15rem;">Amenities: ${escapeHtml(h.amenities)}</div>`
+          ? `<div style="font-size: 0.75rem; color: #475569; margin-top: 0.15rem;">Amenities: ${escapeHtml(h.amenities)}</div>`
           : '';
         const disclaimerText = h.disclaimer
-          ? `<div class="disclaimer-text" style="font-size: 0.72rem; color: #94a3b8; font-style: italic; margin-top: 0.35rem;">${escapeHtml(h.disclaimer)}</div>`
+          ? `<div class="disclaimer-text" style="font-size: 0.72rem; color: #475569; font-style: italic; margin-top: 0.35rem;">${escapeHtml(h.disclaimer)}</div>`
           : '';
 
         item.innerHTML = `
             <div class="service-card-top">
               <div>
                 <strong style="font-size: 1.1rem; color: #fff;">${escapeHtml(h.name)}</strong>
-                <div style="font-size: 0.8rem; color: #94a3b8;">${escapeHtml(h.address)}, ${escapeHtml(h.city)}</div>
+                <div style="font-size: 0.8rem; color: #475569;">${escapeHtml(h.address)}, ${escapeHtml(h.city)}</div>
                 ${roomInfo}
                 ${amenitiesInfo}
               </div>
@@ -8995,7 +8989,7 @@
             </div>
             <div class="service-card-bottom">
               <div>
-                <span style="color: #94a3b8; font-size: 0.85rem;">${h.nights} night(s), ${h.rooms} room(s): </span>
+                <span style="color: #475569; font-size: 0.85rem;">${h.nights} night(s), ${h.rooms} room(s): </span>
                 <span class="service-price">&#8377;${Number(h.estimatedTotal).toLocaleString('en-IN')}</span>
                 ${disclaimerText}
               </div>
@@ -9043,17 +9037,17 @@
           : `<span class="badge badge-green">${escapeHtml(c.listingLabel || 'Verified Partner')}</span>`;
         const categoryBadge = `<span class="badge badge-gold" style="margin-left: 0.35rem;">${escapeHtml(c.vehicleCategory || 'SEDAN')} (${c.seats || 4} seats)</span>`;
         const operatingHours = c.operatingHours
-          ? `<div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.2rem;">Hours: ${escapeHtml(c.operatingHours)}</div>`
+          ? `<div style="font-size: 0.75rem; color: #475569; margin-top: 0.2rem;">Hours: ${escapeHtml(c.operatingHours)}</div>`
           : '';
         const disclaimerText = c.disclaimer
-          ? `<div class="disclaimer-text" style="font-size: 0.72rem; color: #94a3b8; font-style: italic; margin-top: 0.35rem;">${escapeHtml(c.disclaimer)}</div>`
+          ? `<div class="disclaimer-text" style="font-size: 0.72rem; color: #475569; font-style: italic; margin-top: 0.35rem;">${escapeHtml(c.disclaimer)}</div>`
           : '';
 
         item.innerHTML = `
             <div class="service-card-top">
               <div>
                 <strong style="font-size: 1.1rem; color: #fff;">${escapeHtml(c.provider)}</strong>
-                <div style="font-size: 0.8rem; color: #94a3b8;">Est. Distance: ${c.estimatedDistanceKm} km</div>
+                <div style="font-size: 0.8rem; color: #475569;">Est. Distance: ${c.estimatedDistanceKm} km</div>
                 ${operatingHours}
               </div>
               <div style="text-align: right;">
@@ -9063,7 +9057,7 @@
             </div>
             <div class="service-card-bottom">
               <div>
-                <span style="color: #94a3b8; font-size: 0.85rem;">Estimated Fare (estimated): </span>
+                <span style="color: #475569; font-size: 0.85rem;">Estimated Fare (estimated): </span>
                 <span class="service-price">&#8377;${Number(c.estimatedFare).toLocaleString('en-IN')}</span>
                 ${disclaimerText}
               </div>
@@ -9639,7 +9633,7 @@
       elements.replacementErrorMsg.textContent = '';
     }
     if (elements.replacementPreviewContent) {
-      elements.replacementPreviewContent.innerHTML = '<p style="color: #94a3b8; font-style: italic;">Loading replacement preview and auto-assigned seats...</p>';
+      elements.replacementPreviewContent.innerHTML = '<p style="color: #475569; font-style: italic;">Loading replacement preview and auto-assigned seats...</p>';
     }
     if (elements.modalReplacementBooking) {
       elements.modalReplacementBooking.classList.remove('hidden');
@@ -9663,28 +9657,28 @@
       elements.replacementPreviewContent.innerHTML = `
           <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 0.88rem;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-              <span style="color: #94a3b8;">Service:</span>
+              <span style="color: #475569;">Service:</span>
               <strong>${escapeHtml(p.operator)} (${escapeHtml(p.vehicleNumber)})</strong>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-              <span style="color: #94a3b8;">Route:</span>
+              <span style="color: #475569;">Route:</span>
               <span>${escapeHtml(p.originCity)} &rarr; ${escapeHtml(p.destinationCity)}</span>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-              <span style="color: #94a3b8;">Departure Time:</span>
+              <span style="color: #475569;">Departure Time:</span>
               <span>${escapeHtml(formatDateTime(p.departureTime))}</span>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-              <span style="color: #94a3b8;">Auto-assigned Seats:</span>
-              <strong style="color: #4ade80;">${escapeHtml((p.assignedSeats || []).join(', '))} (${p.passengerCount} passenger${p.passengerCount === 1 ? '' : 's'})</strong>
+              <span style="color: #475569;">Auto-assigned Seats:</span>
+              <strong style="color: #059669;">${escapeHtml((p.assignedSeats || []).join(', '))} (${p.passengerCount} passenger${p.passengerCount === 1 ? '' : 's'})</strong>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-              <span style="color: #94a3b8;">Seats Available:</span>
+              <span style="color: #475569;">Seats Available:</span>
               <span class="badge ${p.seatsLeft > 5 ? 'badge-neutral' : 'badge-amber'}">${p.seatsLeft} available</span>
             </div>
             <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px;">
               <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span style="color: #94a3b8;">Replacement Fare:</span>
+                <span style="color: #475569;">Replacement Fare:</span>
                 <span>&#8377;${costFormatted}</span>
               </div>
               <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
@@ -9692,8 +9686,8 @@
                 <span style="color: #a78bfa;">-&#8377;${refundFormatted}</span>
               </div>
               <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 1rem; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.1);">
-                <span style="color: #f8fafc;">Net Cost:</span>
-                <span style="color: #fde047;">&#8377;${netFormatted}</span>
+                <span style="color: #0f172a;">Net Cost:</span>
+                <span style="color: #b45309;">&#8377;${netFormatted}</span>
               </div>
             </div>
           </div>
@@ -10378,8 +10372,8 @@
         <div class="provider-banner-card">
           <div class="provider-banner-header">
             <div>
-              <h3 style="margin: 0; font-size: 1.2rem; color: #f8fafc;">${escapeHtml(p.businessName)}</h3>
-              <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #94a3b8;">
+              <h3 style="margin: 0; font-size: 1.2rem; color: #0f172a;">${escapeHtml(p.businessName)}</h3>
+              <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #475569;">
                 Type: <strong>${escapeHtml(p.businessType)}</strong> &bull; Base City: <strong>${escapeHtml(p.city)}</strong> &bull; Contact: <strong>${escapeHtml(p.contactEmail)}</strong> | <strong>${escapeHtml(p.contactPhone)}</strong>
               </p>
             </div>
@@ -10387,7 +10381,7 @@
               <span class="badge ${badgeClass}" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">${escapeHtml(p.status)}</span>
             </div>
           </div>
-          <div class="provider-banner-body" style="font-size: 0.9rem; line-height: 1.4; margin-top: 0.75rem; color: #cbd5e1;">
+          <div class="provider-banner-body" style="font-size: 0.9rem; line-height: 1.4; margin-top: 0.75rem; color: #1e293b;">
             ${statusDesc}
           </div>
         </div>
@@ -10461,12 +10455,12 @@
     }
     elements.provVehiclesTbody.innerHTML = vehicles.map(v => `
         <tr>
-          <td><strong style="color: #f8fafc;">${escapeHtml(v.vehicleNumber)}</strong><br><small style="color: #94a3b8;">${escapeHtml(v.vehicleType || '')}</small></td>
+          <td><strong style="color: #0f172a;">${escapeHtml(v.vehicleNumber)}</strong><br><small style="color: #475569;">${escapeHtml(v.vehicleType || '')}</small></td>
           <td><span class="badge ${v.mode === 'BUS' ? 'badge-amber' : (v.mode === 'TRAIN' ? 'badge-blue' : (v.mode === 'CAB' ? 'badge-cyan' : 'badge-purple'))}">${escapeHtml(v.mode)}</span></td>
           <td>${v.seatsTotal} seats</td>
           <td>
             <button type="button" class="btn btn-outline btn-sm btn-prov-toggle-veh" data-id="${escapeHtml(v.id)}" data-active="${v.active}">
-              ${v.active ? '<span style="color: #4ade80;">Active</span>' : '<span style="color: #94a3b8;">Inactive</span>'}
+              ${v.active ? '<span style="color: #059669;">Active</span>' : '<span style="color: #475569;">Inactive</span>'}
             </button>
           </td>
           <td>
@@ -10672,14 +10666,14 @@
     }
     elements.provSchedulesTbody.innerHTML = schedules.map(s => `
         <tr>
-          <td><strong style="color: #f8fafc;">${escapeHtml(s.originCity)} &rarr; ${escapeHtml(s.destinationCity)}</strong><br><small style="color: #94a3b8;">${escapeHtml(s.originStop)} to ${escapeHtml(s.destinationStop)}</small></td>
+          <td><strong style="color: #0f172a;">${escapeHtml(s.originCity)} &rarr; ${escapeHtml(s.destinationCity)}</strong><br><small style="color: #475569;">${escapeHtml(s.originStop)} to ${escapeHtml(s.destinationStop)}</small></td>
           <td>${escapeHtml(s.vehicleNumber)}</td>
           <td>${escapeHtml(String(s.departureTime).substring(0, 5))} - ${escapeHtml(String(s.arrivalTime).substring(0, 5))}${s.arrivesNextDay ? ' <span class="badge badge-amber">+1d</span>' : ''}</td>
-          <td><small style="color: #cbd5e1;">${escapeHtml(s.daysOfWeek)}</small></td>
+          <td><small style="color: #1e293b;">${escapeHtml(s.daysOfWeek)}</small></td>
           <td>&#8377;${Number(s.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
           <td>
             <button type="button" class="btn btn-outline btn-sm btn-prov-toggle-sch" data-id="${escapeHtml(s.id)}" data-active="${s.active}">
-              ${s.active ? '<span style="color: #4ade80;">Active</span>' : '<span style="color: #94a3b8;">Inactive</span>'}
+              ${s.active ? '<span style="color: #059669;">Active</span>' : '<span style="color: #475569;">Inactive</span>'}
             </button>
           </td>
           <td>
@@ -10955,7 +10949,7 @@
 
       return `
           <tr>
-            <td><strong style="color: #f8fafc;">${escapeHtml(d.travelDate)}</strong></td>
+            <td><strong style="color: #0f172a;">${escapeHtml(d.travelDate)}</strong></td>
             <td>${escapeHtml(d.originCity)} &rarr; ${escapeHtml(d.destinationCity)}</td>
             <td>${escapeHtml(d.vehicleNumber)}</td>
             <td>${escapeHtml(String(d.departureTime).substring(0, 5))} - ${escapeHtml(String(d.arrivalTime).substring(0, 5))}</td>
@@ -11339,12 +11333,12 @@
       let auditNotes = '-';
       if (p.rejectionReason) auditNotes = `<small style="color: #f87171;">Rejected: ${escapeHtml(p.rejectionReason)}</small>`;
       else if (p.suspensionReason) auditNotes = `<small style="color: #f87171;">Suspended: ${escapeHtml(p.suspensionReason)}</small>`;
-      else if (p.reviewedBy) auditNotes = `<small style="color: #94a3b8;">Approved by ${escapeHtml(p.reviewedBy)}</small>`;
+      else if (p.reviewedBy) auditNotes = `<small style="color: #475569;">Approved by ${escapeHtml(p.reviewedBy)}</small>`;
 
       let actionButtons = '';
       if (p.status === 'PENDING') {
         actionButtons = `
-            <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="approve" style="color: #4ade80;">Approve</button>
+            <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="approve" style="color: #059669;">Approve</button>
             <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="reject" style="color: #f87171;">Reject</button>
           `;
       } else if (p.status === 'APPROVED') {
@@ -11353,22 +11347,22 @@
           `;
       } else if (p.status === 'SUSPENDED') {
         actionButtons = `
-            <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="reinstate" style="color: #4ade80;">Reinstate</button>
+            <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="reinstate" style="color: #059669;">Reinstate</button>
           `;
       } else if (p.status === 'REJECTED') {
         actionButtons = `
-            <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="approve" style="color: #4ade80;">Approve</button>
+            <button type="button" class="btn btn-outline btn-sm btn-admin-act" data-id="${escapeHtml(p.id)}" data-action="approve" style="color: #059669;">Approve</button>
           `;
       }
 
       return `
           <tr>
-            <td><strong style="color: #f8fafc;">${escapeHtml(p.businessName)}</strong></td>
+            <td><strong style="color: #0f172a;">${escapeHtml(p.businessName)}</strong></td>
             <td><span class="badge badge-neutral">${escapeHtml(p.businessType)}</span></td>
             <td>${escapeHtml(p.city)}</td>
-            <td>${escapeHtml(p.contactEmail)}<br><small style="color: #94a3b8;">${escapeHtml(p.contactPhone)}</small></td>
+            <td>${escapeHtml(p.contactEmail)}<br><small style="color: #475569;">${escapeHtml(p.contactPhone)}</small></td>
             <td>
-              <small style="color: #cbd5e1; font-size: 0.78rem;">
+              <small style="color: #1e293b; font-size: 0.78rem;">
                 Vehicles: <strong>${p.vehicleCount || 0}</strong><br>
                 Hotels: <strong>${p.hotelCount || 0}</strong><br>
                 Cabs: <strong>${p.cabServiceCount || 0}</strong><br>
@@ -11512,8 +11506,8 @@
 
         return `
           <tr>
-            <td><strong style="color: #f8fafc;">${escapeHtml(h.name)}</strong></td>
-            <td>${escapeHtml(h.city)}<br><small style="color: #94a3b8;">${escapeHtml(h.address)}</small></td>
+            <td><strong style="color: #0f172a;">${escapeHtml(h.name)}</strong></td>
+            <td>${escapeHtml(h.city)}<br><small style="color: #475569;">${escapeHtml(h.address)}</small></td>
             <td>${checkInOut}</td>
             <td><span class="mono-tag" style="font-size: 0.75rem;">${escapeHtml(h.contactEmail || '-')}</span></td>
             <td><span class="badge badge-purple">${h.roomTypesCount || 0} room type(s)</span></td>
@@ -11521,7 +11515,7 @@
             <td>
               <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
                 <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-rooms" data-id="${escapeHtml(h.id)}" data-name="${escapeHtml(h.name)}" style="color: #38bdf8;">Rooms</button>
-                <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-manifest" data-id="${escapeHtml(h.id)}" data-name="${escapeHtml(h.name)}" style="color: #fde047;">Bookings</button>
+                <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-manifest" data-id="${escapeHtml(h.id)}" data-name="${escapeHtml(h.name)}" style="color: #b45309;">Bookings</button>
                 <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-toggle" data-id="${escapeHtml(h.id)}" data-active="${h.active}">
                   ${h.active ? 'Deactivate' : 'Activate'}
                 </button>
@@ -11688,11 +11682,11 @@
 
         return `
           <tr>
-            <td><strong style="color: #f8fafc;">${escapeHtml(r.name)}</strong></td>
+            <td><strong style="color: #0f172a;">${escapeHtml(r.name)}</strong></td>
             <td>${r.maxGuests} guests</td>
-            <td><strong style="color: #4ade80;">&#8377;${Number(r.pricePerNight).toLocaleString('en-IN')}</strong></td>
+            <td><strong style="color: #059669;">&#8377;${Number(r.pricePerNight).toLocaleString('en-IN')}</strong></td>
             <td>${r.roomsTotal} rooms</td>
-            <td><small style="color: #94a3b8;">${amenities}</small></td>
+            <td><small style="color: #475569;">${amenities}</small></td>
             <td><span class="badge ${badgeClass}">${statusText}</span></td>
             <td>
               <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
@@ -11892,7 +11886,7 @@
 
         return `
           <tr>
-            <td><strong style="color: #f8fafc;">${a.stayDate}</strong></td>
+            <td><strong style="color: #0f172a;">${a.stayDate}</strong></td>
             <td>${a.roomsTotal}</td>
             <td><span class="badge ${a.roomsBooked > 0 ? 'badge-amber' : 'badge-neutral'}">${a.roomsBooked} booked</span></td>
             <td><strong style="color: ${left > 0 ? '#38bdf8' : '#f87171'};">${left} available</strong></td>
@@ -11963,7 +11957,7 @@
 
         return `
           <tr>
-            <td><strong style="color: #f8fafc;">${escapeHtml(c.city)}</strong></td>
+            <td><strong style="color: #0f172a;">${escapeHtml(c.city)}</strong></td>
             <td><span class="badge badge-gold">${escapeHtml(c.vehicleCategory)}</span></td>
             <td><span class="mono-tag" style="font-size: 0.75rem;">${vehNum}</span></td>
             <td>&#8377;${c.baseFare}</td>
