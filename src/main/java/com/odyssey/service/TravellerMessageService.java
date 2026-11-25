@@ -5,6 +5,8 @@ import com.odyssey.dto.request.EditMessageRequest;
 import com.odyssey.dto.request.SendMessageRequest;
 import com.odyssey.dto.response.TravellerMessageDto;
 import com.odyssey.entity.AuditEntryEntity;
+import com.odyssey.entity.BookingEntity;
+import com.odyssey.entity.HotelEntity;
 import com.odyssey.entity.NotificationEntity;
 import com.odyssey.entity.TravellerMessageEntity;
 import com.odyssey.entity.TripEntity;
@@ -17,6 +19,8 @@ import com.odyssey.notification.EmailChannel;
 import com.odyssey.notification.SendResult;
 import com.odyssey.notification.SmsChannel;
 import com.odyssey.repository.jpa.AuditEntryJpaRepository;
+import com.odyssey.repository.jpa.BookingJpaRepository;
+import com.odyssey.repository.jpa.HotelJpaRepository;
 import com.odyssey.repository.jpa.NotificationJpaRepository;
 import com.odyssey.repository.jpa.TravellerMessageJpaRepository;
 import com.odyssey.repository.jpa.TripJpaRepository;
@@ -51,6 +55,8 @@ public class TravellerMessageService {
 
     private final TravellerMessageJpaRepository travellerMessageJpaRepository;
     private final TripJpaRepository tripJpaRepository;
+    private final BookingJpaRepository bookingJpaRepository;
+    private final HotelJpaRepository hotelJpaRepository;
     private final NotificationJpaRepository notificationJpaRepository;
     private final AuditEntryJpaRepository auditEntryJpaRepository;
     private final TripAccessService tripAccessService;
@@ -335,6 +341,38 @@ public class TravellerMessageService {
         entity.setUpdatedAt(now);
 
         travellerMessageJpaRepository.save(entity);
+
+        // When a LATE_CHECKIN message is sent for a hotel booking, surface it as a live pending request
+        // on the Hotel Provider Dashboard so the hotel can accept or decline the late check-in.
+        if (entity.getDraftKind() == DraftKind.LATE_CHECKIN
+                && entity.getRecipientType() == RecipientType.HOTEL
+                && booking != null
+                && booking.getId() != null) {
+            bookingJpaRepository.findById(booking.getId()).ifPresent(hotelBooking -> {
+                if (hotelBooking.getProviderId() == null || hotelBooking.getProviderId().isBlank()) {
+                    if (hotelBooking.getServiceId() != null && !hotelBooking.getServiceId().isBlank()) {
+                        hotelJpaRepository.findById(hotelBooking.getServiceId())
+                                .ifPresent(h -> hotelBooking.setProviderId(h.getProviderId()));
+                    }
+                    if ((hotelBooking.getProviderId() == null || hotelBooking.getProviderId().isBlank())
+                            && hotelBooking.getProvider() != null) {
+                        String targetName = hotelBooking.getProvider().trim();
+                        hotelJpaRepository.findAll().stream()
+                                .filter(h -> h.getName() != null && h.getName().trim().equalsIgnoreCase(targetName))
+                                .findFirst()
+                                .ifPresent(h -> hotelBooking.setProviderId(h.getProviderId()));
+                    }
+                }
+                hotelBooking.setStatus("PENDING_PROVIDER_CONFIRMATION");
+                hotelBooking.setProviderConfirmationStatus("PENDING");
+                hotelBooking.setConfirmationExpiresAt(now.plusSeconds(180));
+                String subjectSummary = entity.getSubject() != null && !entity.getSubject().isBlank()
+                        ? entity.getSubject().trim()
+                        : "Late Check-in Request";
+                hotelBooking.setVerificationNote("Late Check-in Request: " + subjectSummary);
+                bookingJpaRepository.save(hotelBooking);
+            });
+        }
 
         // Record in notifications table
         if (notificationJpaRepository != null) {

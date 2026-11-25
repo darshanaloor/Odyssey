@@ -127,7 +127,9 @@ public class TripController {
             @RequestBody(required = false) BookBookingRequest request) {
         tripAccessService.requireOwner(id);
         String ref = request != null ? request.getBookingReference() : null;
-        Trip updated = handoffService.markBookingBooked(id, bookingId, ref);
+        String paymentMethod = request != null ? request.getPaymentMethod() : null;
+        java.math.BigDecimal paidAmount = request != null ? request.getPaidAmount() : null;
+        Trip updated = handoffService.markBookingBooked(id, bookingId, ref, paymentMethod, paidAmount);
         return ResponseEntity.ok(ApiResponse.ok("Booking marked as booked", updated));
     }
 

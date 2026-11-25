@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -69,10 +70,29 @@ public class HandoffService {
                 .filter(b -> !"MARKETPLACE".equalsIgnoreCase(b.getSource()) && b.getDepartureId() == null)
                 .collect(Collectors.toList());
 
-        return handoffBookings.stream().map(this::toHandoffLegDto).collect(Collectors.toList());
+        BigDecimal totalRecoveryCost = BigDecimal.ZERO;
+        if (trip.getLatestPlan() != null
+                && trip.getLatestPlan().getCostBreakdown() != null
+                && trip.getLatestPlan().getCostBreakdown().getNetTripCost() != null) {
+            totalRecoveryCost = trip.getLatestPlan().getCostBreakdown().getNetTripCost();
+        } else {
+            totalRecoveryCost = trip.getBookings().stream()
+                    .filter(b -> b.getStatus() == BookingStatus.REBOOKED || b.getStatus() == BookingStatus.BOOKED)
+                    .map(b -> b.getCost() != null ? b.getCost() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+
+        final BigDecimal finalTotalRecoveryCost = totalRecoveryCost;
+        return handoffBookings.stream()
+                .map(b -> toHandoffLegDto(b, finalTotalRecoveryCost))
+                .collect(Collectors.toList());
     }
 
     public HandoffLegDto toHandoffLegDto(Booking b) {
+        return toHandoffLegDto(b, b.getCost() != null ? b.getCost() : BigDecimal.ZERO);
+    }
+
+    public HandoffLegDto toHandoffLegDto(Booking b, BigDecimal totalRecoveryCost) {
         List<HandoffLegDto.HandoffLink> links = buildLinks(b);
         boolean isBooked = b.getStatus() == BookingStatus.BOOKED;
 
@@ -87,6 +107,8 @@ public class HandoffService {
                 .status(b.getStatus())
                 .bookingReference(b.getBookingReference())
                 .booked(isBooked)
+                .cost(b.getCost())
+                .totalRecoveryCost(totalRecoveryCost)
                 .links(links)
                 .scheduleNote("Estimated schedule, please verify on the official site before booking.")
                 .build();
@@ -139,6 +161,11 @@ public class HandoffService {
 
     @Transactional
     public Trip markBookingBooked(String tripId, String bookingId, String reference) {
+        return markBookingBooked(tripId, bookingId, reference, null, null);
+    }
+
+    @Transactional
+    public Trip markBookingBooked(String tripId, String bookingId, String reference, String paymentMethod, BigDecimal paidAmount) {
         Trip trip = tripRepository.findById(tripId)
                 .orElseThrow(() -> new ResourceNotFoundException("Trip not found with ID: " + tripId));
 
@@ -149,6 +176,13 @@ public class HandoffService {
 
         target.setStatus(BookingStatus.BOOKED);
         target.setBookingReference(reference != null && !reference.isBlank() ? reference.trim() : null);
+        String resolvedMethod = (paymentMethod != null && !paymentMethod.isBlank()) ? paymentMethod.trim().toUpperCase() : "CARD";
+        target.setPaymentMethod(resolvedMethod);
+        target.setPaymentStatus("DEMO_PAID");
+
+        String paymentNote = (paidAmount != null && paidAmount.compareTo(BigDecimal.ZERO) > 0)
+                ? String.format(", paid Rs.%s via %s", paidAmount.toPlainString(), resolvedMethod)
+                : "";
 
         // Record audit entry with actor USER
         trip.getAuditLog().add(AuditEntry.builder()
@@ -156,9 +190,10 @@ public class HandoffService {
                 .timestamp(LocalDateTime.now())
                 .actor(AuditActor.USER)
                 .action("BOOKING_MARKED_BOOKED")
-                .details(String.format("User confirmed booking %s (%s %s -> %s) with reference: %s",
+                .details(String.format("User confirmed booking %s (%s %s -> %s) with reference: %s%s",
                         target.getId(), target.getType(), target.getFrom(), target.getTo(),
-                        target.getBookingReference() != null ? target.getBookingReference() : "None"))
+                        target.getBookingReference() != null ? target.getBookingReference() : "None",
+                        paymentNote))
                 .build());
 
         // Check if all handoff legs are BOOKED

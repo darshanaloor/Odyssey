@@ -2484,14 +2484,36 @@
     aria-labelledby="modal-confirm-booking-title">
     <div class="modal-dialog" style="max-width: 480px;">
       <div class="modal-header">
-        <h2 id="modal-confirm-booking-title" class="modal-title">Confirm Replacement Booking</h2>
+        <h2 id="modal-confirm-booking-title" class="modal-title">Pay &amp; Confirm Replacement Booking</h2>
         <button id="btn-close-confirm-modal" class="btn-close" aria-label="Close modal">&times;</button>
       </div>
       <div class="modal-body">
         <form id="form-confirm-booking">
           <input type="hidden" id="confirm-booking-id">
-          <div id="confirm-booking-summary" class="booking-summary-banner" style="margin-bottom: 1rem;">
+          <input type="hidden" id="confirm-booking-total-cost" value="0">
+          <div id="confirm-booking-summary" class="booking-summary-banner" style="margin-bottom: 0.85rem;">
             <!-- Dynamic summary of leg -->
+          </div>
+          <div id="confirm-booking-payment-summary" style="background: #eef2ff; border: 1.5px solid #c7d2fe; border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-size: 0.78rem; font-weight: 700; color: #4338ca; text-transform: uppercase;">Total Recovery Payment</div>
+              <div style="font-size: 0.75rem; color: #475569;">Includes replacement travel &amp; recovery charges</div>
+            </div>
+            <div id="confirm-booking-amount-display" style="font-size: 1.25rem; font-weight: 800; color: #1e1b4b;">&#8377;0</div>
+          </div>
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.45rem; font-weight: 600;">Select Payment Method</label>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+              <label style="display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; font-weight: 500; color: #0f172a;">
+                <input type="radio" name="confirm-payment-method" value="CARD" checked> Credit / Debit Card
+              </label>
+              <label style="display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; font-weight: 500; color: #0f172a;">
+                <input type="radio" name="confirm-payment-method" value="UPI"> UPI / QR
+              </label>
+              <label style="display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; font-weight: 500; color: #0f172a;">
+                <input type="radio" name="confirm-payment-method" value="NET_BANKING"> Net Banking
+              </label>
+            </div>
           </div>
           <div class="form-group">
             <label for="confirm-booking-ref">Booking Reference / PNR (Optional)</label>
@@ -2503,7 +2525,7 @@
           <div class="modal-footer" style="padding-top: 1rem;">
             <button type="button" id="btn-cancel-confirm-booking" class="btn btn-outline">Cancel</button>
             <button type="submit" id="btn-submit-confirm-booking" class="btn btn-success">
-              <span class="btn-text">Confirm Booking</span>
+              <span class="btn-text">Pay &amp; Confirm Booking</span>
               <span class="spinner" aria-hidden="true"></span>
             </button>
           </div>

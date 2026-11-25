@@ -7273,7 +7273,7 @@
             <div class="handoff-book-toggle">
               ${leg.booked
             ? `<button type="button" class="btn btn-sm btn-outline-danger btn-unbook-leg" data-booking-id="${escapeHtml(leg.bookingId)}">Unmark / Unbook</button>`
-            : `<button type="button" class="btn btn-sm btn-success btn-book-leg" data-booking-id="${escapeHtml(leg.bookingId)}" data-from="${escapeHtml(leg.from)}" data-to="${escapeHtml(leg.to)}" data-type="${escapeHtml(leg.type)}" data-provider="${escapeHtml(leg.provider)}">&#10003; I have booked this</button>`
+            : `<button type="button" class="btn btn-sm btn-success btn-book-leg" data-booking-id="${escapeHtml(leg.bookingId)}" data-from="${escapeHtml(leg.from)}" data-to="${escapeHtml(leg.to)}" data-type="${escapeHtml(leg.type)}" data-provider="${escapeHtml(leg.provider)}" data-total-cost="${escapeHtml(String(leg.totalRecoveryCost != null ? leg.totalRecoveryCost : (leg.cost != null ? leg.cost : 0)))}">&#10003; I have booked this</button>`
           }
             </div>
           </div>
@@ -7282,9 +7282,15 @@
         const btnBook = card.querySelector('.btn-book-leg');
         if (btnBook) {
           btnBook.addEventListener('click', () => {
+            const rawCost = Number(btnBook.getAttribute('data-total-cost') || 0);
+            const planCost = (state.trip && state.trip.latestPlan && state.trip.latestPlan.costBreakdown && state.trip.latestPlan.costBreakdown.netTripCost != null)
+              ? Number(state.trip.latestPlan.costBreakdown.netTripCost)
+              : 0;
+            const totalCost = rawCost > 0 ? rawCost : planCost;
             openConfirmBookingModal(
               btnBook.getAttribute('data-booking-id'),
-              `${btnBook.getAttribute('data-type')} ${btnBook.getAttribute('data-provider') || ''}: ${btnBook.getAttribute('data-from')} &rarr; ${btnBook.getAttribute('data-to')}`
+              `${btnBook.getAttribute('data-type')} ${btnBook.getAttribute('data-provider') || ''}: ${btnBook.getAttribute('data-from')} &rarr; ${btnBook.getAttribute('data-to')}`,
+              totalCost
             );
           });
         }
@@ -7303,10 +7309,19 @@
     }
   }
 
-  function openConfirmBookingModal(bookingId, summaryText) {
+  function openConfirmBookingModal(bookingId, summaryText, totalCost = 0) {
     if (elements.confirmBookingId) elements.confirmBookingId.value = bookingId;
     if (elements.confirmBookingSummary) elements.confirmBookingSummary.innerHTML = `<strong>Confirming:</strong> ${summaryText}`;
     if (elements.confirmBookingRef) elements.confirmBookingRef.value = '';
+    const numericCost = Number(totalCost || 0);
+    const totalCostInput = document.getElementById('confirm-booking-total-cost');
+    if (totalCostInput) totalCostInput.value = String(numericCost);
+    const amountDisplay = document.getElementById('confirm-booking-amount-display');
+    if (amountDisplay) {
+      amountDisplay.textContent = `₹${numericCost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    const defaultRadio = document.querySelector('input[name="confirm-payment-method"][value="CARD"]');
+    if (defaultRadio) defaultRadio.checked = true;
     if (elements.modalConfirmBooking) {
       elements.modalConfirmBooking.classList.remove('hidden');
       elements.modalConfirmBooking.classList.add('is-open');
@@ -7325,6 +7340,10 @@
     const tripId = state.currentTripId;
     const bookingId = elements.confirmBookingId.value;
     const reference = elements.confirmBookingRef.value.trim();
+    const selectedMethodEl = document.querySelector('input[name="confirm-payment-method"]:checked');
+    const paymentMethod = selectedMethodEl ? selectedMethodEl.value : 'CARD';
+    const totalCostInput = document.getElementById('confirm-booking-total-cost');
+    const paidAmount = totalCostInput ? Number(totalCostInput.value || 0) : 0;
     if (!tripId || !bookingId) return;
 
     setButtonLoading(elements.btnSubmitConfirmBooking, true);
@@ -7332,7 +7351,7 @@
       const res = await fetch(`/api/trips/${encodeURIComponent(tripId)}/bookings/${encodeURIComponent(bookingId)}/book`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingReference: reference }),
+        body: JSON.stringify({ bookingReference: reference, paymentMethod, paidAmount }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -7340,7 +7359,10 @@
       }
 
       closeConfirmBookingModal();
-      showToast('Booking marked as booked!', 'success');
+      const paidMsg = paidAmount > 0
+        ? `Payment of ₹${paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} via ${paymentMethod} completed & booking confirmed!`
+        : 'Booking payment & confirmation recorded!';
+      showToast(paidMsg, 'success');
       await loadTripById(tripId);
     } catch (err) {
       showToast(err.message, 'danger');
@@ -10195,8 +10217,48 @@
   }
 
   // 10. Provider Pending Requests (Phase 18E)
+  let providerPendingCountdownInterval = null;
+  let providerPendingPollInterval = null;
+
+  function ensureProviderPendingAutoRefresh() {
+    if (providerPendingPollInterval) return;
+    providerPendingPollInterval = setInterval(() => {
+      const panelVisible = elements.panelProviderDashboard && !elements.panelProviderDashboard.classList.contains('hidden');
+      const isProv = state.currentUser && String(state.currentUser.role || '').toUpperCase() === 'PROVIDER';
+      if (panelVisible && isProv && elements.provPendingTbody) {
+        loadProviderPendingBookings();
+      }
+    }, 5000);
+  }
+
+  function updateProviderPendingCountdowns() {
+    if (!elements.provPendingTbody) return;
+    const badges = elements.provPendingTbody.querySelectorAll('.prov-pending-countdown[data-expires-at]');
+    let anyExpiredNow = false;
+    badges.forEach(el => {
+      const expStr = el.dataset.expiresAt;
+      if (!expStr) return;
+      const sec = Math.max(0, Math.ceil((new Date(expStr).getTime() - Date.now()) / 1000));
+      if (sec > 0) {
+        el.textContent = `${sec}s remaining`;
+        el.className = 'badge badge-amber prov-pending-countdown';
+      } else {
+        el.textContent = 'Expired';
+        el.className = 'badge badge-red prov-pending-countdown';
+        if (!el.dataset.expiredTriggered) {
+          el.dataset.expiredTriggered = '1';
+          anyExpiredNow = true;
+        }
+      }
+    });
+    if (anyExpiredNow) {
+      setTimeout(() => loadProviderPendingBookings(), 1200);
+    }
+  }
+
   async function loadProviderPendingBookings() {
     if (!elements.provPendingTbody) return;
+    ensureProviderPendingAutoRefresh();
     try {
       const res = await fetch('/api/provider/pending-bookings');
       if (!res.ok) {
@@ -10217,15 +10279,21 @@
 
   function renderProviderPendingBookings(bookings) {
     if (!elements.provPendingTbody) return;
+    if (providerPendingCountdownInterval) {
+      clearInterval(providerPendingCountdownInterval);
+      providerPendingCountdownInterval = null;
+    }
     if (bookings.length === 0) {
       elements.provPendingTbody.innerHTML = '<tr><td colspan="8" class="empty-state">No pending booking requests.</td></tr>';
       return;
     }
     elements.provPendingTbody.innerHTML = bookings.map(b => {
       let expiryText = '--';
+      let badgeCls = 'badge-amber';
       if (b.confirmationExpiresAt) {
-        const sec = Math.max(0, Math.round((new Date(b.confirmationExpiresAt).getTime() - Date.now()) / 1000));
-        expiryText = `${sec}s remaining`;
+        const sec = Math.max(0, Math.ceil((new Date(b.confirmationExpiresAt).getTime() - Date.now()) / 1000));
+        expiryText = sec > 0 ? `${sec}s remaining` : 'Expired';
+        if (sec <= 0) badgeCls = 'badge-red';
       }
       const locationText = b.from && b.to ? `${b.from} → ${b.to}` : (b.to || b.from || b.operator || 'Local');
       const pickupTimeHtml = b.startTime
@@ -10246,7 +10314,7 @@
             </td>
             <td>${escapeHtml(b.passengerNames || 'Traveller')}</td>
             <td><strong>₹${Number(b.cost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
-            <td><span class="badge badge-amber">${escapeHtml(expiryText)}</span></td>
+            <td><span class="badge ${badgeCls} prov-pending-countdown" data-expires-at="${escapeHtml(b.confirmationExpiresAt || '')}">${escapeHtml(expiryText)}</span></td>
             <td>
               <button type="button" class="btn btn-sm btn-success btn-prov-accept" data-id="${escapeHtml(b.id)}" style="margin-right: 0.35rem;">Accept</button>
               <button type="button" class="btn btn-sm btn-danger btn-prov-reject" data-id="${escapeHtml(b.id)}">Reject</button>
@@ -10254,6 +10322,9 @@
           </tr>
         `;
     }).join('');
+    if (bookings.some(b => b.confirmationExpiresAt)) {
+      providerPendingCountdownInterval = setInterval(updateProviderPendingCountdowns, 1000);
+    }
 
     elements.provPendingTbody.querySelectorAll('.btn-prov-accept').forEach(btn => {
       btn.addEventListener('click', () => handleProviderAcceptBooking(btn.dataset.id));

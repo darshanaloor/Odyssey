@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -25,6 +26,8 @@ public class HandoffLegDto {
     private BookingStatus status;
     private String bookingReference;
     private boolean booked;
+    private BigDecimal cost;
+    private BigDecimal totalRecoveryCost;
     private List<HandoffLink> links;
     private String scheduleNote;
 
