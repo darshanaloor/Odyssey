@@ -1358,10 +1358,10 @@ public class MarketplaceService {
                 "HOTEL");
 
         String providerName = hotel.getName() + (roomType != null ? " - " + roomType.getName() : "");
-        String initialStatus = "CONFIRMED";
-        String initialPaymentStatus = "DEMO_PAID";
-        LocalDateTime expiresAt = null;
-        boolean isProviderBooking = false;
+        boolean isProviderBooking = hotel.getProviderId() != null;
+        String initialStatus = isProviderBooking ? "PENDING_PROVIDER_CONFIRMATION" : "CONFIRMED";
+        String initialPaymentStatus = isProviderBooking ? "UNPAID" : "DEMO_PAID";
+        LocalDateTime expiresAt = isProviderBooking ? LocalDateTime.now().plusSeconds(confirmationTimeoutSeconds) : null;
 
         BookingEntity booking = BookingEntity.builder()
                 .id(bookingId)
@@ -1471,10 +1471,10 @@ public class MarketplaceService {
                 request.getPickupTime().plusMinutes(45),
                 "CAB");
 
-        boolean isProviderBooking = false;
-        String initialStatus = "CONFIRMED";
-        String initialPaymentStatus = "DEMO_PAID";
-        LocalDateTime expiresAt = null;
+        boolean isProviderBooking = cab.getProviderId() != null;
+        String initialStatus = isProviderBooking ? "PENDING_PROVIDER_CONFIRMATION" : "CONFIRMED";
+        String initialPaymentStatus = isProviderBooking ? "UNPAID" : "DEMO_PAID";
+        LocalDateTime expiresAt = isProviderBooking ? LocalDateTime.now().plusSeconds(confirmationTimeoutSeconds) : null;
 
         BookingEntity booking = BookingEntity.builder()
                 .id(bookingId)
@@ -1836,35 +1836,55 @@ public class MarketplaceService {
                             + pickupTime.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM, HH:mm"))
                         : null);
 
-            booking = BookingEntity.builder()
-                    .id(bookingId)
-                    .trip(trip)
-                    .user(currentUser)
-                    .type("CAB")
-                    .provider(targetName)
-                    .providerId(providerId)
-                    .serviceId(cab != null ? cab.getId() : existingCab.getServiceId())
-                    .fromLocation(pickup)
-                    .toLocation(dropoff)
-                    .startTime(pickupTime)
-                    .endTime(endTime)
-                    .cost(fare)
-                    .status("PENDING_PROVIDER_CONFIRMATION")
-                    .paymentStatus("UNPAID")
-                    .paymentMethod("CARD")
-                    .source(providerId != null ? "PROVIDER" : "MARKETPLACE")
-                    .bookingReference(bookingRef)
-                    .passengerNames(currentUser.getName() != null ? currentUser.getName() : "Traveller")
-                    .lastStatusState("ON_TIME")
-                    .lastDelayMinutes(0)
-                    .lastStatusSource("SIMULATED")
-                    .lastCheckedAt(LocalDateTime.now())
-                    .confirmationExpiresAt(expiresAt)
-                    .providerConfirmationStatus("PENDING")
-                    .verificationNote(note)
-                    .build();
+            if (existingCab != null) {
+                // Re-verify existing cab booking in place to avoid creating duplicate cab bookings
+                existingCab.setProviderId(providerId);
+                existingCab.setServiceId(cab != null ? cab.getId() : existingCab.getServiceId());
+                existingCab.setFromLocation(pickup);
+                existingCab.setToLocation(dropoff);
+                existingCab.setStartTime(pickupTime);
+                existingCab.setEndTime(endTime);
+                existingCab.setStatus("PENDING_PROVIDER_CONFIRMATION");
+                existingCab.setConfirmationExpiresAt(expiresAt);
+                existingCab.setProviderConfirmationStatus("PENDING");
+                existingCab.setVerificationNote(note);
+                existingCab.setCannotHonour(false);
+                existingCab.setCannotHonourReason(null);
+                booking = bookingRepo.save(existingCab);
+                if (booking.getBookingReference() != null && !booking.getBookingReference().isBlank()) {
+                    bookingRef = booking.getBookingReference();
+                }
+            } else {
+                booking = BookingEntity.builder()
+                        .id(bookingId)
+                        .trip(trip)
+                        .user(currentUser)
+                        .type("CAB")
+                        .provider(targetName)
+                        .providerId(providerId)
+                        .serviceId(cab != null ? cab.getId() : null)
+                        .fromLocation(pickup)
+                        .toLocation(dropoff)
+                        .startTime(pickupTime)
+                        .endTime(endTime)
+                        .cost(fare)
+                        .status("PENDING_PROVIDER_CONFIRMATION")
+                        .paymentStatus("UNPAID")
+                        .paymentMethod("CARD")
+                        .source(providerId != null ? "PROVIDER" : "MARKETPLACE")
+                        .bookingReference(bookingRef)
+                        .passengerNames(currentUser.getName() != null ? currentUser.getName() : "Traveller")
+                        .lastStatusState("ON_TIME")
+                        .lastDelayMinutes(0)
+                        .lastStatusSource("SIMULATED")
+                        .lastCheckedAt(LocalDateTime.now())
+                        .confirmationExpiresAt(expiresAt)
+                        .providerConfirmationStatus("PENDING")
+                        .verificationNote(note)
+                        .build();
 
-            bookingRepo.save(booking);
+                bookingRepo.save(booking);
+            }
         } else {
             throw new IllegalArgumentException("Unsupported verification type: " + type);
         }

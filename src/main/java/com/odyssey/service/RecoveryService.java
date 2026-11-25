@@ -135,9 +135,16 @@ public class RecoveryService {
         }
 
         if (plan.getReplacementCab() != null) {
-            Booking replacementCab = plan.getReplacementCab();
-            replacementCab.setStatus(BookingStatus.REBOOKED);
-            trip.getBookings().add(replacementCab);
+            boolean alreadyHasVerifiedCab = trip.getBookings().stream().anyMatch(b ->
+                    b.getType() == BookingType.CAB
+                            && (b.getStatus() == BookingStatus.CONFIRMED || b.getStatus() == BookingStatus.REBOOKED)
+                            && ("ACCEPTED".equalsIgnoreCase(b.getProviderConfirmationStatus())
+                                || (b.getStartTime() != null && b.getStartTime().equals(plan.getReplacementCab().getStartTime()))));
+            if (!alreadyHasVerifiedCab) {
+                Booking replacementCab = plan.getReplacementCab();
+                replacementCab.setStatus(BookingStatus.REBOOKED);
+                trip.getBookings().add(replacementCab);
+            }
         }
 
         trip.getBookings().sort(java.util.Comparator.comparing(Booking::getStartTime, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
@@ -287,7 +294,16 @@ public class RecoveryService {
                 .findFirst()
                 .orElse(null);
 
-        boolean oldCabDependedOnDisruption = oldCabBooking != null && (
+        boolean reuseOldCab = oldCabBooking != null
+                && "ACCEPTED".equalsIgnoreCase(oldCabBooking.getProviderConfirmationStatus());
+
+        boolean hasVerifiedNewCab = trip.getBookings().stream().anyMatch(b ->
+                b.getType() == BookingType.CAB
+                        && (oldCabBooking == null || !b.getId().equals(oldCabBooking.getId()))
+                        && ("ACCEPTED".equalsIgnoreCase(b.getProviderConfirmationStatus())
+                            || "PENDING".equalsIgnoreCase(b.getProviderConfirmationStatus())));
+
+        boolean oldCabDependedOnDisruption = oldCabBooking != null && !reuseOldCab && (
                 disruptedBooking == null
                 || oldCabBooking.getDependsOn() == null
                 || oldCabBooking.getDependsOn().isEmpty()
@@ -295,7 +311,7 @@ public class RecoveryService {
                 || oldCabBooking.getStatus() == BookingStatus.CANCELLED
         );
 
-        boolean createCab = oldCabBooking != null || Boolean.TRUE.equals(trip.getNeedsDestinationCab());
+        boolean createCab = !reuseOldCab && !hasVerifiedNewCab && (oldCabBooking != null || Boolean.TRUE.equals(trip.getNeedsDestinationCab()));
 
         Booking hotelBooking = trip.getBookings().stream()
                 .filter(b -> b.getType() == BookingType.HOTEL)
@@ -426,7 +442,21 @@ public class RecoveryService {
                     .build());
         }
 
-        if (oldCabBooking != null && oldCabDependedOnDisruption) {
+        if (reuseOldCab && oldCabBooking != null) {
+            diffItems.add(ItineraryDiffItem.builder()
+                    .bookingId(oldCabBooking.getId())
+                    .type(oldCabBooking.getType())
+                    .provider(oldCabBooking.getProvider())
+                    .oldStart(oldCabBooking.getStartTime())
+                    .oldEnd(oldCabBooking.getEndTime())
+                    .oldStatus(oldCabBooking.getStatus() != null ? oldCabBooking.getStatus() : BookingStatus.CONFIRMED)
+                    .newStart(cabPickup)
+                    .newEnd(cabDropoff)
+                    .newStatus(BookingStatus.CONFIRMED)
+                    .changeDescription(String.format("Existing cab provider accepted late-arrival pickup at %s.",
+                            cabPickup.format(TIME_FORMAT)))
+                    .build());
+        } else if (oldCabBooking != null && oldCabDependedOnDisruption) {
             diffItems.add(ItineraryDiffItem.builder()
                     .bookingId(oldCabBooking.getId())
                     .type(oldCabBooking.getType())
@@ -639,7 +669,21 @@ public class RecoveryService {
         }
 
         // 4. Cancel old bookings (only those actually cancelled)
-        if (oldCabBooking != null && oldCabDependedOnDisruption) {
+        if (reuseOldCab && oldCabBooking != null) {
+            diffItems.add(ItineraryDiffItem.builder()
+                    .bookingId(oldCabBooking.getId())
+                    .type(oldCabBooking.getType())
+                    .provider(oldCabBooking.getProvider())
+                    .oldStart(oldCabBooking.getStartTime())
+                    .oldEnd(oldCabBooking.getEndTime())
+                    .oldStatus(oldCabBooking.getStatus() != null ? oldCabBooking.getStatus() : BookingStatus.CONFIRMED)
+                    .newStart(cabPickup)
+                    .newEnd(cabDropoff)
+                    .newStatus(BookingStatus.CONFIRMED)
+                    .changeDescription(String.format("Existing cab provider accepted late-arrival pickup at %s.",
+                            cabPickup.format(TIME_FORMAT)))
+                    .build());
+        } else if (oldCabBooking != null && oldCabDependedOnDisruption) {
             checklist.add(ActionChecklistItem.builder()
                     .id("CANCEL_OLD_CAB")
                     .type(RecoveryActionType.CANCEL_OLD_BOOKING)

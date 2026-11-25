@@ -2814,18 +2814,21 @@
           <button type="button" id="btn-plan-toggle-new-cab" class="btn btn-outline btn-sm">Choose Different Cab</button>
         </div>
 
-        <div id="plan-existing-cab-status" style="padding: 10px 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;">
+        <div id="plan-existing-cab-status" style="padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;">
           ${oldCab
-        ? `<span>⏳ Sending late-arrival verification to existing cab provider <strong>${escapeHtml(existingProviderName)}</strong>...</span>`
-        : `<span>ℹ️ No pre-booked cab provider found. Please select a new cab below to send a verification request.</span>`}
+        ? `<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+             <span>Before booking a replacement cab, notify your existing cab provider (<strong>${escapeHtml(existingProviderName)}</strong>) about your late arrival (<strong>${escapeHtml(pickupText)}</strong>):</span>
+             <button type="button" id="btn-send-old-cab-verification" class="btn btn-gold btn-sm">Send Verification to ${escapeHtml(existingProviderName)}</button>
+           </div>`
+        : `<span>ℹ️ No pre-booked cab provider found. Please select a cab from the list below.</span>`}
         </div>
 
         <div id="plan-new-cab-options-panel" class="${oldCab ? 'hidden' : ''}" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
           <div style="font-weight: 600; font-size: 0.9rem; color: #0f172a; margin-bottom: 8px;">
-            Book a New Cab in ${escapeHtml(destCity)} (Verification sent to new driver on selection)
+            Available Cabs in ${escapeHtml(destCity)} (Verification sent to new driver on selection)
           </div>
           <div id="plan-new-cab-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto;">
-            <div style="font-size: 0.85rem; color: #64748b; padding: 8px;">Loading available cabs...</div>
+            <div style="font-size: 0.85rem; color: #475569; padding: 8px;">Loading available cabs...</div>
           </div>
         </div>
       </div>
@@ -2849,18 +2852,18 @@
 
     const cached = state.recoveryCabVerifications[optionKey];
     if (cached && cached.bookingId) {
-      if (cached.finalStatus === 'ACCEPTED') {
+      if (cached.finalStatus === 'ACCEPTED' || oldCab.providerConfirmationStatus === 'ACCEPTED') {
         existingStatusBox.style.background = '#ecfdf5';
         existingStatusBox.style.borderColor = '#a7f3d0';
         existingStatusBox.style.color = '#065f46';
-        existingStatusBox.innerHTML = `✅ <strong>${escapeHtml(existingProviderName)} Accepted!</strong> Cab driver confirmed late-arrival pickup for <strong>${escapeHtml(pickupText)}</strong>.`;
+        existingStatusBox.innerHTML = `✅ <strong>${escapeHtml(existingProviderName)} Accepted!</strong> Continuing with your existing cab at <strong>${escapeHtml(pickupText)}</strong>. No replacement cab needed.`;
         return;
       }
       if (cached.finalStatus === 'REJECTED' || cached.finalStatus === 'EXPIRED') {
         existingStatusBox.style.background = '#fef2f2';
         existingStatusBox.style.borderColor = '#fecaca';
         existingStatusBox.style.color = '#991b1b';
-        existingStatusBox.innerHTML = `❌ <strong>${escapeHtml(existingProviderName)} did not accept</strong> (${escapeHtml(cached.reason || 'Declined / Timed out')}). Please select a new cab below.`;
+        existingStatusBox.innerHTML = `❌ <strong>${escapeHtml(existingProviderName)} did not accept</strong> (${escapeHtml(cached.reason || 'Declined / Timed out')}). Please select another cab from the list below.`;
         if (newCabPanel) {
           newCabPanel.classList.remove('hidden');
           loadPlanNewCabOptions(destCity, destCity, dropoff, cabPickupTime, verificationNote, tripId);
@@ -2871,49 +2874,55 @@
       return;
     }
 
-    // Dispatch verification request to existing cab provider automatically
-    try {
-      const res = await fetch('/api/market/verification/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'CAB',
-          targetId: oldCab.serviceId || '',
-          targetName: existingProviderName,
-          existingCabBookingId: oldCab.id,
-          tripId: tripId,
-          city: destCity,
-          pickup: destCity,
-          dropoff: dropoff,
-          pickupTime: cabPickupTime,
-          verificationNote: verificationNote,
-          guestName: (state.currentUser && state.currentUser.name) ? state.currentUser.name : 'Traveller'
-        })
+    const btnSendOldCab = document.getElementById('btn-send-old-cab-verification');
+    if (btnSendOldCab) {
+      btnSendOldCab.addEventListener('click', async () => {
+        btnSendOldCab.disabled = true;
+        btnSendOldCab.textContent = 'Sending...';
+        try {
+          const res = await fetch('/api/market/verification/request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'CAB',
+              targetId: oldCab.serviceId || '',
+              targetName: existingProviderName,
+              existingCabBookingId: oldCab.id,
+              tripId: tripId,
+              city: destCity,
+              pickup: destCity,
+              dropoff: dropoff,
+              pickupTime: cabPickupTime,
+              verificationNote: verificationNote,
+              guestName: (state.currentUser && state.currentUser.name) ? state.currentUser.name : 'Traveller'
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success || !data.data) {
+            throw new Error((data && data.message) || 'Could not reach existing cab provider');
+          }
+          const timeoutSec = data.data.timeoutSeconds || 30;
+          const expiresAtMs = Date.now() + timeoutSec * 1000;
+          state.recoveryCabVerifications[optionKey] = {
+            bookingId: data.data.bookingId,
+            expiresAt: expiresAtMs,
+            finalStatus: null
+          };
+          showToast(`Late-arrival verification sent to ${existingProviderName}!`, 'info');
+          startPlanCabVerificationPolling(optionKey, data.data.bookingId, expiresAtMs, existingProviderName, pickupText, verificationNote, destCity, dropoff, cabPickupTime, tripId);
+        } catch (err) {
+          if (existingStatusBox) {
+            existingStatusBox.style.background = '#fef2f2';
+            existingStatusBox.style.borderColor = '#fecaca';
+            existingStatusBox.style.color = '#991b1b';
+            existingStatusBox.innerHTML = `⚠️ <strong>Could not notify ${escapeHtml(existingProviderName)}:</strong> ${escapeHtml(err.message)}. Please select another cab below.`;
+          }
+          if (newCabPanel) {
+            newCabPanel.classList.remove('hidden');
+            loadPlanNewCabOptions(destCity, destCity, dropoff, cabPickupTime, verificationNote, tripId);
+          }
+        }
       });
-      const data = await res.json();
-      if (!res.ok || !data.success || !data.data) {
-        throw new Error((data && data.message) || 'Could not reach existing cab provider');
-      }
-      const timeoutSec = data.data.timeoutSeconds || 30;
-      const expiresAtMs = Date.now() + timeoutSec * 1000;
-      state.recoveryCabVerifications[optionKey] = {
-        bookingId: data.data.bookingId,
-        expiresAt: expiresAtMs,
-        finalStatus: null
-      };
-      showToast(`Late-arrival verification sent to ${existingProviderName}!`, 'info');
-      startPlanCabVerificationPolling(optionKey, data.data.bookingId, expiresAtMs, existingProviderName, pickupText, verificationNote, destCity, dropoff, cabPickupTime, tripId);
-    } catch (err) {
-      if (existingStatusBox) {
-        existingStatusBox.style.background = '#fef2f2';
-        existingStatusBox.style.borderColor = '#fecaca';
-        existingStatusBox.style.color = '#991b1b';
-        existingStatusBox.innerHTML = `⚠️ <strong>Could not notify ${escapeHtml(existingProviderName)}:</strong> ${escapeHtml(err.message)}. Please book a new cab below.`;
-      }
-      if (newCabPanel) {
-        newCabPanel.classList.remove('hidden');
-        loadPlanNewCabOptions(destCity, destCity, dropoff, cabPickupTime, verificationNote, tripId);
-      }
     }
   }
 
