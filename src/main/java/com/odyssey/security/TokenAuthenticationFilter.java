@@ -38,6 +38,9 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
                 request.setAttribute(TOKEN_ATTRIBUTE, token);
                 response.setHeader(HEADER_AUTH_TOKEN, token);
+            } else {
+                // Explicit token was invalid/expired/revoked: clear any shared JSESSIONID context
+                SecurityContextHolder.clearContext();
             }
         }
 

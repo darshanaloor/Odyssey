@@ -252,9 +252,8 @@ public class AuthService {
     public UserResponse getCurrentUser(String token) {
         if (token != null && !token.isBlank()) {
             UserEntity user = tokenAuthService.getUser(token);
-            if (user != null) {
-                return toResponse(user, token);
-            }
+            // Never fall back to shared JSESSIONID cookie when an explicit tab token was provided
+            return user != null ? toResponse(user, token) : null;
         }
         UserEntity user = getCurrentUserEntity();
         if (user == null) {

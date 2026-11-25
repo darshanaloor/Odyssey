@@ -305,5 +305,32 @@ public class MultiTabSessionAndStylingTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.email").value(providerEmail))
                 .andExpect(jsonPath("$.data.role").value("PROVIDER"));
+
+        // Reverse order + JSESSIONID bleed guard: even if Tab 1 carries Provider's JSESSIONID cookie
+        // alongside an invalid/stale X-Auth-Token, it must NEVER switch Tab 1 into Provider!
+        MockHttpSession sharedCookieSession = new MockHttpSession();
+        LoginRequest loginProvider = LoginRequest.builder()
+                .email(providerEmail)
+                .password("Password123!")
+                .build();
+        mockMvc.perform(post("/api/auth/login")
+                        .session(sharedCookieSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginProvider)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/auth/me")
+                        .session(sharedCookieSession)
+                        .header("X-Auth-Token", "TKN-INVALID-STALE-TOKEN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(false));
+
+        // And Tab 2 (Provider) remains Provider even after Traveller logged in
+        mockMvc.perform(get("/api/auth/me")
+                        .session(sharedCookieSession)
+                        .header("X-Auth-Token", tokenProvider))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.role").value("PROVIDER"));
     }
 }

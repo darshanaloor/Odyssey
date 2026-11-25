@@ -27,7 +27,9 @@ public class TokenAuthService {
     private final UserJpaRepository userJpaRepository;
 
     private static final Duration TOKEN_EXPIRY = Duration.ofHours(24);
+    private static final String DEFAULT_HMAC_SECRET = "odyssey-multi-tab-isolated-hmac-secret-2026";
     private final ConcurrentMap<String, TokenSession> activeSessions = new ConcurrentHashMap<>();
+    private final Set<String> revokedTokens = ConcurrentHashMap.newKeySet();
 
     @Data
     @Builder
@@ -42,18 +44,25 @@ public class TokenAuthService {
     }
 
     /**
-     * Creates and registers a new tab/client session token for the user.
+     * Creates and registers a new HMAC-signed tab/client session token for the user.
+     * Survives server restarts while still supporting per-tab logout revocation.
      */
     public String createToken(UserEntity user, List<GrantedAuthority> authorities) {
-        String token = "TKN-" + UUID.randomUUID().toString().replace("-", "").toUpperCase();
         Instant now = Instant.now();
+        UserRole role = user.getRole() != null ? user.getRole() : UserRole.TRAVELLER;
+        String nonce = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String payload = user.getId() + "|" + role.name() + "|" + now.getEpochSecond() + "|" + nonce;
+        String encodedPayload = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String signature = signHmac(encodedPayload);
+        String token = "TKN-" + encodedPayload + "." + signature;
 
         List<GrantedAuthority> authList = new ArrayList<>(authorities);
         TokenSession session = TokenSession.builder()
                 .token(token)
                 .userId(user.getId())
                 .email(user.getEmail())
-                .role(user.getRole() != null ? user.getRole() : UserRole.TRAVELLER)
+                .role(role)
                 .authorities(authList)
                 .createdAt(now)
                 .lastAccessedAt(now)
@@ -69,23 +78,10 @@ public class TokenAuthService {
      * Resolves the Spring Security Authentication object for a given token.
      */
     public Authentication getAuthentication(String token) {
-        if (token == null || token.isBlank()) {
-            return null;
-        }
-
-        TokenSession session = activeSessions.get(token.trim());
+        TokenSession session = resolveOrRestoreSession(token);
         if (session == null) {
             return null;
         }
-
-        Instant now = Instant.now();
-        if (Duration.between(session.getLastAccessedAt(), now).compareTo(TOKEN_EXPIRY) > 0) {
-            activeSessions.remove(token.trim());
-            log.debug("Auth token expired and removed: {}", token);
-            return null;
-        }
-
-        session.setLastAccessedAt(now);
         return new UsernamePasswordAuthenticationToken(session.getEmail(), null, session.getAuthorities());
     }
 
@@ -93,10 +89,7 @@ public class TokenAuthService {
      * Resolves the UserEntity for a given token.
      */
     public UserEntity getUser(String token) {
-        if (token == null || token.isBlank()) {
-            return null;
-        }
-        TokenSession session = activeSessions.get(token.trim());
+        TokenSession session = resolveOrRestoreSession(token);
         if (session == null) {
             return null;
         }
@@ -109,10 +102,7 @@ public class TokenAuthService {
      * Resolves token session metadata if needed.
      */
     public TokenSession getSession(String token) {
-        if (token == null || token.isBlank()) {
-            return null;
-        }
-        return activeSessions.get(token.trim());
+        return resolveOrRestoreSession(token);
     }
 
     /**
@@ -120,8 +110,100 @@ public class TokenAuthService {
      */
     public void invalidateToken(String token) {
         if (token != null && !token.isBlank()) {
-            activeSessions.remove(token.trim());
-            log.debug("Auth token invalidated: {}", token);
+            String trimmed = token.trim();
+            activeSessions.remove(trimmed);
+            revokedTokens.add(trimmed);
+            log.debug("Auth token invalidated: {}", trimmed);
+        }
+    }
+
+    private TokenSession resolveOrRestoreSession(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) {
+            return null;
+        }
+        String token = rawToken.trim();
+        if (revokedTokens.contains(token)) {
+            return null;
+        }
+
+        Instant now = Instant.now();
+        TokenSession session = activeSessions.get(token);
+        if (session != null) {
+            if (Duration.between(session.getLastAccessedAt(), now).compareTo(TOKEN_EXPIRY) > 0) {
+                activeSessions.remove(token);
+                log.debug("Auth token expired and removed: {}", token);
+                return null;
+            }
+            session.setLastAccessedAt(now);
+            return session;
+        }
+
+        // Attempt stateless HMAC verification (allows tabs to survive server restarts without JSESSIONID bleed)
+        if (!token.startsWith("TKN-") || !token.contains(".")) {
+            return null;
+        }
+        try {
+            String body = token.substring(4);
+            int dotIdx = body.indexOf('.');
+            if (dotIdx <= 0) {
+                return null;
+            }
+            String encodedPayload = body.substring(0, dotIdx);
+            String providedSig = body.substring(dotIdx + 1);
+            String expectedSig = signHmac(encodedPayload);
+            if (!java.security.MessageDigest.isEqual(
+                    providedSig.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    expectedSig.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+                return null;
+            }
+
+            String payload = new String(Base64.getUrlDecoder().decode(encodedPayload), java.nio.charset.StandardCharsets.UTF_8);
+            String[] parts = payload.split("\\|");
+            if (parts.length < 3) {
+                return null;
+            }
+            String userId = parts[0];
+            long issuedEpoch = Long.parseLong(parts[2]);
+            Instant issuedAt = Instant.ofEpochSecond(issuedEpoch);
+            if (Duration.between(issuedAt, now).compareTo(TOKEN_EXPIRY) > 0) {
+                return null;
+            }
+
+            UserEntity user = userJpaRepository.findById(userId).orElse(null);
+            if (user == null) {
+                return null;
+            }
+            UserRole role = user.getRole() != null ? user.getRole() : UserRole.TRAVELLER;
+            List<GrantedAuthority> authorities = List.of(
+                    new SimpleGrantedAuthority("ROLE_USER"),
+                    new SimpleGrantedAuthority("ROLE_" + role.name())
+            );
+            TokenSession restored = TokenSession.builder()
+                    .token(token)
+                    .userId(user.getId())
+                    .email(user.getEmail())
+                    .role(role)
+                    .authorities(authorities)
+                    .createdAt(issuedAt)
+                    .lastAccessedAt(now)
+                    .build();
+            activeSessions.put(token, restored);
+            return restored;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String signHmac(String data) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec keySpec = new javax.crypto.spec.SecretKeySpec(
+                    DEFAULT_HMAC_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(keySpec);
+            byte[] raw = mac.doFinal(data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to sign auth token", e);
         }
     }
 
