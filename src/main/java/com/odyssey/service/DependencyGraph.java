@@ -153,11 +153,11 @@ public class DependencyGraph {
             if (hasCancelledPredecessor) {
                 brokenChains.add(currentId);
                 if (current.getType() == BookingType.CAB) {
-                    computedStatus = BookingStatus.CANCELLED;
+                    computedStatus = BookingStatus.AT_RISK;
                     String cabDesc = (current.getProvider() != null && current.getProvider().toLowerCase().contains("airport")) ? "airport cab" : "cab";
-                    computedReason = String.format("Cancelled because preceding transit was cancelled; %s %s (%s) is wasted.",
+                    computedReason = String.format("At risk; preceding transit was cancelled, so %s %s (%s) pickup time needs confirmation.",
                             cabDesc, current.getId(), current.getProvider());
-                    summaryTokens.add(String.format("%s %s is cancelled", cabDesc, current.getId()));
+                    summaryTokens.add(String.format("%s %s is at risk", cabDesc, current.getId()));
                 } else if (current.getType() == BookingType.HOTEL) {
                     computedStatus = BookingStatus.AT_RISK;
                     computedReason = String.format("At risk; hotel check-in %s (%s) cannot be reached as scheduled due to preceding transit cancellation.",

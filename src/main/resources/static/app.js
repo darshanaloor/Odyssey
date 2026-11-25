@@ -2767,16 +2767,17 @@
 
   async function initPlanCabLateArrivalVerification(planData) {
     let cabCard = document.getElementById('plan-cab-verification-card');
-    if (!cabCard && elements.diffTableBody && elements.diffTableBody.parentElement) {
+    if (!cabCard && elements.planContentWrap) {
       cabCard = document.createElement('div');
       cabCard.id = 'plan-cab-verification-card';
-      const anchor = document.getElementById('plan-marketplace-replacement-card') || elements.diffTableBody.parentElement;
-      anchor.parentElement.insertBefore(cabCard, anchor.nextSibling);
+      cabCard.className = 'plan-subsection';
+      elements.planContentWrap.insertBefore(cabCard, elements.checklistContainer ? elements.checklistContainer.parentElement : null);
     }
     if (!cabCard) return;
 
     const repCab = planData && planData.replacementCab ? planData.replacementCab : null;
-    if (!repCab || !state.trip || !state.trip.id) {
+    const oldCab = (state.trip && state.trip.bookings) ? state.trip.bookings.find(b => b.type === 'CAB') : null;
+    if ((!repCab && !oldCab) || !state.trip || !state.trip.id) {
       clearPlanCabTimers();
       cabCard.classList.add('hidden');
       cabCard.innerHTML = '';
@@ -2788,14 +2789,20 @@
     if (!state.recoveryCabVerifications) state.recoveryCabVerifications = {};
 
     const newArrivalTime = planData.newLeg ? planData.newLeg.endTime : null;
-    const cabPickupTime = repCab.startTime;
-    const destCity = repCab.from || (planData.newLeg ? planData.newLeg.to : 'Destination');
-    const dropoff = repCab.to || destCity;
+    let cabPickupTime = repCab ? repCab.startTime : null;
+    if (!cabPickupTime && newArrivalTime) {
+      const dt = new Date(newArrivalTime);
+      dt.setMinutes(dt.getMinutes() + 15);
+      cabPickupTime = dt.toISOString().slice(0, 19);
+    } else if (!cabPickupTime && oldCab) {
+      cabPickupTime = oldCab.startTime;
+    }
+    const destCity = (repCab && repCab.from) || (planData.newLeg && planData.newLeg.to) || (oldCab && oldCab.from) || 'Destination';
+    const dropoff = (repCab && repCab.to) || (oldCab && oldCab.to) || destCity;
     const arrivalText = newArrivalTime ? formatDateTime(newArrivalTime) : formatDateTime(cabPickupTime);
     const pickupText = formatDateTime(cabPickupTime);
     const verificationNote = `Traveller is coming late due to transit disruption. Calculated arrival time: ${arrivalText} | Updated cab pickup: ${pickupText}`;
 
-    const oldCab = (state.trip.bookings || []).find(b => b.type === 'CAB');
     const existingProviderName = oldCab ? oldCab.provider : null;
 
     cabCard.classList.remove('hidden');
@@ -3286,6 +3293,8 @@
       let draftHotelBtn = '';
       if (action.type === 'MESSAGE_HOTEL') {
         draftHotelBtn = `<button type="button" class="btn btn-sm btn-outline btn-tracker-draft-hotel" data-booking-id="${escapeHtml(action.relatedBookingId || '')}" style="color: var(--gold-light); border-color: var(--gold-primary);">Draft hotel message</button>`;
+      } else if (action.type === 'BOOK_CAB') {
+        draftHotelBtn = `<button type="button" class="btn btn-sm btn-outline btn-tracker-verify-cab" style="color: #4f46e5; border-color: #6366f1;">Verify / Select Cab</button>`;
       }
 
       const isRefundAction = action.type === 'REQUEST_REFUND'
@@ -3323,6 +3332,19 @@
         </div>
       `;
     }).join('');
+
+    elements.trackerActionsList.querySelectorAll('.btn-tracker-verify-cab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tripId = state.currentTripId || (state.trip ? state.trip.id : null);
+        if (tripId) {
+          navigateTo(`/trips/${encodeURIComponent(tripId)}/plan`);
+          setTimeout(() => {
+            const cabCard = document.getElementById('plan-cab-verification-card');
+            if (cabCard) cabCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 150);
+        }
+      });
+    });
   }
 
   async function handleRecoveryActionMutation(actionId, verb, note, triggerBtn) {
