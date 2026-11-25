@@ -2070,10 +2070,12 @@ public class MarketplaceService {
         String refundTierApplied = null;
 
         if ("CAB".equalsIgnoreCase(bookingType) || "CAB_OFFERING".equalsIgnoreCase(bookingType)) {
-            // Requirement 6: CAB CANCELLATION — TRAVELLER MUST REQUEST REFUND
+            // Requirement 6: CAB CANCELLATION — MINIMUM 50% REFUND FROM OLD CAB PROVIDER (NEVER 0%)
             booking.setStatus("CANCELLED");
             booking.setPaymentStatus("PAID");
-            refundTierApplied = "Cabs do not auto-refund upon cancellation. Submit a refund request for provider review.";
+            refundAmount = grossFare.multiply(new BigDecimal("0.50")).setScale(2, RoundingMode.HALF_UP);
+            deductionAmount = grossFare.subtract(refundAmount);
+            refundTierApplied = "Old cab provider must repay at least 50% refund (up to 50% provider deduction may apply; never 0% refund).";
         } else if ("HOTEL".equalsIgnoreCase(bookingType)) {
             // Requirement 5: HOTEL CANCELLATION — 0% REFUND ALWAYS
             booking.setStatus("CANCELLED");

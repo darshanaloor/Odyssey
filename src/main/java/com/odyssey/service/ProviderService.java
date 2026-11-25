@@ -2002,6 +2002,12 @@ public class ProviderService {
         if (req.getAmount().compareTo(origCost) > 0) {
             throw new IllegalArgumentException("Refund amount (" + req.getAmount() + ") cannot exceed original booking cost (" + origCost + ")");
         }
+        if ("CAB".equalsIgnoreCase(booking.getType()) && origCost.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal minCabRefund = origCost.multiply(new BigDecimal("0.50")).setScale(2, RoundingMode.HALF_UP);
+            if (req.getAmount().compareTo(minCabRefund) < 0) {
+                throw new IllegalArgumentException("Cancelled cab bookings require at least a 50% refund (minimum ₹" + minCabRefund + "). 0% refund is not permitted.");
+            }
+        }
 
         if (ledgerRepo.existsByBookingIdAndBasis(booking.getId(), LedgerBasis.PROVIDER_REPORTED)) {
             throw new ConflictException("A provider refund has already been recorded for this booking");
@@ -2220,6 +2226,28 @@ public class ProviderService {
         BookingEntity saved = bookingRepo.save(b);
 
         releaseHotelRoomIfApplicable(saved);
+
+        // When old cab is rejected/cancelled by provider, ensure at least 50% expected refund is recorded for traveller
+        if ("CAB".equalsIgnoreCase(saved.getType())
+                && saved.getTrip() != null
+                && saved.getCost() != null
+                && saved.getCost().compareTo(BigDecimal.ZERO) > 0
+                && ledgerRepo != null) {
+            BigDecimal minCabRefund = saved.getCost().multiply(new BigDecimal("0.50")).setScale(2, RoundingMode.HALF_UP);
+            ledgerRepo.save(TripLedgerEntryEntity.builder()
+                    .id(IdGenerator.generate("LED"))
+                    .trip(saved.getTrip())
+                    .bookingId(saved.getId())
+                    .type(LedgerEntryType.REFUND_EXPECTED)
+                    .amount(minCabRefund)
+                    .basis(LedgerBasis.ESTIMATED)
+                    .category("CAB_CANCELLATION_REFUND")
+                    .description("Minimum 50% refund owed by cab provider " + provider.getBusinessName() + " (never 0% refund)")
+                    .refundStatus("EXPECTED")
+                    .receivedOn(LocalDate.now())
+                    .createdAt(LocalDateTime.now())
+                    .build());
+        }
 
         recordAudit(AuditActor.USER, "PROVIDER_REJECTED_BOOKING",
                 String.format("Provider %s rejected booking %s (%s). Reason: %s",

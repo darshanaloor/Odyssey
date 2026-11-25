@@ -580,36 +580,39 @@ public class RecoveryService {
                     .build());
         }
 
-        // Refunds (ONLY for cancelled bookings that exist)
+        // Refunds (ONLY for cancelled bookings that exist — informational; NOT deducted from upfront rebook total)
         if (disruptedBooking != null && disruptedBooking.getCost() != null && disruptedBooking.getCost().compareTo(BigDecimal.ZERO) > 0) {
             String timingNote = resolveTimingNote(disruptedBooking, trip);
             costLines.add(CostBreakdownLine.builder()
-                    .label(String.format("Refund for Cancelled %s (%s)",
+                    .label(String.format("Expected Refund for Cancelled %s (%s)",
                             toTitleCase(disruptedBooking.getType().name()), disruptedBooking.getProvider()))
                     .amount(disruptedBooking.getCost().negate())
                     .isDeduction(true)
-                    .assumptionNote(String.format("Refund Rs %s (assumed full refund, %s-cancelled)",
-                            disruptedBooking.getCost().setScale(0, RoundingMode.HALF_UP).toPlainString(),
-                            disruptedBooking.getType().name().toLowerCase()))
+                    .assumptionNote(String.format("Pending refund Rs %s (takes a few days; NOT deducted from rebook total payable now)",
+                            disruptedBooking.getCost().setScale(0, RoundingMode.HALF_UP).toPlainString()))
                     .timingNote(timingNote)
                     .build());
         }
 
         if (oldCabBooking != null && oldCabDependedOnDisruption && oldCabBooking.getCost() != null && oldCabBooking.getCost().compareTo(BigDecimal.ZERO) > 0) {
             String cabTimingNote = resolveTimingNote(oldCabBooking, trip);
+            BigDecimal minCabRefund = oldCabBooking.getCost().multiply(new BigDecimal("0.50")).setScale(2, RoundingMode.HALF_UP);
             costLines.add(CostBreakdownLine.builder()
-                    .label("Refund for Cancelled Cab (" + oldCabBooking.getProvider() + ")")
-                    .amount(oldCabBooking.getCost().negate())
+                    .label("Expected Refund from Old Cab Provider (" + oldCabBooking.getProvider() + ")")
+                    .amount(minCabRefund.negate())
                     .isDeduction(true)
-                    .assumptionNote(String.format("Refund Rs %s (assumed full refund, prepaid taxi cancellation)",
-                            oldCabBooking.getCost().setScale(0, RoundingMode.HALF_UP).toPlainString()))
+                    .assumptionNote(String.format("Minimum 50%% refund Rs %s guaranteed from old cab provider (up to 50%% deduction may apply; never 0%% refund; processed separately)",
+                            minCabRefund.setScale(0, RoundingMode.HALF_UP).toPlainString()))
                     .timingNote(cabTimingNote)
                     .build());
         }
 
+        // Traveller must pay the full rebooking total upfront since refunds take a few days to process
         BigDecimal netTripCost = BigDecimal.ZERO;
         for (CostBreakdownLine line : costLines) {
-            netTripCost = netTripCost.add(line.getAmount());
+            if (!line.isDeduction()) {
+                netTripCost = netTripCost.add(line.getAmount());
+            }
         }
 
         BigDecimal maxBudget = trip.getConstraints() != null && trip.getConstraints().getMaxBudget() != null

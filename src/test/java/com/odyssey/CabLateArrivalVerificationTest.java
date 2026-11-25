@@ -197,6 +197,20 @@ class CabLateArrivalVerificationTest {
         assertEquals("CANCELLED", rejected.getStatus());
         assertEquals("REJECTED", rejected.getProviderConfirmationStatus());
 
+        // Verify minimum 50% refund rule when old cab provider tries to issue < 50% refund
+        com.odyssey.dto.provider.ProviderRefundRequest lowRefundReq = new com.odyssey.dto.provider.ProviderRefundRequest();
+        lowRefundReq.setBookingId(oldCabVerify.getBookingId());
+        lowRefundReq.setAmount(BigDecimal.valueOf(50)); // < 50% of 350 (175)
+        lowRefundReq.setReason("Trying low refund");
+        assertThrows(IllegalArgumentException.class, () -> providerService.issueProviderRefund(lowRefundReq));
+
+        // 50% refund (175) succeeds
+        com.odyssey.dto.provider.ProviderRefundRequest validRefundReq = new com.odyssey.dto.provider.ProviderRefundRequest();
+        validRefundReq.setBookingId(oldCabVerify.getBookingId());
+        validRefundReq.setAmount(BigDecimal.valueOf(175));
+        validRefundReq.setReason("50% cab cancellation refund after provider deduction");
+        assertEquals(0, BigDecimal.valueOf(175).compareTo(providerService.issueProviderRefund(validRefundReq).getAmount()));
+
         // 4. Traveller selects a new cab and sends verification to the new cab driver
         setAuth(traveller);
         BookingVerificationResponse newCabVerify = marketplaceService.requestBookingVerification(
