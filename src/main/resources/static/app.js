@@ -11438,33 +11438,779 @@
   }
 
   async function handleAdminActionSubmit(e) {
-    e.preventDefault();
-    const submitBtn = document.getElementById('btn-submit-admin-action');
-    setButtonLoading(submitBtn, true);
+      e.preventDefault();
+      const submitBtn = document.getElementById('btn-submit-admin-action');
+      setButtonLoading(submitBtn, true);
 
-    const provId = elements.adminActionProvId.value.trim();
-    const action = elements.adminActionType.value.trim();
-    const reason = elements.adminActionReason.value.trim();
+      const provId = elements.adminActionProvId.value.trim();
+      const action = elements.adminActionType.value.trim();
+      const reason = elements.adminActionReason.value.trim();
 
-    try {
-      const res = await fetch(`/api/admin/providers/${provId}/${action}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || `Failed to ${action} provider`);
+      try {
+        const res = await fetch(`/api/admin/providers/${provId}/${action}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || `Failed to ${action} provider`);
+        }
+
+        closeAdminActionModal();
+        showToast(`Provider marked ${action.toUpperCase()}!`, 'info');
+        await loadAdminProviders(activeAdminFilter);
+      } catch (err) {
+        showToast(err.message, 'danger');
+      } finally {
+        setButtonLoading(submitBtn, false);
+      }
+    }
+
+    // ==========================================
+    // Phase 18B: Provider Hotels, Room Types & Cab Services
+    // ==========================================
+
+    let activeSelectedHotelId = null;
+    let activeSelectedHotelName = '';
+    let activeSelectedRoomType = null;
+    let activeCannotHonourHotelId = null;
+
+    // --- Provider Hotels Logic ---
+
+    async function loadProviderHotels() {
+      if (!elements.provHotelsTbody) return;
+      try {
+        const res = await fetch('/api/provider/hotels');
+        if (!res.ok) {
+          if (res.status === 404) return;
+          throw new Error(`Failed to load hotels (HTTP ${res.status})`);
+        }
+        const data = await res.json();
+        const hotels = (data && data.success && data.data) ? data.data : [];
+        if (elements.provHotelsCount) elements.provHotelsCount.textContent = hotels.length;
+        renderProviderHotels(hotels);
+      } catch (err) {
+        console.warn('Error loading provider hotels:', err);
+        if (elements.provHotelsTbody) {
+          elements.provHotelsTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #f87171;">Unable to load hotel listings: ${escapeHtml(err.message)}</td></tr>`;
+        }
+      }
+    }
+
+    function renderProviderHotels(hotels) {
+      if (!elements.provHotelsTbody) return;
+      if (hotels.length === 0) {
+        elements.provHotelsTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hotels registered. Click "+ Add Hotel" to create a hotel listing.</td></tr>';
+        return;
       }
 
-      closeAdminActionModal();
-      showToast(`Provider marked ${action.toUpperCase()}!`, 'info');
-      await loadAdminProviders(activeAdminFilter);
-    } catch (err) {
-      showToast(err.message, 'danger');
-    } finally {
-      setButtonLoading(submitBtn, false);
-    }
-  }
+      elements.provHotelsTbody.innerHTML = hotels.map(h => {
+        const badgeClass = h.active ? 'badge-green' : 'badge-neutral';
+        const statusText = h.active ? 'ACTIVE' : 'INACTIVE';
+        const checkInOut = `${escapeHtml(h.checkInTime || '14:00')} / ${escapeHtml(h.checkOutTime || '11:00')}`;
 
-...[truncated for diff preview]
+        return `
+          <tr>
+            <td><strong style="color: #f8fafc;">${escapeHtml(h.name)}</strong></td>
+            <td>${escapeHtml(h.city)}<br><small style="color: #94a3b8;">${escapeHtml(h.address)}</small></td>
+            <td>${checkInOut}</td>
+            <td><span class="mono-tag" style="font-size: 0.75rem;">${escapeHtml(h.contactEmail || '-')}</span></td>
+            <td><span class="badge badge-purple">${h.roomTypesCount || 0} room type(s)</span></td>
+            <td><span class="badge ${badgeClass}">${statusText}</span></td>
+            <td>
+              <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-rooms" data-id="${escapeHtml(h.id)}" data-name="${escapeHtml(h.name)}" style="color: #38bdf8;">Rooms</button>
+                <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-manifest" data-id="${escapeHtml(h.id)}" data-name="${escapeHtml(h.name)}" style="color: #fde047;">Bookings</button>
+                <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-toggle" data-id="${escapeHtml(h.id)}" data-active="${h.active}">
+                  ${h.active ? 'Deactivate' : 'Activate'}
+                </button>
+                <button type="button" class="btn btn-outline btn-sm btn-prov-hotel-delete" data-id="${escapeHtml(h.id)}" style="color: #f87171;">&times;</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // Bind hotel row actions
+      elements.provHotelsTbody.querySelectorAll('.btn-prov-hotel-rooms').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          const name = btn.getAttribute('data-name');
+          loadProviderHotelRooms(id, name);
+        });
+      });
+
+      elements.provHotelsTbody.querySelectorAll('.btn-prov-hotel-manifest').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          const name = btn.getAttribute('data-name');
+          openHotelBookingsManifest(id, name);
+        });
+      });
+
+      elements.provHotelsTbody.querySelectorAll('.btn-prov-hotel-toggle').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          const curActive = btn.getAttribute('data-active') === 'true';
+          try {
+            const res = await fetch(`/api/provider/hotels/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ active: !curActive })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message || 'Update failed');
+            showToast(`Hotel ${!curActive ? 'activated' : 'deactivated'}`, 'info');
+            await loadProviderHotels();
+          } catch (err) {
+            showToast(err.message, 'danger');
+          }
+        });
+      });
+
+      elements.provHotelsTbody.querySelectorAll('.btn-prov-hotel-delete').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          if (!confirm('Are you sure you want to delete this hotel? Note: Hotels with active bookings cannot be deleted.')) return;
+          try {
+            const res = await fetch(`/api/provider/hotels/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message || 'Deletion failed');
+            showToast('Hotel deleted successfully', 'success');
+            if (activeSelectedHotelId === id && elements.provHotelRoomsSection) {
+              elements.provHotelRoomsSection.classList.add('hidden');
+              activeSelectedHotelId = null;
+            }
+            await loadProviderHotels();
+          } catch (err) {
+            showToast(err.message, 'danger');
+          }
+        });
+      });
+    }
+
+    function openAddHotelModal() {
+      const form = elements.formProvHotel;
+      if (!form) return;
+      form.reset();
+      document.getElementById('prov-hotel-id').value = '';
+      document.getElementById('prov-hotel-checkin').value = '14:00';
+      document.getElementById('prov-hotel-checkout').value = '11:00';
+      if (elements.modalProvHotel) {
+        elements.modalProvHotel.classList.remove('hidden');
+        elements.modalProvHotel.classList.add('is-open');
+      }
+    }
+
+    function closeHotelModal() {
+      if (elements.modalProvHotel) {
+        elements.modalProvHotel.classList.add('hidden');
+        elements.modalProvHotel.classList.remove('is-open');
+      }
+    }
+
+    async function handleSaveHotelSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit-prov-hotel');
+      setButtonLoading(btn, true);
+
+      const id = document.getElementById('prov-hotel-id').value.trim();
+      const payload = {
+        name: document.getElementById('prov-hotel-name').value.trim(),
+        city: document.getElementById('prov-hotel-city').value.trim(),
+        address: document.getElementById('prov-hotel-address').value.trim(),
+        description: document.getElementById('prov-hotel-desc').value.trim(),
+        contactEmail: document.getElementById('prov-hotel-email').value.trim(),
+        checkInTime: document.getElementById('prov-hotel-checkin').value.trim() || '14:00',
+        checkOutTime: document.getElementById('prov-hotel-checkout').value.trim() || '11:00'
+      };
+
+      try {
+        const url = id ? `/api/provider/hotels/${id}` : '/api/provider/hotels';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Failed to save hotel');
+
+        closeHotelModal();
+        showToast('Hotel property saved successfully!', 'success');
+        await loadProviderHotels();
+      } catch (err) {
+        showToast(err.message, 'danger');
+      } finally {
+        setButtonLoading(btn, false);
+      }
+    }
+
+    // --- Provider Hotel Room Types Logic ---
+
+    async function loadProviderHotelRooms(hotelId, hotelName) {
+      activeSelectedHotelId = hotelId;
+      activeSelectedHotelName = hotelName;
+
+      if (elements.provHotelRoomsSection) elements.provHotelRoomsSection.classList.remove('hidden');
+      if (elements.provSelectedHotelTitle) {
+        elements.provSelectedHotelTitle.textContent = `Room Types for: ${hotelName}`;
+      }
+      if (elements.provRoomTypesTbody) {
+        elements.provRoomTypesTbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading room types...</td></tr>';
+      }
+
+      try {
+        const res = await fetch(`/api/provider/hotels/${hotelId}/rooms`);
+        if (!res.ok) throw new Error(`Failed to load room types (HTTP ${res.status})`);
+        const data = await res.json();
+        const rooms = (data && data.success && data.data) ? data.data : [];
+        renderProviderRoomTypes(rooms, hotelId);
+      } catch (err) {
+        if (elements.provRoomTypesTbody) {
+          elements.provRoomTypesTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #f87171;">${escapeHtml(err.message)}</td></tr>`;
+        }
+      }
+    }
+
+    function renderProviderRoomTypes(rooms, hotelId) {
+      if (!elements.provRoomTypesTbody) return;
+      if (rooms.length === 0) {
+        elements.provRoomTypesTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No room types configured. Click "+ Add Room Type" to create one.</td></tr>';
+        return;
+      }
+
+      elements.provRoomTypesTbody.innerHTML = rooms.map(r => {
+        const badgeClass = r.active ? 'badge-green' : 'badge-neutral';
+        const statusText = r.active ? 'ACTIVE' : 'INACTIVE';
+        const amenities = r.amenities ? escapeHtml(r.amenities) : '-';
+
+        return `
+          <tr>
+            <td><strong style="color: #f8fafc;">${escapeHtml(r.name)}</strong></td>
+            <td>${r.maxGuests} guests</td>
+            <td><strong style="color: #4ade80;">&#8377;${Number(r.pricePerNight).toLocaleString('en-IN')}</strong></td>
+            <td>${r.roomsTotal} rooms</td>
+            <td><small style="color: #94a3b8;">${amenities}</small></td>
+            <td><span class="badge ${badgeClass}">${statusText}</span></td>
+            <td>
+              <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                <button type="button" class="btn btn-outline btn-sm btn-prov-room-avail" data-room-id="${escapeHtml(r.id)}" data-room-name="${escapeHtml(r.name)}" data-rooms-total="${r.roomsTotal}" style="color: #38bdf8;">14-Day Calendar</button>
+                <button type="button" class="btn btn-outline btn-sm btn-prov-room-edit" data-room-id="${escapeHtml(r.id)}">Edit</button>
+                <button type="button" class="btn btn-outline btn-sm btn-prov-room-toggle" data-room-id="${escapeHtml(r.id)}" data-active="${r.active}">
+                  ${r.active ? 'Deactivate' : 'Activate'}
+                </button>
+                <button type="button" class="btn btn-outline btn-sm btn-prov-room-delete" data-room-id="${escapeHtml(r.id)}" style="color: #f87171;">&times;</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // Bind room actions
+      elements.provRoomTypesTbody.querySelectorAll('.btn-prov-room-avail').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const roomId = btn.getAttribute('data-room-id');
+          const roomName = btn.getAttribute('data-room-name');
+          const total = parseInt(btn.getAttribute('data-rooms-total'), 10) || 1;
+          openRoomAvailabilityModal(hotelId, { id: roomId, name: roomName, roomsTotal: total });
+        });
+      });
+
+      elements.provRoomTypesTbody.querySelectorAll('.btn-prov-room-edit').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const roomId = btn.getAttribute('data-room-id');
+          const r = rooms.find(item => item.id === roomId);
+          if (r) openEditRoomTypeModal(hotelId, r);
+        });
+      });
+
+      elements.provRoomTypesTbody.querySelectorAll('.btn-prov-room-toggle').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const roomId = btn.getAttribute('data-room-id');
+          const curActive = btn.getAttribute('data-active') === 'true';
+          try {
+            const res = await fetch(`/api/provider/hotels/${hotelId}/rooms/${roomId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ active: !curActive })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message || 'Update failed');
+            showToast(`Room type ${!curActive ? 'activated' : 'deactivated'}`, 'info');
+            await loadProviderHotelRooms(hotelId, activeSelectedHotelName);
+          } catch (err) {
+            showToast(err.message, 'danger');
+          }
+        });
+      });
+
+      elements.provRoomTypesTbody.querySelectorAll('.btn-prov-room-delete').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const roomId = btn.getAttribute('data-room-id');
+          if (!confirm('Are you sure you want to delete this room type? Note: Room types with active future bookings cannot be deleted.')) return;
+          try {
+            const res = await fetch(`/api/provider/hotels/${hotelId}/rooms/${roomId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message || 'Deletion failed');
+            showToast('Room type deleted successfully', 'success');
+            await loadProviderHotelRooms(hotelId, activeSelectedHotelName);
+            await loadProviderHotels();
+          } catch (err) {
+            showToast(err.message, 'danger');
+          }
+        });
+      });
+    }
+
+    function openAddRoomTypeModal(hotelId) {
+      if (!hotelId) {
+        showToast('Please select a hotel first.', 'warning');
+        return;
+      }
+      const form = elements.formProvRoomType;
+      if (!form) return;
+      form.reset();
+      document.getElementById('prov-room-hotel-id').value = hotelId;
+      document.getElementById('prov-room-type-id').value = '';
+      document.getElementById('prov-room-max-guests').value = '2';
+      document.getElementById('prov-room-total').value = '10';
+      if (elements.modalProvRoomType) {
+        elements.modalProvRoomType.classList.remove('hidden');
+        elements.modalProvRoomType.classList.add('is-open');
+      }
+    }
+
+    function openEditRoomTypeModal(hotelId, room) {
+      document.getElementById('prov-room-hotel-id').value = hotelId;
+      document.getElementById('prov-room-type-id').value = room.id;
+      document.getElementById('prov-room-name').value = room.name || '';
+      document.getElementById('prov-room-price').value = room.pricePerNight || '';
+      document.getElementById('prov-room-total').value = room.roomsTotal || '';
+      document.getElementById('prov-room-max-guests').value = room.maxGuests || 2;
+      document.getElementById('prov-room-amenities').value = room.amenities || '';
+      if (elements.modalProvRoomType) {
+        elements.modalProvRoomType.classList.remove('hidden');
+        elements.modalProvRoomType.classList.add('is-open');
+      }
+    }
+
+    function closeRoomTypeModal() {
+      if (elements.modalProvRoomType) {
+        elements.modalProvRoomType.classList.add('hidden');
+        elements.modalProvRoomType.classList.remove('is-open');
+      }
+    }
+
+    async function handleSaveRoomTypeSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit-prov-room');
+      setButtonLoading(btn, true);
+
+      const hotelId = document.getElementById('prov-room-hotel-id').value.trim();
+      const roomId = document.getElementById('prov-room-type-id').value.trim();
+      const payload = {
+        name: document.getElementById('prov-room-name').value.trim(),
+        pricePerNight: parseFloat(document.getElementById('prov-room-price').value),
+        roomsTotal: parseInt(document.getElementById('prov-room-total').value, 10),
+        maxGuests: parseInt(document.getElementById('prov-room-max-guests').value, 10),
+        amenities: document.getElementById('prov-room-amenities').value.trim()
+      };
+
+      try {
+        const url = roomId ? `/api/provider/hotels/${hotelId}/rooms/${roomId}` : `/api/provider/hotels/${hotelId}/rooms`;
+        const method = roomId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Failed to save room type');
+
+        closeRoomTypeModal();
+        showToast('Room type saved successfully and 14-day availability materialised!', 'success');
+        await loadProviderHotelRooms(hotelId, activeSelectedHotelName);
+        await loadProviderHotels();
+      } catch (err) {
+        showToast(err.message, 'danger');
+      } finally {
+        setButtonLoading(btn, false);
+      }
+    }
+
+    // --- Provider Date Availability Calendar Logic ---
+
+    async function openRoomAvailabilityModal(hotelId, roomType) {
+      activeSelectedRoomType = roomType;
+      if (elements.provAvailRoomSummary) {
+        elements.provAvailRoomSummary.innerHTML = `Managing 14-day availability for: <strong>${escapeHtml(roomType.name)}</strong> (${roomType.roomsTotal} total rooms). You may close specific dates to prevent bookings.`;
+      }
+      if (elements.modalProvAvailability) {
+        elements.modalProvAvailability.classList.remove('hidden');
+        elements.modalProvAvailability.classList.add('is-open');
+      }
+      await loadRoomAvailability(hotelId, roomType.id);
+    }
+
+    function closeRoomAvailabilityModal() {
+      if (elements.modalProvAvailability) {
+        elements.modalProvAvailability.classList.add('hidden');
+        elements.modalProvAvailability.classList.remove('is-open');
+      }
+      activeSelectedRoomType = null;
+    }
+
+    async function loadRoomAvailability(hotelId, roomTypeId) {
+      if (!elements.provAvailTbody) return;
+      elements.provAvailTbody.innerHTML = '<tr><td colspan="6" class="empty-state">Loading date availability...</td></tr>';
+      try {
+        const res = await fetch(`/api/provider/hotels/${hotelId}/rooms/${roomTypeId}/availability`);
+        if (!res.ok) throw new Error(`Failed to load availability (HTTP ${res.status})`);
+        const data = await res.json();
+        const list = (data && data.success && data.data) ? data.data : [];
+        renderRoomAvailability(list, hotelId, roomTypeId);
+      } catch (err) {
+        elements.provAvailTbody.innerHTML = `<tr><td colspan="6" class="empty-state" style="color: #f87171;">${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function renderRoomAvailability(availList, hotelId, roomTypeId) {
+      if (!elements.provAvailTbody) return;
+      if (availList.length === 0) {
+        elements.provAvailTbody.innerHTML = '<tr><td colspan="6" class="empty-state">No availability records materialized.</td></tr>';
+        return;
+      }
+
+      elements.provAvailTbody.innerHTML = availList.map(a => {
+        const available = Math.max(0, (a.roomsTotal || 0) - (a.roomsBooked || 0));
+        const isClosed = Boolean(a.isClosed);
+        const statusBadge = isClosed ? '<span class="badge badge-danger">CLOSED</span>' : '<span class="badge badge-green">OPEN</span>';
+        const actionText = isClosed ? 'Reopen Date' : 'Close Date';
+        const actionColor = isClosed ? '#4ade80' : '#f87171';
+
+        return `
+          <tr>
+            <td><strong style="color: #f8fafc;">${a.stayDate}</strong></td>
+            <td>${a.roomsTotal}</td>
+            <td><span class="badge ${a.roomsBooked > 0 ? 'badge-amber' : 'badge-neutral'}">${a.roomsBooked} booked</span></td>
+            <td><strong style="color: ${left > 0 ? '#38bdf8' : '#f87171'};">${left} available</strong></td>
+            <td>${statusBadge}</td>
+            <td>
+              <button type="button" class="btn btn-outline btn-sm btn-prov-toggle-date" data-date="${a.stayDate}" data-closed="${isClosed}" style="color: ${actionColor};">
+                ${actionText}
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      elements.provAvailTbody.querySelectorAll('.btn-prov-toggle-date').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const stayDate = btn.getAttribute('data-date');
+          const isClosed = btn.getAttribute('data-closed') === 'true';
+          try {
+            const res = await fetch(`/api/provider/hotels/${hotelId}/rooms/${roomTypeId}/availability`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ stayDate, isClosed: !isClosed })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message || 'Availability update failed');
+            showToast(`Stay date ${stayDate} is now ${!isClosed ? 'CLOSED' : 'OPEN'}`, 'info');
+            await loadRoomAvailability(hotelId, roomTypeId);
+          } catch (err) {
+            showToast(err.message, 'danger');
+          }
+        });
+      });
+    }
+
+    // --- Provider Cab Services Logic ---
+
+    async function loadProviderCabs() {
+      if (!elements.provCabsTbody) return;
+      try {
+        const res = await fetch('/api/provider/cabs');
+        if (!res.ok) {
+          if (res.status === 404) return;
+          throw new Error(`Failed to load cab services (HTTP ${res.status})`);
+        }
+        const data = await res.json();
+        const cabs = (data && data.success && data.data) ? data.data : [];
+        if (elements.provCabsCount) elements.provCabsCount.textContent = cabs.length;
+        renderProviderCabs(cabs);
+      } catch (err) {
+        console.warn('Error loading provider cabs:', err);
+        if (elements.provCabsTbody) {
+          elements.provCabsTbody.innerHTML = `<tr><td colspan="9" class="empty-state" style="color: #f87171;">Unable to load cab services: ${escapeHtml(err.message)}</td></tr>`;
+        }
+      }
+    }
+
+    function renderProviderCabs(cabs) {
+      if (!elements.provCabsTbody) return;
+      if (cabs.length === 0) {
+        elements.provCabsTbody.innerHTML = '<tr><td colspan="9" class="empty-state">No cab services registered. Click "+ Add Cab Service" to create one.</td></tr>';
+        return;
+      }
+
+      elements.provCabsTbody.innerHTML = cabs.map(c => {
+        const badgeClass = c.active ? 'badge-green' : 'badge-neutral';
+        const statusText = c.active ? 'ACTIVE' : 'INACTIVE';
+        const vehNum = c.vehicleNumber ? escapeHtml(c.vehicleNumber) : '-';
+
+        return `
+          <tr>
+            <td><strong style="color: #f8fafc;">${escapeHtml(c.city)}</strong></td>
+            <td><span class="badge badge-gold">${escapeHtml(c.vehicleCategory)}</span></td>
+            <td><span class="mono-tag" style="font-size: 0.75rem;">${vehNum}</span></td>
+            <td>&#8377;${c.baseFare}</td>
+            <td>&#8377;${c.perKmRate} / km</td>
+            <td>${c.seats} seats</td>
+            <td>${escapeHtml(c.operatingHours || '-')}</td>
+            <td><span class="badge ${badgeClass}">${statusText}</span></td>
+            <td>
+              <div style="display: flex; gap: 0.35rem;">
+                <button type="button" class="btn btn-outline btn-sm btn-prov-cab-toggle" data-id="${escapeHtml(c.id)}" data-active="${c.active}">
+                  ${c.active ? 'Deactivate' : 'Activate'}
+                </button>
+                <button type="button" class="btn btn-outline btn-sm btn-prov-cab-delete" data-id="${escapeHtml(c.id)}" style="color: #f87171;">&times;</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      elements.provCabsTbody.querySelectorAll('.btn-prov-cab-toggle').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          const curActive = btn.getAttribute('data-active') === 'true';
+          try {
+            const res = await fetch(`/api/provider/cabs/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ active: !curActive })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message || 'Update failed');
+            showToast(`Cab service ${!curActive ? 'activated' : 'deactivated'}`, 'info');
+            await loadProviderCabs();
+          } catch (err) {
+            showToast(err.message, 'danger');
+          }
+        });
+      });
+
+      elements.provCabsTbody.querySelectorAll('.btn-prov-cab-delete').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          if (!confirm('Are you sure you want to delete this cab service?')) return;
+          try {
+            const res = await fetch(`/api/provider/cabs/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message || 'Deletion failed');
+            showToast('Cab service deleted successfully', 'success');
+            await loadProviderCabs();
+          } catch (err) {
+            showToast(err.message, 'danger');
+          }
+        });
+      });
+    }
+
+    function openAddCabModal() {
+      const form = elements.formProvCab;
+      if (!form) return;
+      form.reset();
+      document.getElementById('prov-cab-id').value = '';
+      document.getElementById('prov-cab-base-fare').value = '100';
+      document.getElementById('prov-cab-per-km').value = '15';
+      document.getElementById('prov-cab-seats').value = '4';
+      document.getElementById('prov-cab-hours').value = '06:00 - 23:00';
+      if (elements.modalProvCab) {
+        elements.modalProvCab.classList.remove('hidden');
+        elements.modalProvCab.classList.add('is-open');
+      }
+    }
+
+    function closeCabModal() {
+      if (elements.modalProvCab) {
+        elements.modalProvCab.classList.add('hidden');
+        elements.modalProvCab.classList.remove('is-open');
+      }
+    }
+
+    async function handleSaveCabSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit-prov-cab');
+      setButtonLoading(btn, true);
+
+      const id = document.getElementById('prov-cab-id').value.trim();
+      const payload = {
+        city: document.getElementById('prov-cab-city').value.trim(),
+        vehicleCategory: document.getElementById('prov-cab-category').value,
+        baseFare: parseFloat(document.getElementById('prov-cab-base-fare').value),
+        perKmRate: parseFloat(document.getElementById('prov-cab-per-km').value),
+        seats: parseInt(document.getElementById('prov-cab-seats').value, 10),
+        operatingHours: document.getElementById('prov-cab-hours').value.trim(),
+        vehicleNumber: document.getElementById('prov-cab-vehicle-num').value.trim() || null
+      };
+
+      try {
+        const url = id ? `/api/provider/cabs/${id}` : '/api/provider/cabs';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Failed to save cab service');
+
+        closeCabModal();
+        showToast('Cab service registered successfully!', 'success');
+        await loadProviderCabs();
+      } catch (err) {
+        showToast(err.message, 'danger');
+      } finally {
+        setButtonLoading(btn, false);
+      }
+    }
+
+    // --- Provider Hotel Bookings Manifest & Cannot Honour Logic ---
+
+    async function openHotelBookingsManifest(hotelId, hotelName) {
+      if (elements.provHotelBookingsTbody) {
+        elements.provHotelBookingsTbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading hotel bookings manifest...</td></tr>';
+      }
+      if (elements.modalProvHotelBookings) {
+        elements.modalProvHotelBookings.classList.remove('hidden');
+        elements.modalProvHotelBookings.classList.add('is-open');
+      }
+
+      try {
+        const res = await fetch(`/api/provider/hotels/${hotelId}/bookings`);
+        if (!res.ok) throw new Error(`Failed to load manifest (HTTP ${res.status})`);
+        const data = await res.json();
+        const bookings = (data && data.success && data.data) ? data.data : [];
+        renderHotelBookingsManifest(bookings, hotelId);
+      } catch (err) {
+        if (elements.provHotelBookingsTbody) {
+          elements.provHotelBookingsTbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color: #f87171;">${escapeHtml(err.message)}</td></tr>`;
+        }
+      }
+    }
+
+    function renderHotelBookingsManifest(bookings, hotelId) {
+      if (!elements.provHotelBookingsTbody) return;
+      if (bookings.length === 0) {
+        elements.provHotelBookingsTbody.innerHTML = '<tr><td colspan="7" class="empty-state">No confirmed bookings for this hotel yet.</td></tr>';
+        return;
+      }
+
+      elements.provHotelBookingsTbody.innerHTML = bookings.map(b => {
+        const stayDates = `${b.checkInDate || '-'} &rarr; ${b.checkOutDate || '-'}`;
+        const isCannotHonour = Boolean(b.cannotHonour);
+
+        let actionHtml = '';
+        if (isCannotHonour) {
+          actionHtml = `<span class="badge badge-warning" title="${escapeHtml(b.cannotHonourReason || '')}">Reported Cannot Honour</span>`;
+        } else {
+          actionHtml = `<button type="button" class="btn btn-outline btn-sm btn-prov-mark-honour" data-bkg-id="${escapeHtml(b.bookingId)}" style="color: #f87171;">Cannot Honour</button>`;
+        }
+
+        return `
+          <tr>
+            <td><span class="mono-tag">${escapeHtml(b.bookingReference || '-')}</span></td>
+            <td><strong>${escapeHtml(b.guestName || 'Guest')}</strong></td>
+            <td>${escapeHtml(b.roomTypeName || 'Standard Room')}</td>
+            <td>${stayDates}</td>
+            <td>${b.rooms} room(s)</td>
+            <td><span class="badge ${getStatusBadgeClass(b.status)}">${escapeHtml(formatStatus(b.status))}</span></td>
+            <td>${actionHtml}</td>
+          </tr>
+        `;
+      }).join('');
+
+      elements.provHotelBookingsTbody.querySelectorAll('.btn-prov-mark-honour').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const bkgId = btn.getAttribute('data-bkg-id');
+          openCannotHonourModal(bkgId, hotelId);
+        });
+      });
+    }
+
+    function closeHotelBookingsModal() {
+      if (elements.modalProvHotelBookings) {
+        elements.modalProvHotelBookings.classList.add('hidden');
+        elements.modalProvHotelBookings.classList.remove('is-open');
+      }
+    }
+
+    function openCannotHonourModal(bookingId, hotelId) {
+      activeCannotHonourHotelId = hotelId;
+      document.getElementById('prov-cannot-honour-bkg-id').value = bookingId;
+      document.getElementById('prov-cannot-honour-reason').value = '';
+      if (elements.modalProvCannotHonour) {
+        elements.modalProvCannotHonour.classList.remove('hidden');
+        elements.modalProvCannotHonour.classList.add('is-open');
+      }
+    }
+
+    function closeCannotHonourModal() {
+      if (elements.modalProvCannotHonour) {
+        elements.modalProvCannotHonour.classList.add('hidden');
+        elements.modalProvCannotHonour.classList.remove('is-open');
+      }
+    }
+
+    async function handleCannotHonourSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit-prov-honour');
+      setButtonLoading(btn, true);
+
+      const bkgId = document.getElementById('prov-cannot-honour-bkg-id').value.trim();
+      const reason = document.getElementById('prov-cannot-honour-reason').value.trim();
+
+      try {
+        const res = await fetch(`/api/provider/bookings/${bkgId}/cannot-honour`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Action failed');
+
+        closeCannotHonourModal();
+        showToast('Report submitted! Booking flagged as Cannot Honour and disruption alert created for traveller.', 'warning');
+        if (activeCannotHonourHotelId) {
+          await openHotelBookingsManifest(activeCannotHonourHotelId, activeSelectedHotelName);
+        }
+      } catch (err) {
+        showToast(err.message, 'danger');
+      } finally {
+        setButtonLoading(btn, false);
+      }
+    }
+
+    // ==========================================
+    // Initialization
+    // ==========================================
+
+    function init() {
+      initEventListeners();
+      setupMarketplaceEventListeners();
+      setupProviderEventListeners();
+      initMarketplaceDates();
+      fetchCsrfToken();
+      checkCurrentUser();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  }) ();
