@@ -24,8 +24,8 @@
 
   /* Text Colors */
   --text-main: #0f172a;
-  --text-muted: #475569;
-  --text-dim: #64748b;
+  --text-muted: #334155;
+  --text-dim: #475569;
   --text-gold: #4f46e5;
   --text-color: #0f172a;
 
@@ -44,7 +44,7 @@
   /* Borders & Shadows */
   --border-subtle: #e2e8f0;
   --border-focus: #6366f1;
-  --border-color: #e2e8f0;
+  --border-color: #1e293b;
   --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
   --shadow-glow: 0 4px 14px rgba(79, 70, 229, 0.15);
 
@@ -652,7 +652,7 @@ body {
 
 .sms-channel {
   font-weight: 700;
-  color: #38bdf8;
+  color: #0284c7;
   text-transform: uppercase;
 }
 
@@ -728,7 +728,7 @@ body {
 .cascade-times {
   font-family: var(--font-mono);
   font-size: 0.82rem;
-  color: #cbd5e1;
+  color: #1e293b;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -757,7 +757,7 @@ body {
 
 .cascade-times .time-value {
   font-weight: 600;
-  color: #e2e8f0;
+  color: #1e293b;
 }
 
 /* Recovery Options Grid */
@@ -884,7 +884,7 @@ body {
 
 .option-explanation {
   font-size: 0.88rem;
-  color: #cbd5e1;
+  color: #1e293b;
   background: rgba(0, 0, 0, 0.25);
   padding: 10px;
   border-radius: 4px;
@@ -974,7 +974,7 @@ body {
 }
 
 .rejected-reason {
-  color: #94a3b8;
+  color: #475569;
   font-style: italic;
 }
 
@@ -1172,7 +1172,7 @@ body {
 .code-box {
   font-family: var(--font-mono);
   font-size: 0.86rem;
-  color: #e2e8f0;
+  color: #1e293b;
   white-space: pre-wrap;
   line-height: 1.5;
 }
@@ -1217,7 +1217,7 @@ body {
   font-weight: bold;
 }
 
-.actor-system { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+.actor-system { background: rgba(148, 163, 184, 0.2); color: #1e293b; }
 .actor-agent { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; }
 .actor-user { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
 
@@ -1688,7 +1688,7 @@ body {
 
 .form-error button,
 .form-error a {
-  color: var(--gold-light, #fde047);
+  color: #4f46e5;
   font-weight: 600;
   text-decoration: underline;
   background: none;
@@ -2351,7 +2351,7 @@ body {
 
 .btn-outline-cyan {
   background: transparent;
-  color: #38bdf8;
+  color: #0284c7;
   border: 1px solid rgba(56, 189, 248, 0.45);
   padding: 6px 14px;
   border-radius: 4px;
@@ -2366,7 +2366,7 @@ body {
 
 .btn-outline-cyan:hover:not(:disabled) {
   background: rgba(56, 189, 248, 0.15);
-  border-color: #38bdf8;
+  border-color: #0284c7;
   color: #bae6fd;
 }
 
@@ -2378,7 +2378,7 @@ body {
 
 .badge-cyan {
   background: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
+  color: #0284c7;
   border: 1px solid rgba(56, 189, 248, 0.4);
 }
 
@@ -2563,7 +2563,7 @@ body {
 }
 
 .channel-status-pill .channel-name {
-  color: #94a3b8;
+  color: #475569;
   font-weight: 500;
 }
 
@@ -2583,7 +2583,7 @@ body {
   display: block;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: #1e293b;
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -2600,7 +2600,7 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 0.9rem;
-  color: #cbd5e1;
+  color: #1e293b;
   cursor: pointer;
 }
 
@@ -2625,7 +2625,7 @@ body {
 .status-chip.chip-sent {
   background: rgba(34, 197, 94, 0.15);
   border: 1px solid rgba(34, 197, 94, 0.4);
-  color: #4ade80;
+  color: #059669;
 }
 
 .status-chip.chip-simulated {
@@ -2643,7 +2643,7 @@ body {
 .status-chip.chip-skipped {
   background: rgba(148, 163, 184, 0.15);
   border: 1px solid rgba(148, 163, 184, 0.4);
-  color: #94a3b8;
+  color: #475569;
 }
 
 /* Phase 9: User Pill & Auth Header */
@@ -2717,7 +2717,7 @@ body {
   gap: 0.75rem;
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--text-main, #f8fafc);
+  color: #0f172a;
 }
 
 .handoff-route .arrow {
@@ -2729,7 +2729,7 @@ body {
   flex-wrap: wrap;
   gap: 1rem;
   font-size: 0.875rem;
-  color: #94a3b8;
+  color: #475569;
 }
 
 .handoff-details span {
@@ -2740,7 +2740,7 @@ body {
 
 .handoff-note {
   font-size: 0.8rem;
-  color: #cbd5e1;
+  color: #1e293b;
   background: rgba(99, 102, 241, 0.08);
   border-left: 3px solid var(--gold-primary, #4f46e5);
   padding: 0.5rem 0.75rem;
@@ -2796,7 +2796,7 @@ body {
   font-family: var(--font-mono, monospace);
   font-size: 0.75rem;
   background: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
+  color: #059669;
   border: 1px solid rgba(34, 197, 94, 0.4);
   padding: 2px 6px;
   border-radius: 4px;
@@ -2815,7 +2815,7 @@ body {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(180, 83, 9, 0.2));
   border: 1px solid var(--gold-primary, #4f46e5);
   box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
-  color: #fde047;
+  color: #b45309;
   padding: 0.85rem 1.25rem;
   border-radius: 8px;
   font-weight: 700;
@@ -2847,7 +2847,7 @@ body {
 .market-subtab {
   background: transparent;
   border: 1px solid transparent;
-  color: #94a3b8;
+  color: #475569;
   padding: 0.5rem 1rem;
   border-radius: 6px;
   font-weight: 600;
@@ -2934,7 +2934,7 @@ body {
 .service-operator-name {
   font-weight: 700;
   font-size: 1.05rem;
-  color: var(--text-main, #f8fafc);
+  color: #0f172a;
 }
 
 .service-vehicle-number {
@@ -2975,12 +2975,12 @@ body {
 .timing-city {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: #1e293b;
 }
 
 .timing-stop {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: #475569;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2996,7 +2996,7 @@ body {
 
 .duration-chip {
   font-size: 0.75rem;
-  color: #cbd5e1;
+  color: #1e293b;
   background: rgba(255, 255, 255, 0.08);
   padding: 2px 8px;
   border-radius: 12px;
@@ -3031,7 +3031,7 @@ body {
 .service-price {
   font-size: 1.4rem;
   font-weight: 800;
-  color: #4ade80;
+  color: #059669;
 }
 
 /* Visual Seat Layout */
@@ -3049,7 +3049,7 @@ body {
   gap: 1.5rem;
   margin-bottom: 1rem;
   font-size: 0.8rem;
-  color: #94a3b8;
+  color: #475569;
 }
 
 .legend-item {
@@ -3068,12 +3068,12 @@ body {
 .seat-sample.seat-available, .seat-btn {
   background: rgba(30, 41, 59, 0.9);
   border: 1px solid #475569;
-  color: #e2e8f0;
+  color: #1e293b;
 }
 
 .seat-sample.seat-selected, .seat-btn.seat-selected {
   background: #22c55e;
-  border-color: #4ade80;
+  border-color: #059669;
   color: #052e16;
   font-weight: 700;
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
@@ -3188,7 +3188,7 @@ body {
   font-family: var(--font-mono, monospace);
   font-size: 2rem;
   font-weight: 800;
-  color: #4ade80;
+  color: #059669;
   letter-spacing: 2px;
   background: rgba(34, 197, 94, 0.1);
   border: 1px dashed rgba(34, 197, 94, 0.4);
@@ -3241,7 +3241,7 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.75rem;
   font-size: 0.875rem;
-  color: #cbd5e1;
+  color: #1e293b;
 }
 
 .booking-item-actions {
@@ -3255,7 +3255,7 @@ body {
 .market-empty-state {
   text-align: center;
   padding: 3rem 1rem;
-  color: #94a3b8;
+  color: #475569;
   font-style: italic;
 }
 
@@ -3344,7 +3344,7 @@ body {
 
 .autocomplete-item .city-state {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: #475569;
 }
 
 .fuzzy-suggestions-box {
@@ -3383,7 +3383,7 @@ body {
 
 .schedule-disclaimer-notice {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: #475569;
   font-style: italic;
   margin-top: 0.25rem;
 }
@@ -3487,7 +3487,7 @@ body {
 
 .tracker-action-note {
   font-size: 0.84rem;
-  color: #cbd5e1;
+  color: #1e293b;
 }
 
 .tracker-blocked-reason {
@@ -3556,7 +3556,7 @@ body {
 
 .summary-metric .metric-sub {
   font-size: 0.72rem;
-  color: #94a3b8;
+  color: #475569;
 }
 
 .text-emerald {
@@ -3569,7 +3569,7 @@ body {
 
 .ledger-disclaimer-notice {
   font-size: 0.82rem;
-  color: #94a3b8;
+  color: #475569;
   font-style: italic;
   margin-bottom: 14px;
   padding: 8px 12px;
@@ -3602,7 +3602,7 @@ body {
 
 .badge-basis-demo {
   background: rgba(148, 163, 184, 0.15);
-  color: #cbd5e1;
+  color: #1e293b;
   border: 1px solid rgba(148, 163, 184, 0.35);
 }
 
@@ -3653,7 +3653,7 @@ body {
 
 .badge-status-requested {
   background: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
+  color: #0284c7;
   border: 1px solid rgba(56, 189, 248, 0.35);
 }
 
@@ -3666,7 +3666,7 @@ body {
 .timing-note-tag {
   display: block;
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: #475569;
   margin-top: 4px;
   font-style: italic;
 }
@@ -3806,7 +3806,7 @@ body {
 
 .chip-schedule-real {
   background: rgba(3, 105, 161, 0.2);
-  color: #38bdf8;
+  color: #0284c7;
   border: 1px solid rgba(56, 189, 248, 0.3);
   padding: 2px 8px;
   border-radius: 4px;
@@ -3837,7 +3837,7 @@ body {
 /* Phase 18A: Provider Portal & Admin Styles */
 .badge-provider {
   background: rgba(14, 165, 233, 0.2);
-  color: #38bdf8;
+  color: #0284c7;
   border: 1px solid rgba(56, 189, 248, 0.4);
   font-size: 0.75rem;
   padding: 0.2rem 0.5rem;
@@ -4153,7 +4153,7 @@ input:focus, select:focus, textarea:focus {
 .seat-sample.seat-taken, .seat-btn.seat-taken {
   background: #f1f5f9 !important;
   border-color: #e2e8f0 !important;
-  color: #94a3b8 !important;
+  color: #475569 !important;
 }
 
 .seat-sample.seat-selected, .seat-btn.seat-selected {
@@ -4283,4 +4283,200 @@ input:focus, select:focus, textarea:focus {
 label {
   color: #334155 !important;
   font-weight: 600 !important;
+}
+
+/* ==========================================================
+   Bus Seat Selection Layouts (Sleeper & 3+2 Seater)
+   ========================================================== */
+.bus-seat-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.bus-seat-step-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.bus-step-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bus-seat-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.78rem;
+  color: #334155;
+  font-weight: 600;
+}
+
+.bus-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.bus-legend-box {
+  width: 18px;
+  height: 14px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.bus-legend-box.avail {
+  background: #ffffff;
+  border: 1.5px solid #16a34a;
+  border-right: 4px solid #16a34a;
+}
+
+.bus-legend-box.taken {
+  background: #cbd5e1;
+  border: 1.5px solid #cbd5e1;
+}
+
+.bus-legend-box.selected {
+  background: #16a34a;
+  border: 1.5px solid #15803d;
+}
+
+.bus-deck-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  overflow-x: auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.bus-deck-sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding-right: 12px;
+  border-right: 1px dashed #e2e8f0;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.bus-steering-icon {
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bus-deck-label {
+  writing-mode: vertical-rl;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.bus-sleeper-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: 36px 36px 14px 36px;
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.bus-seater-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: 36px 36px 36px 16px 36px 36px;
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.bus-berth-btn {
+  width: 68px;
+  height: 36px;
+  border-radius: 4px;
+  background: #ffffff;
+  border: 1.5px solid #16a34a;
+  border-right: 6px solid #16a34a;
+  color: #0f172a;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.bus-berth-btn:hover:not(:disabled):not(.seat-selected) {
+  background: #f0fdf4;
+  transform: translateY(-1px);
+}
+
+.bus-seater-btn {
+  width: 40px;
+  height: 36px;
+  border-radius: 4px;
+  background: #ffffff;
+  border: 1.5px solid #16a34a;
+  border-right: 5px solid #16a34a;
+  color: #0f172a;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.bus-seater-btn:hover:not(:disabled):not(.seat-selected) {
+  background: #f0fdf4;
+  transform: translateY(-1px);
+}
+
+.bus-berth-btn.seat-taken,
+.bus-seater-btn.seat-taken {
+  background: #cbd5e1 !important;
+  border-color: #cbd5e1 !important;
+  border-right-color: #cbd5e1 !important;
+  color: #334155 !important;
+  cursor: not-allowed !important;
+}
+
+.bus-berth-btn.seat-selected,
+.bus-seater-btn.seat-selected {
+  background: #16a34a !important;
+  border-color: #15803d !important;
+  border-right-color: #15803d !important;
+  color: #ffffff !important;
+}
+
+.bus-aisle-spacer {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }

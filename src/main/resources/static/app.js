@@ -2816,8 +2816,8 @@
 
         <div id="plan-existing-cab-status" style="padding: 10px 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;">
           ${oldCab
-            ? `<span>⏳ Sending late-arrival verification to existing cab provider <strong>${escapeHtml(existingProviderName)}</strong>...</span>`
-            : `<span>ℹ️ No pre-booked cab provider found. Please select a new cab below to send a verification request.</span>`}
+        ? `<span>⏳ Sending late-arrival verification to existing cab provider <strong>${escapeHtml(existingProviderName)}</strong>...</span>`
+        : `<span>ℹ️ No pre-booked cab provider found. Please select a new cab below to send a verification request.</span>`}
         </div>
 
         <div id="plan-new-cab-options-panel" class="${oldCab ? 'hidden' : ''}" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
@@ -7576,30 +7576,165 @@
   function renderSeatGrid(service) {
     if (!elements.seatGrid) return;
     elements.seatGrid.innerHTML = '';
+    elements.seatGrid.style.display = 'block';
 
     const totalSeats = service.seatsTotal || 40;
-    const seatsAvailable = service.seatsLeft;
+    const seatsAvailable = service.seatsLeft != null ? service.seatsLeft : totalSeats;
     const takenCount = Math.max(0, totalSeats - seatsAvailable);
 
-    // Deterministically mark the first N taken seats as occupied
-    for (let i = 1; i <= Math.min(totalSeats, 40); i++) {
-      const row = Math.ceil(i / 4);
-      const colLetter = ['A', 'B', 'C', 'D'][(i - 1) % 4];
-      const seatNum = `${row}${colLetter}`;
+    const steeringSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><line x1="12" y1="3" x2="12" y2="9.5"/><line x1="4.5" y1="15.5" x2="9.8" y2="13"/><line x1="19.5" y1="15.5" x2="14.2" y2="13"/></svg>`;
 
-      const isTaken = i <= takenCount;
+    const desc = `${service.operator || ''} ${service.vehicleType || ''} ${service.scheduleLabel || ''}`.toLowerCase();
+    const isBus = !service.mode || service.mode === 'BUS';
+    const isSleeper = isBus && (desc.includes('sleeper') || totalSeats <= 36);
+
+    if (!isBus) {
+      // Train / non-bus fallback grid
+      const grid = document.createElement('div');
+      grid.style.cssText = 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;';
+      for (let i = 1; i <= Math.min(totalSeats, 40); i++) {
+        const row = Math.ceil(i / 4);
+        const colLetter = ['A', 'B', 'C', 'D'][(i - 1) % 4];
+        const seatNum = `${row}${colLetter}`;
+        const isTaken = i <= takenCount;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `seat-btn ${isTaken ? 'seat-taken' : ''}`;
+        btn.textContent = seatNum;
+        btn.disabled = isTaken;
+        btn.setAttribute('data-seat', seatNum);
+        if (!isTaken) btn.addEventListener('click', () => toggleSeatSelection(seatNum, btn));
+        grid.appendChild(btn);
+      }
+      elements.seatGrid.appendChild(grid);
+      return;
+    }
+
+    // Header bar with blue step 1 circle + Select Seat + Legend
+    const headerBar = document.createElement('div');
+    headerBar.className = 'bus-seat-header-bar';
+    headerBar.innerHTML = `
+      <div class="bus-seat-step-title">
+        <span class="bus-step-circle">1</span>
+        <span>Select Seat</span>
+      </div>
+      <div class="bus-seat-legend">
+        <span class="bus-legend-item"><span class="bus-legend-box avail"></span> Available</span>
+        <span class="bus-legend-item"><span class="bus-legend-box taken"></span> Booked</span>
+        <span class="bus-legend-item"><span class="bus-legend-box selected"></span> Selected</span>
+      </div>
+    `;
+    elements.seatGrid.appendChild(headerBar);
+
+    const makeSeatBtn = (seatNum, isTaken, isBerth) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = `seat-btn ${isTaken ? 'seat-taken' : ''}`;
+      btn.className = `${isBerth ? 'bus-berth-btn' : 'bus-seater-btn'} ${isTaken ? 'seat-taken' : ''}`;
       btn.textContent = seatNum;
       btn.disabled = isTaken;
-      btn.setAttribute('data-seat', seatNum);
-
+      btn.setAttribute('data-seat', String(seatNum));
       if (!isTaken) {
-        btn.addEventListener('click', () => toggleSeatSelection(seatNum, btn));
+        btn.addEventListener('click', () => toggleSeatSelection(String(seatNum), btn));
+      }
+      return btn;
+    };
+
+    if (isSleeper) {
+      const half = Math.ceil(totalSeats / 2);
+      const lowerTaken = Math.min(takenCount, Math.floor(takenCount * 0.6));
+      const upperTaken = Math.max(0, takenCount - lowerTaken);
+
+      const decks = [
+        { title: 'Lower Berth', start: 1, count: half, taken: lowerTaken, hasSteering: true },
+        { title: 'Upper Berth', start: half + 1, count: totalSeats - half, taken: upperTaken, hasSteering: false }
+      ];
+
+      decks.forEach(deck => {
+        if (deck.count <= 0) return;
+        const availCount = Math.max(0, deck.count - deck.taken);
+        const card = document.createElement('div');
+        card.className = 'bus-deck-card';
+
+        const sidebar = document.createElement('div');
+        sidebar.className = 'bus-deck-sidebar';
+        sidebar.innerHTML = `
+          ${deck.hasSteering ? `<div class="bus-steering-icon" title="Driver">${steeringSvg}</div>` : ''}
+          <div class="bus-deck-label">${deck.title} ( ${availCount} )</div>
+        `;
+        card.appendChild(sidebar);
+
+        const grid = document.createElement('div');
+        grid.className = 'bus-sleeper-grid';
+
+        const numCols = Math.ceil(deck.count / 3);
+        let seatIdx = 0;
+        for (let c = 0; c < numCols; c++) {
+          for (let r = 0; r < 4; r++) {
+            if (r === 2) {
+              const spacer = document.createElement('div');
+              spacer.className = 'bus-aisle-spacer';
+              grid.appendChild(spacer);
+              continue;
+            }
+            if (seatIdx < deck.count) {
+              const seatNum = deck.start + seatIdx;
+              const isTaken = seatIdx < deck.taken;
+              grid.appendChild(makeSeatBtn(seatNum, isTaken, true));
+              seatIdx++;
+            } else {
+              const empty = document.createElement('div');
+              grid.appendChild(empty);
+            }
+          }
+        }
+        card.appendChild(grid);
+        elements.seatGrid.appendChild(card);
+      });
+    } else {
+      // Non-Sleeper (3+2 Horizontal Seater Bus Layout)
+      const availCount = Math.max(0, totalSeats - takenCount);
+      const card = document.createElement('div');
+      card.className = 'bus-deck-card';
+
+      const sidebar = document.createElement('div');
+      sidebar.className = 'bus-deck-sidebar';
+      sidebar.innerHTML = `
+        <div class="bus-steering-icon" title="Driver">${steeringSvg}</div>
+        <div class="bus-deck-label">Seater ( ${availCount} )</div>
+      `;
+      card.appendChild(sidebar);
+
+      const grid = document.createElement('div');
+      grid.className = 'bus-seater-grid';
+
+      // Standard columns have 5 seats (3 top + aisle + 2 bottom); back row has 6 seats (no aisle gap)
+      const numRegularCols = Math.max(0, Math.ceil((totalSeats - 6) / 5));
+      const totalCols = numRegularCols + 1;
+      let seatIdx = 0;
+
+      for (let c = 0; c < totalCols; c++) {
+        const isLastCol = (c === totalCols - 1);
+        for (let r = 0; r < 6; r++) {
+          if (r === 3 && !isLastCol) {
+            const spacer = document.createElement('div');
+            spacer.className = 'bus-aisle-spacer';
+            grid.appendChild(spacer);
+            continue;
+          }
+          if (seatIdx < totalSeats) {
+            const seatNum = seatIdx + 1;
+            const isTaken = seatIdx < takenCount;
+            grid.appendChild(makeSeatBtn(seatNum, isTaken, false));
+            seatIdx++;
+          } else {
+            const empty = document.createElement('div');
+            grid.appendChild(empty);
+          }
+        }
       }
 
-      elements.seatGrid.appendChild(btn);
+      card.appendChild(grid);
+      elements.seatGrid.appendChild(card);
     }
   }
 
